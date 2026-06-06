@@ -95,6 +95,70 @@ func TestRecordInteractionUpdatesStateAndRejectsInvalidScore(t *testing.T) {
 	}
 }
 
+func TestRecordInteractionEmitsReviewAndMisconceptionEvents(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	mem := store.NewMemoryStore()
+	tenant, err := mem.CreateTenant(ctx, "Acme", "acme", "")
+	if err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	// Single-concept domain so concept selection is unambiguous across plans.
+	graph, err := mem.CreateDomain(ctx, tenant.ID, "trainer-1", "Go", "", "TRAINER",
+		[]core.ConceptDraft{{ID: "concept-a", Name: "HTTP", Difficulty: 0.4}}, nil)
+	if err != nil {
+		t.Fatalf("domain: %v", err)
+	}
+	engine := runtime.NewEngine(mem).WithClock(func() time.Time { return now })
+
+	// Failed interaction with an error type → MisconceptionDetected, no resolution yet.
+	d1, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan 1: %v", err)
+	}
+	delta1, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+		TenantID: tenant.ID, LearnerID: "l1", ActivityID: d1.Activity.ID, Success: false, Score: 0.1, ErrorType: "off_by_one",
+	})
+	if err != nil {
+		t.Fatalf("record 1: %v", err)
+	}
+	types1 := eventTypes(delta1.Events)
+	if !types1["MisconceptionDetected"] {
+		t.Fatalf("expected MisconceptionDetected after failed interaction, got %v", types1)
+	}
+	if types1["MisconceptionResolved"] {
+		t.Fatalf("did not expect MisconceptionResolved on first failure, got %v", types1)
+	}
+
+	// Successful follow-up on the now-due, previously-lapsed concept →
+	// ReviewCompleted + MisconceptionResolved.
+	d2, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan 2: %v", err)
+	}
+	delta2, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+		TenantID: tenant.ID, LearnerID: "l1", ActivityID: d2.Activity.ID, Success: true, Score: 0.95,
+	})
+	if err != nil {
+		t.Fatalf("record 2: %v", err)
+	}
+	types2 := eventTypes(delta2.Events)
+	if !types2["ReviewCompleted"] {
+		t.Fatalf("expected ReviewCompleted on due review, got %v", types2)
+	}
+	if !types2["MisconceptionResolved"] {
+		t.Fatalf("expected MisconceptionResolved after correcting a lapsed concept, got %v", types2)
+	}
+}
+
+func eventTypes(events []core.Event) map[string]bool {
+	out := map[string]bool{}
+	for _, e := range events {
+		out[e.EventType] = true
+	}
+	return out
+}
+
 func runtimeFixture(t *testing.T) (*store.MemoryStore, string, string) {
 	t.Helper()
 	ctx := context.Background()

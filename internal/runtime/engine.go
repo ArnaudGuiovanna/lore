@@ -260,6 +260,30 @@ func (e *Engine) PrepareInteractionDelta(ctx context.Context, cmd core.Interacti
 	if before.Mastery < MasteryThreshold && after.Mastery >= MasteryThreshold {
 		events = append(events, newEvent(cmd.TenantID, "ConceptMastered", "concept", after.ConceptID, now, map[string]any{"learner_id": cmd.LearnerID}))
 	}
+	// ReviewCompleted: a due review card existed (or the activity was an explicit
+	// review) and the learner just interacted with that concept.
+	if activity.ActivityType == core.ActivityReview || (before.DueAt != nil && !before.DueAt.After(now)) {
+		events = append(events, newEvent(cmd.TenantID, "ReviewCompleted", "review_card", after.ConceptID, now, map[string]any{
+			"learner_id": cmd.LearnerID,
+			"success":    success,
+			"score":      cmd.Score,
+		}))
+	}
+	// MisconceptionDetected: a failed interaction that reported a specific error
+	// type is evidence of a misconception on this concept.
+	if !success && cmd.ErrorType != "" {
+		events = append(events, newEvent(cmd.TenantID, "MisconceptionDetected", "concept", after.ConceptID, now, map[string]any{
+			"learner_id": cmd.LearnerID,
+			"error_type": cmd.ErrorType,
+		}))
+	}
+	// MisconceptionResolved: a concept that previously accumulated lapses (past
+	// failures) is now answered correctly.
+	if success && before.Lapses > 0 {
+		events = append(events, newEvent(cmd.TenantID, "MisconceptionResolved", "concept", after.ConceptID, now, map[string]any{
+			"learner_id": cmd.LearnerID,
+		}))
+	}
 	completed := activity
 	completed.Status = core.ActivityCompleted
 	completed.CompletedAt = &now
