@@ -211,6 +211,8 @@ CREATE TABLE generated_contents (
 
 CREATE TABLE llm_configurations (
     tenant_id UUID NOT NULL REFERENCES tenants(id),
+    scope_type TEXT NOT NULL DEFAULT 'tenant',
+    scope_id TEXT NOT NULL DEFAULT '',
     provider TEXT NOT NULL DEFAULT 'instruction_only',
     model TEXT NOT NULL DEFAULT 'runtime',
     base_url TEXT NOT NULL DEFAULT '',
@@ -219,7 +221,9 @@ CREATE TABLE llm_configurations (
     max_tokens INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (tenant_id)
+    PRIMARY KEY (tenant_id, scope_type, scope_id),
+    CHECK (scope_type IN ('tenant', 'program', 'cohort', 'learner')),
+    CHECK ((scope_type = 'tenant' AND scope_id = '') OR (scope_type <> 'tenant' AND scope_id <> ''))
 );
 
 CREATE TABLE interactions (

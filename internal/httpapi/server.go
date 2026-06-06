@@ -38,7 +38,7 @@ type Repository interface {
 	SaveGeneratedContent(ctx context.Context, content core.GeneratedContent) error
 	ListGeneratedContent(ctx context.Context, tenantID, instructionID string) ([]core.GeneratedContent, error)
 	GetGeneratedContent(ctx context.Context, tenantID, contentID string) (core.GeneratedContent, error)
-	GetLLMConfiguration(ctx context.Context, tenantID string) (core.LLMConfiguration, error)
+	GetLLMConfiguration(ctx context.Context, tenantID, scopeType, scopeID string) (core.LLMConfiguration, error)
 	SaveLLMConfiguration(ctx context.Context, config core.LLMConfiguration) (core.LLMConfiguration, error)
 	ListSnapshots(ctx context.Context, tenantID, learnerID string) ([]core.PedagogicalSnapshot, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID, idempotencyKey string) (core.IdempotencyRecord, error)
@@ -543,9 +543,15 @@ func (s *Server) snapshots(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getLLMConfig(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	config, err := s.store.GetLLMConfiguration(r.Context(), tenantID)
+	scopeType, scopeID, ok := llmConfigScopeFromRequest(w, r)
+	if !ok {
+		return
+	}
+	config, err := s.store.GetLLMConfiguration(r.Context(), tenantID, scopeType, scopeID)
 	if errors.Is(err, core.ErrNotFound) {
 		config = s.defaultLLMConfig(tenantID)
+		config.ScopeType = scopeType
+		config.ScopeID = scopeID
 	} else if err != nil {
 		handleError(w, err)
 		return
@@ -559,9 +565,15 @@ func (s *Server) putLLMConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tenantID := r.PathValue("tenant_id")
+	scopeType, scopeID, ok := llmConfigScopeFromRequest(w, r)
+	if !ok {
+		return
+	}
 	defaults := s.defaultLLMConfig(tenantID)
 	config := core.LLMConfiguration{
 		TenantID:    tenantID,
+		ScopeType:   scopeType,
+		ScopeID:     scopeID,
 		Provider:    req.Provider,
 		Model:       req.Model,
 		BaseURL:     req.BaseURL,
@@ -588,7 +600,7 @@ func (s *Server) generateContent(w http.ResponseWriter, r *http.Request) {
 		respond(w, nil, err, http.StatusOK)
 		return
 	}
-	content, err := s.generatorForTenant(r.Context(), tenantID).Generate(r.Context(), instruction)
+	content, err := s.generatorForInstruction(r.Context(), instruction, r).Generate(r.Context(), instruction)
 	if err == nil {
 		err = s.store.SaveGeneratedContent(r.Context(), content)
 	}
@@ -608,15 +620,15 @@ func (s *Server) getGeneratedContent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) defaultLLMConfig(tenantID string) core.LLMConfiguration {
 	s.configMu.RLock()
 	defer s.configMu.RUnlock()
-	return core.LLMConfiguration{TenantID: tenantID, Provider: s.llmProvider, Model: s.llmModel}
+	return core.LLMConfiguration{TenantID: tenantID, ScopeType: "tenant", Provider: s.llmProvider, Model: s.llmModel}
 }
 
-func (s *Server) generatorForTenant(ctx context.Context, tenantID string) llm.Generator {
-	config, err := s.store.GetLLMConfiguration(ctx, tenantID)
-	if err != nil {
+func (s *Server) generatorForInstruction(ctx context.Context, instruction core.TutorInstruction, r *http.Request) llm.Generator {
+	config := s.effectiveLLMConfig(ctx, instruction, r)
+	if config.Provider == "" && config.Model == "" && config.BaseURL == "" && config.APIKey == "" {
 		return s.generator
 	}
-	defaults := s.defaultLLMConfig(tenantID)
+	defaults := s.defaultLLMConfig(instruction.TenantID)
 	if config.Provider == "" {
 		config.Provider = defaults.Provider
 	}
@@ -632,8 +644,36 @@ func (s *Server) generatorForTenant(ctx context.Context, tenantID string) llm.Ge
 		OllamaBaseURL: config.BaseURL,
 		BaseURL:       config.BaseURL,
 		APIKey:        config.APIKey,
+		Temperature:   config.Temperature,
+		MaxTokens:     config.MaxTokens,
 		Client:        llm.GuardedHTTPClient(20 * time.Second),
 	})
+}
+
+func (s *Server) effectiveLLMConfig(ctx context.Context, instruction core.TutorInstruction, r *http.Request) core.LLMConfiguration {
+	tenantID := instruction.TenantID
+	queries := []struct {
+		scopeType string
+		scopeID   string
+	}{
+		{scopeType: "learner", scopeID: firstNonEmpty(r.URL.Query().Get("learner_id"), instruction.LearnerID)},
+		{scopeType: "cohort", scopeID: r.URL.Query().Get("cohort_id")},
+		{scopeType: "program", scopeID: r.URL.Query().Get("program_id")},
+		{scopeType: "tenant", scopeID: ""},
+	}
+	for _, query := range queries {
+		if query.scopeType != "tenant" && strings.TrimSpace(query.scopeID) == "" {
+			continue
+		}
+		config, err := s.store.GetLLMConfiguration(ctx, tenantID, query.scopeType, strings.TrimSpace(query.scopeID))
+		if err == nil {
+			return config
+		}
+		if !errors.Is(err, core.ErrNotFound) {
+			return core.LLMConfiguration{}
+		}
+	}
+	return core.LLMConfiguration{}
 }
 
 func publicLLMConfig(config core.LLMConfiguration) core.LLMConfiguration {
@@ -642,6 +682,37 @@ func publicLLMConfig(config core.LLMConfiguration) core.LLMConfiguration {
 	}
 	config.APIKey = ""
 	return config
+}
+
+func llmConfigScopeFromRequest(w http.ResponseWriter, r *http.Request) (string, string, bool) {
+	scopeType := strings.ToLower(strings.TrimSpace(firstNonEmpty(r.URL.Query().Get("scope_type"), "tenant")))
+	scopeID := strings.TrimSpace(r.URL.Query().Get("scope_id"))
+	switch scopeType {
+	case "tenant":
+		if scopeID != "" {
+			problem(w, http.StatusBadRequest, "tenant-scoped LLM configuration must not set scope_id")
+			return "", "", false
+		}
+		return "tenant", "", true
+	case "program", "cohort", "learner":
+		if scopeID == "" {
+			problem(w, http.StatusBadRequest, "scope_id is required for program, cohort, and learner LLM configuration")
+			return "", "", false
+		}
+		return scopeType, scopeID, true
+	default:
+		problem(w, http.StatusBadRequest, "scope_type must be tenant, program, cohort, or learner")
+		return "", "", false
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (s *Server) outboxEvents(w http.ResponseWriter, r *http.Request) {

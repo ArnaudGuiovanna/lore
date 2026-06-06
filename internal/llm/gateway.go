@@ -23,6 +23,8 @@ type ProviderConfig struct {
 	OllamaBaseURL string
 	BaseURL       string
 	APIKey        string
+	Temperature   float64
+	MaxTokens     int
 	Client        *http.Client
 }
 
@@ -52,9 +54,11 @@ func (g InstructionOnlyGenerator) Generate(_ context.Context, instruction core.T
 }
 
 type OllamaGenerator struct {
-	BaseURL string
-	Model   string
-	Client  *http.Client
+	BaseURL     string
+	Model       string
+	Temperature float64
+	MaxTokens   int
+	Client      *http.Client
 }
 
 func (g OllamaGenerator) Generate(ctx context.Context, instruction core.TutorInstruction) (core.GeneratedContent, error) {
@@ -66,11 +70,22 @@ func (g OllamaGenerator) Generate(ctx context.Context, instruction core.TutorIns
 	if err != nil {
 		return core.GeneratedContent{}, err
 	}
-	body, err := json.Marshal(map[string]any{
+	payload := map[string]any{
 		"model":  fallback(g.Model, "gemma4"),
 		"prompt": "Generate learner-facing content from this LORE TutorInstruction. Do not decide mastery or next steps.\n\n" + string(prompt),
 		"stream": false,
-	})
+	}
+	options := map[string]any{}
+	if g.Temperature > 0 {
+		options["temperature"] = g.Temperature
+	}
+	if g.MaxTokens > 0 {
+		options["num_predict"] = g.MaxTokens
+	}
+	if len(options) > 0 {
+		payload["options"] = options
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return core.GeneratedContent{}, err
 	}
@@ -133,19 +148,19 @@ func NewGeneratorFromConfig(cfg ProviderConfig) Generator {
 		return InstructionOnlyGenerator{Provider: fallback(cfg.Provider, "instruction_only"), Model: fallback(cfg.Model, "runtime")}
 	case "", "ollama":
 		return FallbackGenerator{
-			Primary:  OllamaGenerator{BaseURL: cfg.OllamaBaseURL, Model: cfg.Model, Client: cfg.Client},
+			Primary:  OllamaGenerator{BaseURL: cfg.OllamaBaseURL, Model: cfg.Model, Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens, Client: cfg.Client},
 			Fallback: fallbackGen,
 		}
 	case "openai":
-		return FallbackGenerator{Primary: OpenAIGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Client: cfg.Client}, Fallback: fallbackGen}
+		return FallbackGenerator{Primary: OpenAIGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens, Client: cfg.Client}, Fallback: fallbackGen}
 	case "mistral":
-		return FallbackGenerator{Primary: MistralGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Client: cfg.Client}, Fallback: fallbackGen}
+		return FallbackGenerator{Primary: MistralGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens, Client: cfg.Client}, Fallback: fallbackGen}
 	case "anthropic":
-		return FallbackGenerator{Primary: AnthropicGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Client: cfg.Client}, Fallback: fallbackGen}
+		return FallbackGenerator{Primary: AnthropicGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens, Client: cfg.Client}, Fallback: fallbackGen}
 	case "gemini":
-		return FallbackGenerator{Primary: GeminiGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Client: cfg.Client}, Fallback: fallbackGen}
+		return FallbackGenerator{Primary: GeminiGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens, Client: cfg.Client}, Fallback: fallbackGen}
 	case "custom":
-		return FallbackGenerator{Primary: CustomGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Client: cfg.Client}, Fallback: fallbackGen}
+		return FallbackGenerator{Primary: CustomGenerator{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, Temperature: cfg.Temperature, MaxTokens: cfg.MaxTokens, Client: cfg.Client}, Fallback: fallbackGen}
 	default:
 		return fallbackGen
 	}

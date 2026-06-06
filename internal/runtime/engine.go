@@ -17,6 +17,7 @@ import (
 type Store interface {
 	GetDomainGraph(ctx context.Context, tenantID, domainID string) (core.DomainGraph, error)
 	GetLearnerStates(ctx context.Context, tenantID, learnerID, domainID string) ([]core.LearnerState, error)
+	ListActiveMisconceptions(ctx context.Context, tenantID, learnerID, domainID string) ([]core.Misconception, error)
 	GetRecentInteractions(ctx context.Context, tenantID, learnerID, domainID string, limit int) ([]core.Interaction, error)
 	SavePlannedActivity(ctx context.Context, activity core.Activity, instruction core.TutorInstruction, snapshot core.PedagogicalSnapshot, events []core.Event) error
 	GetActivity(ctx context.Context, tenantID, activityID string) (core.Activity, core.TutorInstruction, error)
@@ -83,10 +84,21 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 	if err != nil {
 		return core.RuntimeDecision{}, err
 	}
+	misconceptions, err := e.store.ListActiveMisconceptions(ctx, in.TenantID, in.LearnerID, in.DomainID)
+	if err != nil {
+		return core.RuntimeDecision{}, err
+	}
 
 	phase := evaluatePhase(graph.Concepts, stateByConcept, now)
-	selection := selectConcept(graph, stateByConcept, recent, now, in.LearnerID, in.Intent, phase)
-	activityType := selectActivity(selection.State, selection.Reason, in.Intent, phase)
+	selection := conceptSelection{}
+	activityType := core.ActivityType("")
+	if failures := consecutiveFailuresByLearner(recent)[in.LearnerID]; failures >= 3 {
+		selection = overloadEscapeConcept(graph, stateByConcept, recent, now, in.LearnerID, failures)
+		activityType = core.ActivityRest
+	} else {
+		selection = selectConcept(graph, stateByConcept, recent, misconceptions, now, in.LearnerID, in.Intent, phase)
+		activityType = selectActivity(selection.State, selection.Reason, in.Intent, phase, selection.ActiveMisconception)
+	}
 	difficulty := clamp(0.35+selection.State.Mastery*0.55, 0.35, 0.95)
 	rationale := fmt.Sprintf("%s; phase=%s; recent_interactions=%d", selection.Reason, phase, len(recent))
 
@@ -134,6 +146,13 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 		},
 		CreatedAt: now,
 	}
+	if selection.ActiveMisconception {
+		instruction.Context["misconception"] = map[string]any{
+			"id":          selection.Misconception.ID,
+			"description": selection.Misconception.Description,
+			"severity":    selection.Misconception.Severity,
+		}
+	}
 	snapshot := core.PedagogicalSnapshot{
 		TenantID:   in.TenantID,
 		ID:         ids.New(),
@@ -151,6 +170,9 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 			"audit_rationale": rationale,
 		},
 		CreatedAt: now,
+	}
+	if selection.ActiveMisconception {
+		snapshot.Decision["misconception_id"] = selection.Misconception.ID
 	}
 	events := []core.Event{
 		newEvent(in.TenantID, "ActivityPlanned", "activity", activityID, now, map[string]any{"learner_id": in.LearnerID, "domain_id": in.DomainID}),
@@ -210,6 +232,10 @@ func (e *Engine) PrepareInteractionDelta(ctx context.Context, cmd core.Interacti
 		}
 	}
 	before.Retention = Retention(before.Stability, before.DueAt, now)
+	activeMisconceptions, err := e.store.ListActiveMisconceptions(ctx, cmd.TenantID, cmd.LearnerID, activity.DomainID)
+	if err != nil {
+		return core.StateDelta{}, core.Activity{}, err
+	}
 
 	success := cmd.Success || cmd.Score >= 0.60
 	after := BKTUpdate(before, success)
@@ -271,6 +297,7 @@ func (e *Engine) PrepareInteractionDelta(ctx context.Context, cmd core.Interacti
 		newEvent(cmd.TenantID, "LearnerStateUpdated", "learner_state", after.ConceptID, now, map[string]any{"learner_id": cmd.LearnerID, "mastery": after.Mastery}),
 		newEvent(cmd.TenantID, "ReviewScheduled", "review_card", after.ConceptID, now, map[string]any{"learner_id": cmd.LearnerID, "due_at": after.DueAt}),
 	}
+	var misconceptionChanges []core.Misconception
 	if before.Mastery < MasteryThreshold && after.Mastery >= MasteryThreshold {
 		events = append(events, newEvent(cmd.TenantID, "ConceptMastered", "concept", after.ConceptID, now, map[string]any{"learner_id": cmd.LearnerID}))
 	}
@@ -283,17 +310,58 @@ func (e *Engine) PrepareInteractionDelta(ctx context.Context, cmd core.Interacti
 			"score":      cmd.Score,
 		}))
 	}
+	if activity.ActivityType == core.ActivityAssessment {
+		events = append(events, newEvent(cmd.TenantID, "AssessmentCompleted", "activity", cmd.ActivityID, now, map[string]any{
+			"learner_id":      cmd.LearnerID,
+			"concept_id":      after.ConceptID,
+			"interaction_id":  interaction.ID,
+			"evaluation_id":   evaluation.ID,
+			"success":         success,
+			"score":           cmd.Score,
+			"mastery":         after.Mastery,
+			"runtime_scored":  true,
+			"activity_type":   activity.ActivityType,
+			"assessment_kind": instruction.Context["assessment_kind"],
+		}))
+	}
 	// MisconceptionDetected: a failed interaction that reported a specific error
 	// type is evidence of a misconception on this concept.
 	if !success && cmd.ErrorType != "" {
+		misconception, existed := findActiveMisconception(activeMisconceptions, after.ConceptID, cmd.ErrorType)
+		if !existed {
+			misconception = core.Misconception{
+				TenantID:    cmd.TenantID,
+				ID:          ids.New(),
+				LearnerID:   cmd.LearnerID,
+				ConceptID:   after.ConceptID,
+				Description: cmd.ErrorType,
+				Severity:    clamp(1-cmd.Score, 0.10, 1),
+				Status:      "ACTIVE",
+				CreatedAt:   now,
+			}
+			misconceptionChanges = append(misconceptionChanges, misconception)
+		}
 		events = append(events, newEvent(cmd.TenantID, "MisconceptionDetected", "concept", after.ConceptID, now, map[string]any{
-			"learner_id": cmd.LearnerID,
-			"error_type": cmd.ErrorType,
+			"learner_id":       cmd.LearnerID,
+			"error_type":       cmd.ErrorType,
+			"misconception_id": misconception.ID,
 		}))
 	}
 	// MisconceptionResolved: a concept that previously accumulated lapses (past
 	// failures) is now answered correctly.
-	if success && before.Lapses > 0 {
+	resolvedMisconceptions := 0
+	if success {
+		for _, misconception := range activeMisconceptionsForConcept(activeMisconceptions, after.ConceptID) {
+			misconception.Status = "RESOLVED"
+			misconceptionChanges = append(misconceptionChanges, misconception)
+			resolvedMisconceptions++
+			events = append(events, newEvent(cmd.TenantID, "MisconceptionResolved", "concept", after.ConceptID, now, map[string]any{
+				"learner_id":       cmd.LearnerID,
+				"misconception_id": misconception.ID,
+			}))
+		}
+	}
+	if success && before.Lapses > 0 && resolvedMisconceptions == 0 {
 		events = append(events, newEvent(cmd.TenantID, "MisconceptionResolved", "concept", after.ConceptID, now, map[string]any{
 			"learner_id": cmd.LearnerID,
 		}))
@@ -303,12 +371,13 @@ func (e *Engine) PrepareInteractionDelta(ctx context.Context, cmd core.Interacti
 	completed.CompletedAt = &now
 
 	delta := core.StateDelta{
-		Interaction: interaction,
-		Evaluation:  evaluation,
-		Before:      before,
-		After:       after,
-		Snapshot:    snapshot,
-		Events:      events,
+		Interaction:    interaction,
+		Evaluation:     evaluation,
+		Before:         before,
+		After:          after,
+		Snapshot:       snapshot,
+		Misconceptions: misconceptionChanges,
+		Events:         events,
 	}
 	return delta, completed, nil
 }
@@ -318,12 +387,14 @@ func (e *Engine) GetLearnerModel(ctx context.Context, tenantID, learnerID string
 }
 
 type conceptSelection struct {
-	Concept core.Concept
-	State   core.LearnerState
-	Reason  string
+	Concept             core.Concept
+	State               core.LearnerState
+	Reason              string
+	ActiveMisconception bool
+	Misconception       core.Misconception
 }
 
-func selectConcept(graph core.DomainGraph, states map[string]core.LearnerState, recent []core.Interaction, now time.Time, learnerID, intent string, phase core.Phase) conceptSelection {
+func selectConcept(graph core.DomainGraph, states map[string]core.LearnerState, recent []core.Interaction, misconceptions []core.Misconception, now time.Time, learnerID, intent string, phase core.Phase) conceptSelection {
 	concepts := append([]core.Concept(nil), graph.Concepts...)
 	sort.Slice(concepts, func(i, j int) bool {
 		if concepts[i].Name == concepts[j].Name {
@@ -332,6 +403,11 @@ func selectConcept(graph core.DomainGraph, states map[string]core.LearnerState, 
 		return concepts[i].Name < concepts[j].Name
 	})
 	prereqs := PrerequisitesByChild(graph.Dependencies)
+	if intent != "review" {
+		if selected, ok := activeMisconceptionConcept(graph, concepts, states, misconceptions, prereqs, now, learnerID); ok {
+			return selected
+		}
+	}
 
 	if intent == "review" {
 		if selected, ok := earliestDue(concepts, states, now); ok {
@@ -413,6 +489,82 @@ func missingEvidenceConcept(graph core.DomainGraph, concepts []core.Concept, sta
 		}
 	}
 	return best, best.Concept.ID != ""
+}
+
+func activeMisconceptionConcept(graph core.DomainGraph, concepts []core.Concept, states map[string]core.LearnerState, misconceptions []core.Misconception, prereqs map[string][]string, now time.Time, learnerID string) (conceptSelection, bool) {
+	conceptByID := make(map[string]core.Concept, len(concepts))
+	for _, concept := range concepts {
+		conceptByID[concept.ID] = concept
+	}
+	var best core.Misconception
+	for _, misconception := range misconceptions {
+		if misconception.Status != "ACTIVE" {
+			continue
+		}
+		concept, ok := conceptByID[misconception.ConceptID]
+		if !ok {
+			continue
+		}
+		if !prerequisitesSatisfied(prereqs[concept.ID], states, now) {
+			continue
+		}
+		if best.ID == "" ||
+			misconception.Severity > best.Severity ||
+			(misconception.Severity == best.Severity && misconception.CreatedAt.Before(best.CreatedAt)) ||
+			(misconception.Severity == best.Severity && misconception.CreatedAt.Equal(best.CreatedAt) && misconception.ID < best.ID) {
+			best = misconception
+		}
+	}
+	if best.ID == "" {
+		return conceptSelection{}, false
+	}
+	concept := conceptByID[best.ConceptID]
+	return conceptSelection{
+		Concept:             concept,
+		State:               stateFor(graph.Domain, concept, states, now, learnerID),
+		Reason:              fmt.Sprintf("misconception lock: active misconception severity=%.3f", best.Severity),
+		ActiveMisconception: true,
+		Misconception:       best,
+	}, true
+}
+
+func overloadEscapeConcept(graph core.DomainGraph, states map[string]core.LearnerState, recent []core.Interaction, now time.Time, learnerID string, failures int) conceptSelection {
+	conceptByID := make(map[string]core.Concept, len(graph.Concepts))
+	for _, concept := range graph.Concepts {
+		conceptByID[concept.ID] = concept
+	}
+	ordered := append([]core.Interaction(nil), recent...)
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].CreatedAt.Equal(ordered[j].CreatedAt) {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].CreatedAt.After(ordered[j].CreatedAt)
+	})
+	for _, interaction := range ordered {
+		if interaction.LearnerID != learnerID || interaction.Success {
+			continue
+		}
+		if concept, ok := conceptByID[interaction.ConceptID]; ok {
+			return conceptSelection{
+				Concept: concept,
+				State:   stateFor(graph.Domain, concept, states, now, learnerID),
+				Reason:  fmt.Sprintf("overload escape: %d consecutive failures", failures),
+			}
+		}
+	}
+	concepts := append([]core.Concept(nil), graph.Concepts...)
+	sort.Slice(concepts, func(i, j int) bool {
+		if concepts[i].Name == concepts[j].Name {
+			return concepts[i].ID < concepts[j].ID
+		}
+		return concepts[i].Name < concepts[j].Name
+	})
+	concept := concepts[0]
+	return conceptSelection{
+		Concept: concept,
+		State:   stateFor(graph.Domain, concept, states, now, learnerID),
+		Reason:  fmt.Sprintf("overload escape: %d consecutive failures", failures),
+	}
 }
 
 func recentConceptWindow(recent []core.Interaction, limit int) map[string]bool {
@@ -514,9 +666,12 @@ func evaluatePhase(concepts []core.Concept, states map[string]core.LearnerState,
 	return core.PhaseInstruction
 }
 
-func selectActivity(state core.LearnerState, reason, intent string, phase core.Phase) core.ActivityType {
+func selectActivity(state core.LearnerState, reason, intent string, phase core.Phase, activeMisconception bool) core.ActivityType {
 	if intent == "assessment" {
 		return core.ActivityAssessment
+	}
+	if activeMisconception {
+		return core.ActivityMisconception
 	}
 	if phase == core.PhaseDiagnostic || intent == "diagnostic" {
 		return core.ActivityAssessment
@@ -531,9 +686,30 @@ func selectActivity(state core.LearnerState, reason, intent string, phase core.P
 		return core.ActivityGuidedPractice
 	case state.Mastery < MasteryThreshold:
 		return core.ActivityFreePractice
+	case state.Mastery >= 0.95 && state.Retention >= 0.85:
+		return core.ActivityTransfer
 	default:
 		return core.ActivityAssessment
 	}
+}
+
+func findActiveMisconception(misconceptions []core.Misconception, conceptID, description string) (core.Misconception, bool) {
+	for _, misconception := range misconceptions {
+		if misconception.Status == "ACTIVE" && misconception.ConceptID == conceptID && misconception.Description == description {
+			return misconception, true
+		}
+	}
+	return core.Misconception{}, false
+}
+
+func activeMisconceptionsForConcept(misconceptions []core.Misconception, conceptID string) []core.Misconception {
+	var result []core.Misconception
+	for _, misconception := range misconceptions {
+		if misconception.Status == "ACTIVE" && misconception.ConceptID == conceptID {
+			result = append(result, misconception)
+		}
+	}
+	return result
 }
 
 func allowedVariants(activityType core.ActivityType) []string {
@@ -548,6 +724,12 @@ func allowedVariants(activityType core.ActivityType) []string {
 		return []string{"retrieval_practice", "spaced_recall", "error_correction"}
 	case core.ActivityAssessment:
 		return []string{"mastery_challenge", "feynman_prompt", "transfer_probe"}
+	case core.ActivityMisconception:
+		return []string{"error_diagnosis", "counterexample", "repair_exercise"}
+	case core.ActivityTransfer:
+		return []string{"transfer_probe", "novel_context", "feynman_teach_back"}
+	case core.ActivityRest:
+		return []string{"recovery_prompt", "metacognitive_check", "reduced_load_review"}
 	default:
 		return []string{"runtime_instruction"}
 	}

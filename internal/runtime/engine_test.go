@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,6 +96,117 @@ func TestRecordInteractionUpdatesStateAndRejectsInvalidScore(t *testing.T) {
 	}
 }
 
+func TestPlanNextEscapesOverloadAfterConsecutiveFailures(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	mem := store.NewMemoryStore()
+	tenant, err := mem.CreateTenant(ctx, "Acme", "acme", "")
+	if err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	graph, err := mem.CreateDomain(ctx, tenant.ID, "trainer-1", "Go", "", "TRAINER",
+		[]core.ConceptDraft{{ID: "concept-a", Name: "HTTP", Difficulty: 0.4}}, nil)
+	if err != nil {
+		t.Fatalf("domain: %v", err)
+	}
+	engine := runtime.NewEngine(mem).WithClock(func() time.Time { return now })
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+			TenantID: tenant.ID, LearnerID: "l1", ActivityID: decision.Activity.ID, Success: false, Score: 0.10,
+		}); err != nil {
+			t.Fatalf("record failed interaction %d: %v", i, err)
+		}
+	}
+
+	recovery, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("recovery plan: %v", err)
+	}
+	if recovery.Activity.ActivityType != core.ActivityRest {
+		t.Fatalf("expected overload recovery activity, got %s", recovery.Activity.ActivityType)
+	}
+	if !strings.Contains(recovery.Activity.AuditRationale, "overload escape") {
+		t.Fatalf("expected overload rationale, got %q", recovery.Activity.AuditRationale)
+	}
+}
+
+func TestPlanNextAppliesAntiRepeatDuringInstruction(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	mem := store.NewMemoryStore()
+	tenant, err := mem.CreateTenant(ctx, "Acme", "acme", "")
+	if err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	graph, err := mem.CreateDomain(ctx, tenant.ID, "trainer-1", "Go", "", "TRAINER", []core.ConceptDraft{
+		{ID: "c1", Name: "A", Difficulty: 0.5},
+		{ID: "c2", Name: "B", Difficulty: 0.5},
+		{ID: "c3", Name: "C", Difficulty: 0.5},
+		{ID: "c4", Name: "D", Difficulty: 0.5},
+	}, nil)
+	if err != nil {
+		t.Fatalf("domain: %v", err)
+	}
+	engine := runtime.NewEngine(mem).WithClock(func() time.Time { return now })
+	for _, wantConcept := range []string{"c1", "c2", "c3", "c4"} {
+		decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
+		if err != nil {
+			t.Fatalf("plan diagnostic for %s: %v", wantConcept, err)
+		}
+		if decision.Activity.ConceptID != wantConcept {
+			t.Fatalf("diagnostic order drifted: got %s want %s", decision.Activity.ConceptID, wantConcept)
+		}
+		if _, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+			TenantID: tenant.ID, LearnerID: "l1", ActivityID: decision.Activity.ID, Success: true, Score: 0.80,
+		}); err != nil {
+			t.Fatalf("record diagnostic for %s: %v", wantConcept, err)
+		}
+		now = now.Add(time.Minute)
+	}
+
+	next, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan instruction: %v", err)
+	}
+	if next.TutorInstruction.Context["phase"] != core.PhaseInstruction {
+		t.Fatalf("expected instruction phase, got %+v", next.TutorInstruction.Context["phase"])
+	}
+	if next.Activity.ConceptID != "c1" {
+		t.Fatalf("expected anti-repeat to select oldest non-recent concept c1, got %s (%s)", next.Activity.ConceptID, next.Activity.AuditRationale)
+	}
+	if strings.Contains(next.Activity.AuditRationale, "anti-repeat penalty") {
+		t.Fatalf("selected concept should not have been recently penalized: %s", next.Activity.AuditRationale)
+	}
+}
+
+func TestComputeAlertsDetectsPlateauZPDDriftAndOverload(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	alerts := runtime.ComputeAlerts([]core.LearnerState{
+		{
+			TenantID: "tenant", LearnerID: "l1", DomainID: "domain", ConceptID: "plateau",
+			Mastery: 0.40, Reps: 4, CardState: core.ReviewReview, Stability: 4, Difficulty: 5,
+		},
+		{
+			TenantID: "tenant", LearnerID: "l1", DomainID: "domain", ConceptID: "zpd",
+			Mastery: 0.70, Reps: 2, CardState: core.ReviewReview, Stability: 4, Ability: -1, Difficulty: 8,
+		},
+	}, []core.Interaction{
+		{TenantID: "tenant", LearnerID: "l1", ConceptID: "plateau", Success: false, CreatedAt: now},
+		{TenantID: "tenant", LearnerID: "l1", ConceptID: "plateau", Success: false, CreatedAt: now.Add(-time.Minute)},
+		{TenantID: "tenant", LearnerID: "l1", ConceptID: "plateau", Success: false, CreatedAt: now.Add(-2 * time.Minute)},
+	}, now)
+	types := alertTypes(alerts)
+	for _, want := range []string{"Plateau", "ZPDDrift", "Overload"} {
+		if !types[want] {
+			t.Fatalf("missing alert %s in %+v", want, alerts)
+		}
+	}
+}
+
 func TestRecordInteractionEmitsReviewAndMisconceptionEvents(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
@@ -129,12 +241,28 @@ func TestRecordInteractionEmitsReviewAndMisconceptionEvents(t *testing.T) {
 	if types1["MisconceptionResolved"] {
 		t.Fatalf("did not expect MisconceptionResolved on first failure, got %v", types1)
 	}
+	if len(delta1.Misconceptions) != 1 || delta1.Misconceptions[0].Status != "ACTIVE" {
+		t.Fatalf("expected one active misconception change, got %+v", delta1.Misconceptions)
+	}
+	active, err := mem.ListActiveMisconceptions(ctx, tenant.ID, "l1", graph.Domain.ID)
+	if err != nil {
+		t.Fatalf("list active misconceptions: %v", err)
+	}
+	if len(active) != 1 || active[0].Description != "off_by_one" {
+		t.Fatalf("active misconception not persisted: %+v", active)
+	}
 
 	// Successful follow-up on the now-due, previously-lapsed concept →
 	// ReviewCompleted + MisconceptionResolved.
 	d2, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "l1", DomainID: graph.Domain.ID})
 	if err != nil {
 		t.Fatalf("plan 2: %v", err)
+	}
+	if d2.Activity.ActivityType != core.ActivityMisconception {
+		t.Fatalf("expected active misconception to be planned before review, got %s", d2.Activity.ActivityType)
+	}
+	if got := d2.TutorInstruction.Context["misconception"]; got == nil {
+		t.Fatalf("misconception context missing from tutor instruction: %+v", d2.TutorInstruction.Context)
 	}
 	delta2, err := engine.RecordInteraction(ctx, core.InteractionCommand{
 		TenantID: tenant.ID, LearnerID: "l1", ActivityID: d2.Activity.ID, Success: true, Score: 0.95,
@@ -149,12 +277,27 @@ func TestRecordInteractionEmitsReviewAndMisconceptionEvents(t *testing.T) {
 	if !types2["MisconceptionResolved"] {
 		t.Fatalf("expected MisconceptionResolved after correcting a lapsed concept, got %v", types2)
 	}
+	active, err = mem.ListActiveMisconceptions(ctx, tenant.ID, "l1", graph.Domain.ID)
+	if err != nil {
+		t.Fatalf("list active misconceptions after resolution: %v", err)
+	}
+	if len(active) != 0 {
+		t.Fatalf("misconception should have been resolved, still active: %+v", active)
+	}
 }
 
 func eventTypes(events []core.Event) map[string]bool {
 	out := map[string]bool{}
 	for _, e := range events {
 		out[e.EventType] = true
+	}
+	return out
+}
+
+func alertTypes(alerts []core.Alert) map[string]bool {
+	out := map[string]bool{}
+	for _, alert := range alerts {
+		out[alert.AlertType] = true
 	}
 	return out
 }

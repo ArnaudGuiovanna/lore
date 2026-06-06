@@ -96,6 +96,15 @@ func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID stri
 	}
 	var membership core.Membership
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		var existed bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM memberships
+				WHERE tenant_id = $1 AND user_id = $2
+			)
+		`, tenantID, userID).Scan(&existed); err != nil {
+			return err
+		}
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO memberships (tenant_id, user_id, role)
 			VALUES ($1, $2, $3)
@@ -103,6 +112,15 @@ func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID stri
 			RETURNING tenant_id::text, user_id::text, role, status, created_at
 		`, tenantID, userID, string(role)).Scan(&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt); err != nil {
 			return err
+		}
+		if !existed {
+			var email string
+			if err := tx.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email); err != nil {
+				return err
+			}
+			if err := insertEvent(ctx, tx, newStoreEvent(tenantID, "UserCreated", "user", userID, membership.CreatedAt, map[string]any{"user_id": userID, "email": email})); err != nil {
+				return err
+			}
 		}
 		return insertEvent(ctx, tx, newStoreEvent(tenantID, "MembershipChanged", "membership", userID, membership.CreatedAt, map[string]any{"user_id": userID, "role": string(membership.Role)}))
 	})
@@ -281,7 +299,10 @@ func (s *PostgresStore) CreateDomain(ctx context.Context, tenantID, ownerID, nam
 				return err
 			}
 		}
-		return insertEvent(ctx, tx, newStoreEvent(tenantID, "DomainCreated", "domain", domain.ID, now, map[string]any{"name": domain.Name}))
+		if err := insertEvent(ctx, tx, newStoreEvent(tenantID, "DomainCreated", "domain", domain.ID, now, map[string]any{"name": domain.Name})); err != nil {
+			return err
+		}
+		return insertEvent(ctx, tx, newStoreEvent(tenantID, "ConceptGraphPublished", "domain", domain.ID, now, map[string]any{"graph_version": domain.GraphVersion}))
 	})
 	if err != nil {
 		return core.DomainGraph{}, pgErr(err)
@@ -396,6 +417,32 @@ func (s *PostgresStore) GetLearnerStates(ctx context.Context, tenantID, learnerI
 
 func (s *PostgresStore) ListLearnerState(ctx context.Context, tenantID, learnerID string) ([]core.LearnerState, error) {
 	return s.queryLearnerStates(ctx, tenantID, `WHERE tenant_id = $1 AND learner_id = $2 ORDER BY domain_id, concept_id`, tenantID, learnerID)
+}
+
+func (s *PostgresStore) ListActiveMisconceptions(ctx context.Context, tenantID, learnerID, domainID string) ([]core.Misconception, error) {
+	var misconceptions []core.Misconception
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT m.tenant_id::text, m.id::text, m.learner_id::text, m.concept_id::text, m.description, m.severity, m.status, m.created_at
+			FROM misconceptions m
+			JOIN concepts c ON c.tenant_id = m.tenant_id AND c.id = m.concept_id
+			WHERE m.tenant_id = $1 AND m.learner_id = $2 AND c.domain_id = $3 AND m.status = 'ACTIVE'
+			ORDER BY m.severity DESC, m.created_at, m.id
+		`, tenantID, learnerID, domainID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var misconception core.Misconception
+			if err := rows.Scan(&misconception.TenantID, &misconception.ID, &misconception.LearnerID, &misconception.ConceptID, &misconception.Description, &misconception.Severity, &misconception.Status, &misconception.CreatedAt); err != nil {
+				return err
+			}
+			misconceptions = append(misconceptions, misconception)
+		}
+		return rows.Err()
+	})
+	return misconceptions, pgErr(err)
 }
 
 func (s *PostgresStore) ListDueReviews(ctx context.Context, tenantID, learnerID string, now time.Time) ([]core.ReviewCard, error) {
@@ -590,6 +637,9 @@ func saveInteractionDeltaTx(ctx context.Context, tx pgx.Tx, delta core.StateDelt
 	if err := upsertReviewCard(ctx, tx, delta.After); err != nil {
 		return err
 	}
+	if err := saveMisconceptionChanges(ctx, tx, delta.Misconceptions); err != nil {
+		return err
+	}
 	if err := insertSnapshot(ctx, tx, delta.Snapshot); err != nil {
 		return err
 	}
@@ -674,14 +724,18 @@ func (s *PostgresStore) GetGeneratedContent(ctx context.Context, tenantID, conte
 	return content, pgErr(err)
 }
 
-func (s *PostgresStore) GetLLMConfiguration(ctx context.Context, tenantID string) (core.LLMConfiguration, error) {
+func (s *PostgresStore) GetLLMConfiguration(ctx context.Context, tenantID, scopeType, scopeID string) (core.LLMConfiguration, error) {
+	scopeType, scopeID, err := normalizeLLMScope(scopeType, scopeID)
+	if err != nil {
+		return core.LLMConfiguration{}, err
+	}
 	var config core.LLMConfiguration
-	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+	err = s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT tenant_id::text, provider, model, base_url, api_key, temperature, max_tokens, created_at, updated_at
+			SELECT tenant_id::text, scope_type, scope_id, provider, model, base_url, api_key, temperature, max_tokens, created_at, updated_at
 			FROM llm_configurations
-			WHERE tenant_id = $1
-		`, tenantID).Scan(&config.TenantID, &config.Provider, &config.Model, &config.BaseURL, &config.APIKey, &config.Temperature, &config.MaxTokens, &config.CreatedAt, &config.UpdatedAt)
+			WHERE tenant_id = $1 AND scope_type = $2 AND scope_id = $3
+		`, tenantID, scopeType, scopeID).Scan(&config.TenantID, &config.ScopeType, &config.ScopeID, &config.Provider, &config.Model, &config.BaseURL, &config.APIKey, &config.Temperature, &config.MaxTokens, &config.CreatedAt, &config.UpdatedAt)
 	})
 	if config.APIKey != "" {
 		config.APIKeyConfigured = true
@@ -690,12 +744,18 @@ func (s *PostgresStore) GetLLMConfiguration(ctx context.Context, tenantID string
 }
 
 func (s *PostgresStore) SaveLLMConfiguration(ctx context.Context, config core.LLMConfiguration) (core.LLMConfiguration, error) {
+	scopeType, scopeID, err := normalizeLLMScope(config.ScopeType, config.ScopeID)
+	if err != nil {
+		return core.LLMConfiguration{}, err
+	}
+	config.ScopeType = scopeType
+	config.ScopeID = scopeID
 	var saved core.LLMConfiguration
-	err := s.withTenantTx(ctx, config.TenantID, func(tx pgx.Tx) error {
+	err = s.withTenantTx(ctx, config.TenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			INSERT INTO llm_configurations (tenant_id, provider, model, base_url, api_key, temperature, max_tokens)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (tenant_id) DO UPDATE SET
+			INSERT INTO llm_configurations (tenant_id, scope_type, scope_id, provider, model, base_url, api_key, temperature, max_tokens)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (tenant_id, scope_type, scope_id) DO UPDATE SET
 				provider = EXCLUDED.provider,
 				model = EXCLUDED.model,
 				base_url = EXCLUDED.base_url,
@@ -703,8 +763,8 @@ func (s *PostgresStore) SaveLLMConfiguration(ctx context.Context, config core.LL
 				temperature = EXCLUDED.temperature,
 				max_tokens = EXCLUDED.max_tokens,
 				updated_at = now()
-			RETURNING tenant_id::text, provider, model, base_url, api_key, temperature, max_tokens, created_at, updated_at
-		`, config.TenantID, config.Provider, config.Model, config.BaseURL, config.APIKey, config.Temperature, config.MaxTokens).Scan(&saved.TenantID, &saved.Provider, &saved.Model, &saved.BaseURL, &saved.APIKey, &saved.Temperature, &saved.MaxTokens, &saved.CreatedAt, &saved.UpdatedAt)
+			RETURNING tenant_id::text, scope_type, scope_id, provider, model, base_url, api_key, temperature, max_tokens, created_at, updated_at
+		`, config.TenantID, config.ScopeType, config.ScopeID, config.Provider, config.Model, config.BaseURL, config.APIKey, config.Temperature, config.MaxTokens).Scan(&saved.TenantID, &saved.ScopeType, &saved.ScopeID, &saved.Provider, &saved.Model, &saved.BaseURL, &saved.APIKey, &saved.Temperature, &saved.MaxTokens, &saved.CreatedAt, &saved.UpdatedAt)
 	})
 	if saved.APIKey != "" {
 		saved.APIKeyConfigured = true
@@ -908,7 +968,7 @@ func (s *PostgresStore) UpdateAlertStatus(ctx context.Context, tenantID, alertID
 }
 
 func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID string) (map[string]any, error) {
-	var learnerCount, stateCount int
+	var learnerCount, stateCount, activeMisconceptions int
 	var avgMastery *float64
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
@@ -920,10 +980,16 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 			SELECT
 				(SELECT count(*) FROM learners)::int,
 				count(ls.*)::int,
-				avg(ls.mastery)
+				avg(ls.mastery),
+				(
+					SELECT count(*)
+					FROM misconceptions m
+					JOIN learners l ON l.learner_id = m.learner_id
+					WHERE m.tenant_id = $1 AND m.status = 'ACTIVE'
+				)::int
 			FROM learners l
 			LEFT JOIN learner_states ls ON ls.tenant_id = $1 AND ls.learner_id = l.learner_id
-		`, tenantID, cohortID).Scan(&learnerCount, &stateCount, &avgMastery)
+		`, tenantID, cohortID).Scan(&learnerCount, &stateCount, &avgMastery, &activeMisconceptions)
 	})
 	if err != nil {
 		return nil, pgErr(err)
@@ -933,11 +999,12 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 		avg = *avgMastery
 	}
 	return map[string]any{
-		"tenant_id":       tenantID,
-		"cohort_id":       cohortID,
-		"learner_count":   learnerCount,
-		"state_count":     stateCount,
-		"average_mastery": avg,
+		"tenant_id":             tenantID,
+		"cohort_id":             cohortID,
+		"learner_count":         learnerCount,
+		"state_count":           stateCount,
+		"average_mastery":       avg,
+		"active_misconceptions": activeMisconceptions,
 	}, nil
 }
 
@@ -1063,6 +1130,48 @@ func upsertReviewCard(ctx context.Context, tx pgx.Tx, state core.LearnerState) e
 	return err
 }
 
+func saveMisconceptionChanges(ctx context.Context, tx pgx.Tx, misconceptions []core.Misconception) error {
+	for _, misconception := range misconceptions {
+		if misconception.ID == "" {
+			return fmt.Errorf("%w: misconception id is required", core.ErrInvalidInput)
+		}
+		if misconception.Status == "RESOLVED" {
+			tag, err := tx.Exec(ctx, `
+				UPDATE misconceptions
+				SET status = 'RESOLVED'
+				WHERE tenant_id = $1 AND id = $2
+			`, misconception.TenantID, misconception.ID)
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() == 0 {
+				return fmt.Errorf("%w: misconception", core.ErrNotFound)
+			}
+			continue
+		}
+		status := misconception.Status
+		if status == "" {
+			status = "ACTIVE"
+		}
+		createdAt := misconception.CreatedAt
+		if createdAt.IsZero() {
+			createdAt = time.Now().UTC()
+		}
+		_, err := tx.Exec(ctx, `
+			INSERT INTO misconceptions (tenant_id, id, learner_id, concept_id, description, severity, status, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (tenant_id, id) DO UPDATE SET
+				description = EXCLUDED.description,
+				severity = EXCLUDED.severity,
+				status = EXCLUDED.status
+		`, misconception.TenantID, misconception.ID, misconception.LearnerID, misconception.ConceptID, misconception.Description, misconception.Severity, status, createdAt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func upsertAlertTx(ctx context.Context, tx pgx.Tx, alert core.Alert, now time.Time) error {
 	if alert.TenantID == "" || alert.LearnerID == "" || alert.AlertType == "" {
 		return nil
@@ -1094,7 +1203,13 @@ func upsertAlertTx(ctx context.Context, tx pgx.Tx, alert core.Alert, now time.Ti
 		`, alert.TenantID, alert.ID, dedupeKey, alert.LearnerID, nullableString(alert.ConceptID), alert.AlertType, alert.Severity, alert.Status, mustJSON(alert.Payload), alert.RecommendedAction, alert.CreatedAt, alert.UpdatedAt); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, newStoreEvent(alert.TenantID, "AlertRaised", "alert", alert.ID, alert.CreatedAt, map[string]any{"alert_type": alert.AlertType, "learner_id": alert.LearnerID, "concept_id": alert.ConceptID}))
+		if err := insertEvent(ctx, tx, newStoreEvent(alert.TenantID, "AlertRaised", "alert", alert.ID, alert.CreatedAt, map[string]any{"alert_type": alert.AlertType, "learner_id": alert.LearnerID, "concept_id": alert.ConceptID})); err != nil {
+			return err
+		}
+		if eventType, aggregateType, aggregateID, ok := alertDomainEvent(alert); ok {
+			return insertEvent(ctx, tx, newStoreEvent(alert.TenantID, eventType, aggregateType, aggregateID, alert.CreatedAt, alertEventPayload(alert)))
+		}
+		return nil
 	}
 	if err != nil {
 		return err

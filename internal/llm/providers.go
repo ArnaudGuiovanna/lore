@@ -14,10 +14,12 @@ import (
 )
 
 type OpenAIGenerator struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Client  *http.Client
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Temperature float64
+	MaxTokens   int
+	Client      *http.Client
 }
 
 func (g OpenAIGenerator) Generate(ctx context.Context, instruction core.TutorInstruction) (core.GeneratedContent, error) {
@@ -29,15 +31,18 @@ func (g OpenAIGenerator) Generate(ctx context.Context, instruction core.TutorIns
 			"content": instructionPrompt(instruction),
 		}},
 	}
+	addGenerationControls(body, g.Temperature, g.MaxTokens)
 	content, model, err := postJSON(ctx, g.Client, url, g.APIKey, body, extractChatCompletion)
 	return generated(instruction, "openai", fallback(model, fallback(g.Model, "gpt-4.1-mini")), content, err)
 }
 
 type MistralGenerator struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Client  *http.Client
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Temperature float64
+	MaxTokens   int
+	Client      *http.Client
 }
 
 func (g MistralGenerator) Generate(ctx context.Context, instruction core.TutorInstruction) (core.GeneratedContent, error) {
@@ -49,27 +54,31 @@ func (g MistralGenerator) Generate(ctx context.Context, instruction core.TutorIn
 			"content": instructionPrompt(instruction),
 		}},
 	}
+	addGenerationControls(body, g.Temperature, g.MaxTokens)
 	content, model, err := postJSON(ctx, g.Client, url, g.APIKey, body, extractChatCompletion)
 	return generated(instruction, "mistral", fallback(model, fallback(g.Model, "mistral-small-latest")), content, err)
 }
 
 type AnthropicGenerator struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Client  *http.Client
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Temperature float64
+	MaxTokens   int
+	Client      *http.Client
 }
 
 func (g AnthropicGenerator) Generate(ctx context.Context, instruction core.TutorInstruction) (core.GeneratedContent, error) {
 	url := strings.TrimRight(fallback(g.BaseURL, "https://api.anthropic.com"), "/") + "/v1/messages"
 	body := map[string]any{
 		"model":      fallback(g.Model, "claude-3-5-haiku-latest"),
-		"max_tokens": 1024,
+		"max_tokens": firstPositiveInt(g.MaxTokens, 1024),
 		"messages": []map[string]string{{
 			"role":    "user",
 			"content": instructionPrompt(instruction),
 		}},
 	}
+	addTemperature(body, g.Temperature)
 	content, model, err := postJSON(ctx, g.Client, url, g.APIKey, body, func(resp *http.Response) (string, string, error) {
 		var decoded struct {
 			Model   string `json:"model"`
@@ -92,10 +101,12 @@ func (g AnthropicGenerator) Generate(ctx context.Context, instruction core.Tutor
 }
 
 type GeminiGenerator struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Client  *http.Client
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Temperature float64
+	MaxTokens   int
+	Client      *http.Client
 }
 
 func (g GeminiGenerator) Generate(ctx context.Context, instruction core.TutorInstruction) (core.GeneratedContent, error) {
@@ -106,6 +117,16 @@ func (g GeminiGenerator) Generate(ctx context.Context, instruction core.TutorIns
 		"contents": []map[string]any{{
 			"parts": []map[string]string{{"text": instructionPrompt(instruction)}},
 		}},
+	}
+	generationConfig := map[string]any{}
+	if g.Temperature > 0 {
+		generationConfig["temperature"] = g.Temperature
+	}
+	if g.MaxTokens > 0 {
+		generationConfig["maxOutputTokens"] = g.MaxTokens
+	}
+	if len(generationConfig) > 0 {
+		body["generationConfig"] = generationConfig
 	}
 	// Send the API key in a header rather than the query string so it is not
 	// captured by request logs, proxies, or referrer headers.
@@ -136,10 +157,12 @@ func (g GeminiGenerator) Generate(ctx context.Context, instruction core.TutorIns
 }
 
 type CustomGenerator struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Client  *http.Client
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Temperature float64
+	MaxTokens   int
+	Client      *http.Client
 }
 
 func (g CustomGenerator) Generate(ctx context.Context, instruction core.TutorInstruction) (core.GeneratedContent, error) {
@@ -147,6 +170,7 @@ func (g CustomGenerator) Generate(ctx context.Context, instruction core.TutorIns
 		return core.GeneratedContent{}, fmt.Errorf("custom LLM base URL is required")
 	}
 	body := map[string]any{"model": g.Model, "instruction": instruction, "prompt": instructionPrompt(instruction)}
+	addGenerationControls(body, g.Temperature, g.MaxTokens)
 	content, model, err := postJSON(ctx, g.Client, g.BaseURL, g.APIKey, body, func(resp *http.Response) (string, string, error) {
 		var decoded struct {
 			Content string `json:"content"`
@@ -166,6 +190,26 @@ func (g CustomGenerator) Generate(ctx context.Context, instruction core.TutorIns
 		return content, decoded.Model, nil
 	})
 	return generated(instruction, "custom", fallback(model, g.Model), content, err)
+}
+
+func addGenerationControls(body map[string]any, temperature float64, maxTokens int) {
+	addTemperature(body, temperature)
+	if maxTokens > 0 {
+		body["max_tokens"] = maxTokens
+	}
+}
+
+func addTemperature(body map[string]any, temperature float64) {
+	if temperature > 0 {
+		body["temperature"] = temperature
+	}
+}
+
+func firstPositiveInt(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 type responseExtractor func(*http.Response) (content string, model string, err error)

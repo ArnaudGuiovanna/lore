@@ -274,6 +274,8 @@ type GeneratedContent struct {
 
 type LLMConfiguration struct {
 	TenantID         string    `json:"tenant_id"`
+	ScopeType        string    `json:"scope_type,omitempty"`
+	ScopeID          string    `json:"scope_id,omitempty"`
 	Provider         string    `json:"provider"`
 	Model            string    `json:"model"`
 	BaseURL          string    `json:"base_url,omitempty"`
@@ -392,10 +394,11 @@ type InteractionCommand struct {
 }
 
 type StateDelta struct {
-	Interaction Interaction         `json:"interaction"`
-	Evaluation  Evaluation          `json:"evaluation"`
-	Before      LearnerState        `json:"before"`
-	After       LearnerState        `json:"after"`
-	Snapshot    PedagogicalSnapshot `json:"snapshot"`
-	Events      []Event             `json:"events"`
+	Interaction    Interaction         `json:"interaction"`
+	Evaluation     Evaluation          `json:"evaluation"`
+	Before         LearnerState        `json:"before"`
+	After          LearnerState        `json:"after"`
+	Snapshot       PedagogicalSnapshot `json:"snapshot"`
+	Misconceptions []Misconception     `json:"misconceptions,omitempty"`
+	Events         []Event             `json:"events"`
 }

@@ -435,7 +435,10 @@ paths:
 
   /v1/tenants/{tenant_id}/llm-configurations:
     get:
-      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LLMScopeType"
+        - $ref: "#/components/parameters/LLMScopeID"
       responses:
         "200":
           description: Active LLM configuration
@@ -443,7 +446,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/LLMConfiguration" }
     put:
-      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LLMScopeType"
+        - $ref: "#/components/parameters/LLMScopeID"
       requestBody:
         required: true
         content:
@@ -464,6 +470,21 @@ paths:
           in: path
           required: true
           schema: { type: string }
+        - name: learner_id
+          in: query
+          required: false
+          schema: { type: string }
+          description: Optional learner scope override for LLM configuration resolution.
+        - name: cohort_id
+          in: query
+          required: false
+          schema: { type: string }
+          description: Optional cohort scope override for LLM configuration resolution.
+        - name: program_id
+          in: query
+          required: false
+          schema: { type: string }
+          description: Optional program scope override for LLM configuration resolution.
       responses:
         "201":
           description: Generated content linked to instruction
@@ -620,6 +641,21 @@ components:
       in: path
       required: true
       schema: { type: string }
+    LLMScopeType:
+      name: scope_type
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [tenant, program, cohort, learner]
+        default: tenant
+      description: LLM configuration scope. Non-tenant scopes require scope_id.
+    LLMScopeID:
+      name: scope_id
+      in: query
+      required: false
+      schema: { type: string }
+      description: Required for program, cohort, and learner LLM configuration scopes; omitted for tenant scope.
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -850,6 +886,9 @@ components:
         before: { $ref: "#/components/schemas/LearnerState" }
         after: { $ref: "#/components/schemas/LearnerState" }
         snapshot: { $ref: "#/components/schemas/PedagogicalSnapshot" }
+        misconceptions:
+          type: array
+          items: { $ref: "#/components/schemas/Misconception" }
         events:
           type: array
           items: { $ref: "#/components/schemas/Event" }
@@ -909,6 +948,17 @@ components:
         feedback: { type: string }
         rubric: { type: object, additionalProperties: true }
         created_at: { type: string, format: date-time }
+    Misconception:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        learner_id: { type: string }
+        concept_id: { type: string }
+        description: { type: string }
+        severity: { type: number, minimum: 0, maximum: 1 }
+        status: { type: string, enum: [ACTIVE, RESOLVED] }
+        created_at: { type: string, format: date-time }
     PedagogicalSnapshot:
       type: object
       properties:
@@ -967,6 +1017,8 @@ components:
       type: object
       properties:
         tenant_id: { type: string, format: uuid }
+        scope_type: { type: string, enum: [tenant, program, cohort, learner] }
+        scope_id: { type: string }
         provider: { type: string, enum: [ollama, openai, anthropic, gemini, mistral, custom, instruction_only] }
         model: { type: string }
         base_url: { type: string }

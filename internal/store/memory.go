@@ -30,45 +30,47 @@ type MemoryStore struct {
 	concepts     map[string]core.Concept
 	dependencies map[string]core.Dependency
 
-	states       map[string]core.LearnerState
-	activities   map[string]core.Activity
-	instructions map[string]core.TutorInstruction
-	contents     map[string]core.GeneratedContent
-	llmConfigs   map[string]core.LLMConfiguration
-	interactions map[string]core.Interaction
-	evaluations  map[string]core.Evaluation
-	snapshots    map[string]core.PedagogicalSnapshot
-	alerts       map[string]core.Alert
-	alertDedupe  map[string]string
-	events       map[string]core.Event
-	idempotency  map[string]core.IdempotencyRecord
+	states         map[string]core.LearnerState
+	activities     map[string]core.Activity
+	instructions   map[string]core.TutorInstruction
+	contents       map[string]core.GeneratedContent
+	llmConfigs     map[string]core.LLMConfiguration
+	interactions   map[string]core.Interaction
+	evaluations    map[string]core.Evaluation
+	misconceptions map[string]core.Misconception
+	snapshots      map[string]core.PedagogicalSnapshot
+	alerts         map[string]core.Alert
+	alertDedupe    map[string]string
+	events         map[string]core.Event
+	idempotency    map[string]core.IdempotencyRecord
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		tenants:      map[string]core.Tenant{},
-		users:        map[string]core.User{},
-		memberships:  map[string]core.Membership{},
-		programs:     map[string]core.Program{},
-		cohorts:      map[string]core.Cohort{},
-		enrollments:  map[string]core.CohortEnrollment{},
-		syllabi:      map[string]core.Syllabus{},
-		bindings:     map[string]core.SyllabusBinding{},
-		domains:      map[string]core.Domain{},
-		concepts:     map[string]core.Concept{},
-		dependencies: map[string]core.Dependency{},
-		states:       map[string]core.LearnerState{},
-		activities:   map[string]core.Activity{},
-		instructions: map[string]core.TutorInstruction{},
-		contents:     map[string]core.GeneratedContent{},
-		llmConfigs:   map[string]core.LLMConfiguration{},
-		interactions: map[string]core.Interaction{},
-		evaluations:  map[string]core.Evaluation{},
-		snapshots:    map[string]core.PedagogicalSnapshot{},
-		alerts:       map[string]core.Alert{},
-		alertDedupe:  map[string]string{},
-		events:       map[string]core.Event{},
-		idempotency:  map[string]core.IdempotencyRecord{},
+		tenants:        map[string]core.Tenant{},
+		users:          map[string]core.User{},
+		memberships:    map[string]core.Membership{},
+		programs:       map[string]core.Program{},
+		cohorts:        map[string]core.Cohort{},
+		enrollments:    map[string]core.CohortEnrollment{},
+		syllabi:        map[string]core.Syllabus{},
+		bindings:       map[string]core.SyllabusBinding{},
+		domains:        map[string]core.Domain{},
+		concepts:       map[string]core.Concept{},
+		dependencies:   map[string]core.Dependency{},
+		states:         map[string]core.LearnerState{},
+		activities:     map[string]core.Activity{},
+		instructions:   map[string]core.TutorInstruction{},
+		contents:       map[string]core.GeneratedContent{},
+		llmConfigs:     map[string]core.LLMConfiguration{},
+		interactions:   map[string]core.Interaction{},
+		evaluations:    map[string]core.Evaluation{},
+		misconceptions: map[string]core.Misconception{},
+		snapshots:      map[string]core.PedagogicalSnapshot{},
+		alerts:         map[string]core.Alert{},
+		alertDedupe:    map[string]string{},
+		events:         map[string]core.Event{},
+		idempotency:    map[string]core.IdempotencyRecord{},
 	}
 }
 
@@ -145,8 +147,14 @@ func (s *MemoryStore) AddMembership(_ context.Context, tenantID, userID string, 
 	if _, ok := s.users[userID]; !ok {
 		return core.Membership{}, fmt.Errorf("%w: user", core.ErrNotFound)
 	}
+	_, existed := s.memberships[key(tenantID, userID)]
 	membership := core.Membership{TenantID: tenantID, UserID: userID, Role: role, Status: "ACTIVE", CreatedAt: time.Now().UTC()}
 	s.memberships[key(tenantID, userID)] = membership
+	if !existed {
+		user := s.users[userID]
+		event := memoryEvent(tenantID, "UserCreated", "user", userID, membership.CreatedAt, map[string]any{"user_id": userID, "email": user.Email})
+		s.events[key(tenantID, event.ID)] = event
+	}
 	event := memoryEvent(tenantID, "MembershipChanged", "membership", userID, membership.CreatedAt, map[string]any{"user_id": userID, "role": role})
 	s.events[key(tenantID, event.ID)] = event
 	return membership, nil
@@ -293,6 +301,8 @@ func (s *MemoryStore) CreateDomain(_ context.Context, tenantID, ownerID, name, d
 	}
 	event := memoryEvent(tenantID, "DomainCreated", "domain", domain.ID, domain.CreatedAt, map[string]any{"name": domain.Name})
 	s.events[key(tenantID, event.ID)] = event
+	graphEvent := memoryEvent(tenantID, "ConceptGraphPublished", "domain", domain.ID, domain.CreatedAt, map[string]any{"graph_version": domain.GraphVersion})
+	s.events[key(tenantID, graphEvent.ID)] = graphEvent
 	return graph, nil
 }
 
@@ -395,6 +405,31 @@ func (s *MemoryStore) ListLearnerState(_ context.Context, tenantID, learnerID st
 			return result[i].ConceptID < result[j].ConceptID
 		}
 		return result[i].DomainID < result[j].DomainID
+	})
+	return result, nil
+}
+
+func (s *MemoryStore) ListActiveMisconceptions(_ context.Context, tenantID, learnerID, domainID string) ([]core.Misconception, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []core.Misconception
+	for _, misconception := range s.misconceptions {
+		if misconception.TenantID != tenantID || misconception.LearnerID != learnerID || misconception.Status != "ACTIVE" {
+			continue
+		}
+		if _, ok := s.concepts[key(tenantID, domainID, misconception.ConceptID)]; !ok {
+			continue
+		}
+		result = append(result, misconception)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Severity == result[j].Severity {
+			if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+				return result[i].ID < result[j].ID
+			}
+			return result[i].CreatedAt.Before(result[j].CreatedAt)
+		}
+		return result[i].Severity > result[j].Severity
 	})
 	return result, nil
 }
@@ -593,6 +628,15 @@ func (s *MemoryStore) saveInteractionDeltaLocked(delta core.StateDelta, activity
 	s.interactions[key(delta.Interaction.TenantID, delta.Interaction.ID)] = delta.Interaction
 	s.evaluations[key(delta.Evaluation.TenantID, delta.Evaluation.ID)] = delta.Evaluation
 	s.states[key(delta.After.TenantID, delta.After.LearnerID, delta.After.ConceptID)] = delta.After
+	for _, misconception := range delta.Misconceptions {
+		if misconception.TenantID != activity.TenantID {
+			return fmt.Errorf("%w: misconception", core.ErrTenantMismatch)
+		}
+		if misconception.ID == "" {
+			return fmt.Errorf("%w: misconception id is required", core.ErrInvalidInput)
+		}
+		s.misconceptions[key(misconception.TenantID, misconception.ID)] = misconception
+	}
 	s.snapshots[key(delta.Snapshot.TenantID, delta.Snapshot.ID)] = delta.Snapshot
 	for _, event := range delta.Events {
 		if event.TenantID != activity.TenantID {
@@ -657,10 +701,14 @@ func (s *MemoryStore) GetGeneratedContent(_ context.Context, tenantID, contentID
 	return content, nil
 }
 
-func (s *MemoryStore) GetLLMConfiguration(_ context.Context, tenantID string) (core.LLMConfiguration, error) {
+func (s *MemoryStore) GetLLMConfiguration(_ context.Context, tenantID, scopeType, scopeID string) (core.LLMConfiguration, error) {
+	scopeType, scopeID, err := normalizeLLMScope(scopeType, scopeID)
+	if err != nil {
+		return core.LLMConfiguration{}, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	config, ok := s.llmConfigs[tenantID]
+	config, ok := s.llmConfigs[key(tenantID, scopeType, scopeID)]
 	if !ok {
 		return core.LLMConfiguration{}, fmt.Errorf("%w: llm configuration", core.ErrNotFound)
 	}
@@ -671,13 +719,19 @@ func (s *MemoryStore) SaveLLMConfiguration(_ context.Context, config core.LLMCon
 	if config.TenantID == "" {
 		return core.LLMConfiguration{}, fmt.Errorf("%w: tenant_id is required", core.ErrInvalidInput)
 	}
+	scopeType, scopeID, err := normalizeLLMScope(config.ScopeType, config.ScopeID)
+	if err != nil {
+		return core.LLMConfiguration{}, err
+	}
+	config.ScopeType = scopeType
+	config.ScopeID = scopeID
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.tenants[config.TenantID]; !ok {
 		return core.LLMConfiguration{}, fmt.Errorf("%w: tenant", core.ErrNotFound)
 	}
-	existing, ok := s.llmConfigs[config.TenantID]
+	existing, ok := s.llmConfigs[key(config.TenantID, config.ScopeType, config.ScopeID)]
 	if ok {
 		config.CreatedAt = existing.CreatedAt
 	} else if config.CreatedAt.IsZero() {
@@ -686,7 +740,7 @@ func (s *MemoryStore) SaveLLMConfiguration(_ context.Context, config core.LLMCon
 	if config.UpdatedAt.IsZero() {
 		config.UpdatedAt = now
 	}
-	s.llmConfigs[config.TenantID] = config
+	s.llmConfigs[key(config.TenantID, config.ScopeType, config.ScopeID)] = config
 	return config, nil
 }
 
@@ -772,16 +826,23 @@ func (s *MemoryStore) CohortAnalytics(_ context.Context, tenantID, cohortID stri
 			stateCount++
 		}
 	}
+	activeMisconceptions := 0
+	for _, misconception := range s.misconceptions {
+		if misconception.TenantID == tenantID && misconception.Status == "ACTIVE" && learners[misconception.LearnerID] {
+			activeMisconceptions++
+		}
+	}
 	avg := 0.0
 	if stateCount > 0 {
 		avg = totalMastery / float64(stateCount)
 	}
 	return map[string]any{
-		"tenant_id":       tenantID,
-		"cohort_id":       cohortID,
-		"learner_count":   len(learners),
-		"state_count":     stateCount,
-		"average_mastery": avg,
+		"tenant_id":             tenantID,
+		"cohort_id":             cohortID,
+		"learner_count":         len(learners),
+		"state_count":           stateCount,
+		"average_mastery":       avg,
+		"active_misconceptions": activeMisconceptions,
 	}, nil
 }
 
@@ -901,6 +962,10 @@ func (s *MemoryStore) upsertAlertLocked(alert core.Alert, now time.Time) {
 	s.alertDedupe[key(alert.TenantID, dedupeKey)] = alert.ID
 	event := memoryEvent(alert.TenantID, "AlertRaised", "alert", alert.ID, alert.CreatedAt, map[string]any{"alert_type": alert.AlertType, "learner_id": alert.LearnerID, "concept_id": alert.ConceptID})
 	s.events[key(alert.TenantID, event.ID)] = event
+	if eventType, aggregateType, aggregateID, ok := alertDomainEvent(alert); ok {
+		domainEvent := memoryEvent(alert.TenantID, eventType, aggregateType, aggregateID, alert.CreatedAt, alertEventPayload(alert))
+		s.events[key(alert.TenantID, domainEvent.ID)] = domainEvent
+	}
 }
 
 func sortAlerts(alerts []core.Alert) {
@@ -928,8 +993,51 @@ func alertSeverityRank(severity string) int {
 	}
 }
 
+func alertDomainEvent(alert core.Alert) (eventType, aggregateType, aggregateID string, ok bool) {
+	switch alert.AlertType {
+	case "ReviewDue":
+		return "ReviewDue", "review_card", alert.ConceptID, true
+	case "LearnerAtRisk":
+		return "LearnerAtRisk", "learner", alert.LearnerID, true
+	default:
+		return "", "", "", false
+	}
+}
+
+func alertEventPayload(alert core.Alert) map[string]any {
+	return map[string]any{
+		"alert_id":   alert.ID,
+		"alert_type": alert.AlertType,
+		"learner_id": alert.LearnerID,
+		"concept_id": alert.ConceptID,
+		"severity":   alert.Severity,
+	}
+}
+
 func alertDedupeKey(alert core.Alert) string {
 	return strings.Join([]string{alert.LearnerID, alert.ConceptID, alert.AlertType}, "\x1f")
+}
+
+func normalizeLLMScope(scopeType, scopeID string) (string, string, error) {
+	scopeType = strings.ToLower(strings.TrimSpace(scopeType))
+	scopeID = strings.TrimSpace(scopeID)
+	if scopeType == "" {
+		scopeType = "tenant"
+	}
+	switch scopeType {
+	case "tenant":
+		if scopeID != "" {
+			return "", "", fmt.Errorf("%w: tenant-scoped llm configuration must not set scope_id", core.ErrInvalidInput)
+		}
+		return scopeType, "", nil
+	case "program", "cohort", "learner":
+		if scopeID == "" {
+			return "", "", fmt.Errorf("%w: scope_id is required for %s llm configuration", core.ErrInvalidInput, scopeType)
+		}
+		return scopeType, scopeID, nil
+	default:
+		return "", "", fmt.Errorf("%w: unsupported llm configuration scope %q", core.ErrInvalidInput, scopeType)
+	}
 }
 
 func key(parts ...string) string {

@@ -16,8 +16,10 @@ func TestOpenAIProviderUsesChatCompletionContract(t *testing.T) {
 		gotPath = r.URL.Path
 		gotAuth = r.Header.Get("Authorization")
 		var req struct {
-			Model    string `json:"model"`
-			Messages []struct {
+			Model       string  `json:"model"`
+			Temperature float64 `json:"temperature"`
+			MaxTokens   int     `json:"max_tokens"`
+			Messages    []struct {
 				Content string `json:"content"`
 			} `json:"messages"`
 		}
@@ -26,6 +28,9 @@ func TestOpenAIProviderUsesChatCompletionContract(t *testing.T) {
 		}
 		if req.Model != "model-a" || len(req.Messages) != 1 || req.Messages[0].Content == "" {
 			t.Fatalf("unexpected request: %+v", req)
+		}
+		if req.Temperature != 0.25 || req.MaxTokens != 321 {
+			t.Fatalf("generation controls were not forwarded: %+v", req)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"model": "model-a",
@@ -36,7 +41,14 @@ func TestOpenAIProviderUsesChatCompletionContract(t *testing.T) {
 	}))
 	defer server.Close()
 
-	content, err := OpenAIGenerator{BaseURL: server.URL, APIKey: "key", Model: "model-a"}.Generate(context.Background(), instructionFixture())
+	content, err := NewGeneratorFromConfig(ProviderConfig{
+		Provider:    "openai",
+		BaseURL:     server.URL,
+		APIKey:      "key",
+		Model:       "model-a",
+		Temperature: 0.25,
+		MaxTokens:   321,
+	}).Generate(context.Background(), instructionFixture())
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}

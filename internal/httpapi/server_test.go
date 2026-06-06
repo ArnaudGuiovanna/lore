@@ -103,7 +103,7 @@ func TestRESTRuntimeAndGenerationFlow(t *testing.T) {
 		}
 		eventTypes[event.EventType] = event
 	}
-	for _, eventType := range []string{"DomainCreated", "ActivityPlanned", "ActivityStarted", "GeneratedContentCreated", "ActivityCompleted", "InteractionRecorded"} {
+	for _, eventType := range []string{"DomainCreated", "ConceptGraphPublished", "ActivityPlanned", "TutorInstructionCreated", "ActivityStarted", "GeneratedContentCreated", "ActivityCompleted", "InteractionRecorded"} {
 		if _, ok := eventTypes[eventType]; !ok {
 			t.Fatalf("missing event type %s in %+v", eventType, eventTypes)
 		}
@@ -176,6 +176,9 @@ func TestRESTAssessmentPlanAndSubmit(t *testing.T) {
 	if delta.After.Mastery <= delta.Before.Mastery {
 		t.Fatalf("assessment evidence did not update mastery")
 	}
+	if countEventType(delta.Events, "AssessmentCompleted") != 1 {
+		t.Fatalf("expected AssessmentCompleted event, got %+v", delta.Events)
+	}
 }
 
 func TestTenantLLMConfigurationControlsGenerationAndContentReads(t *testing.T) {
@@ -216,6 +219,48 @@ func TestTenantLLMConfigurationControlsGenerationAndContentReads(t *testing.T) {
 	if fetched.ID != content.ID || fetched.Content == "" {
 		t.Fatalf("generated content fetch mismatch: %+v", fetched)
 	}
+}
+
+func TestScopedLLMConfigurationOverridesTenantForGeneration(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+
+	tenantConfig := putJSON[core.LLMConfiguration](t, server, "/v1/tenants/"+tenant.ID+"/llm-configurations", map[string]any{
+		"provider": "instruction_only",
+		"model":    "tenant-runtime",
+	}, http.StatusOK)
+	if tenantConfig.ScopeType != "tenant" || tenantConfig.ScopeID != "" {
+		t.Fatalf("unexpected tenant config scope: %+v", tenantConfig)
+	}
+	learnerConfig := putJSON[core.LLMConfiguration](t, server, "/v1/tenants/"+tenant.ID+"/llm-configurations?scope_type=learner&scope_id=l1", map[string]any{
+		"provider": "instruction_only",
+		"model":    "learner-runtime",
+	}, http.StatusOK)
+	if learnerConfig.ScopeType != "learner" || learnerConfig.ScopeID != "l1" {
+		t.Fatalf("unexpected learner config scope: %+v", learnerConfig)
+	}
+	fetched := getJSON[core.LLMConfiguration](t, server, "/v1/tenants/"+tenant.ID+"/llm-configurations?scope_type=learner&scope_id=l1", http.StatusOK)
+	if fetched.Model != "learner-runtime" || fetched.ScopeType != "learner" || fetched.ScopeID != "l1" {
+		t.Fatalf("scoped llm config fetch mismatch: %+v", fetched)
+	}
+
+	content := postJSON[core.GeneratedContent](t, server, "/v1/tenants/"+tenant.ID+"/tutor-instructions/"+decision.TutorInstruction.ID+"/generate", map[string]any{}, http.StatusCreated)
+	if content.Model != "learner-runtime" {
+		t.Fatalf("learner-scoped llm config did not override tenant config: %+v", content)
+	}
+	expectJSONStatus(t, server, http.MethodPut, "/v1/tenants/"+tenant.ID+"/llm-configurations?scope_type=program", map[string]any{
+		"provider": "instruction_only",
+		"model":    "program-runtime",
+	}, nil, http.StatusBadRequest)
 }
 
 func TestInteractionIdempotencyKeyReplaysWithoutReapplying(t *testing.T) {
@@ -328,9 +373,17 @@ func TestAlertsAreDurablePatchableAndEmitEvents(t *testing.T) {
 	}
 
 	alerts := getJSON[[]core.Alert](t, server, "/v1/tenants/"+tenant.ID+"/alerts", http.StatusOK)
+	reviewDue := findAlert(t, alerts, "ReviewDue")
+	if reviewDue.ConceptID != "c1" || reviewDue.Status != "OPEN" {
+		t.Fatalf("unexpected ReviewDue alert: %+v", reviewDue)
+	}
 	risk := findAlert(t, alerts, "LearnerAtRisk")
 	if risk.Status != "OPEN" || risk.ID == "" || risk.RecommendedAction == "" {
 		t.Fatalf("unexpected durable alert: %+v", risk)
+	}
+	overload := findAlert(t, alerts, "Overload")
+	if overload.Status != "OPEN" || overload.ID == "" || overload.Severity != "critical" {
+		t.Fatalf("unexpected overload alert: %+v", overload)
 	}
 	alerts = getJSON[[]core.Alert](t, server, "/v1/tenants/"+tenant.ID+"/alerts", http.StatusOK)
 	replayedRisk := findAlert(t, alerts, "LearnerAtRisk")
@@ -338,8 +391,20 @@ func TestAlertsAreDurablePatchableAndEmitEvents(t *testing.T) {
 		t.Fatalf("durable alert was not deduplicated: first=%s second=%s", risk.ID, replayedRisk.ID)
 	}
 	events := getJSON[[]core.Event](t, server, "/v1/tenants/"+tenant.ID+"/events/outbox?published=false", http.StatusOK)
+	if countEvents(events, "ReviewDue", "ReviewDue") != 1 {
+		t.Fatalf("expected one ReviewDue event, got events=%+v", events)
+	}
+	if countEvents(events, "AlertRaised", "ReviewDue") != 1 {
+		t.Fatalf("expected one AlertRaised event for ReviewDue, got events=%+v", events)
+	}
 	if countEvents(events, "AlertRaised", "LearnerAtRisk") != 1 {
 		t.Fatalf("expected one AlertRaised event for LearnerAtRisk, got events=%+v", events)
+	}
+	if countEventType(events, "LearnerAtRisk") != 1 {
+		t.Fatalf("expected one LearnerAtRisk domain event, got events=%+v", events)
+	}
+	if countEvents(events, "AlertRaised", "Overload") != 1 {
+		t.Fatalf("expected one AlertRaised event for Overload, got events=%+v", events)
 	}
 
 	ack := patchJSON[core.Alert](t, server, "/v1/tenants/"+tenant.ID+"/alerts/"+risk.ID, map[string]any{"status": "ACKNOWLEDGED"}, http.StatusOK)
@@ -364,6 +429,67 @@ func TestAlertsAreDurablePatchableAndEmitEvents(t *testing.T) {
 	events = getJSON[[]core.Event](t, server, "/v1/tenants/"+tenant.ID+"/events/outbox?published=false", http.StatusOK)
 	if countEvents(events, "AlertResolved", "LearnerAtRisk") != 1 {
 		t.Fatalf("expected one AlertResolved event for LearnerAtRisk, got events=%+v", events)
+	}
+}
+
+func TestCohortAnalyticsIncludesActiveMisconceptions(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	program := postJSON[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go Backend"}, http.StatusCreated)
+	cohort := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{
+		"program_id": program.ID,
+		"name":       "June",
+	}, http.StatusCreated)
+	_ = postJSON[core.CohortEnrollment](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/enrollments", map[string]any{
+		"learner_id": "l1",
+	}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
+		"learner_id":  "l1",
+		"activity_id": decision.Activity.ID,
+		"success":     false,
+		"score":       0.10,
+		"error_type":  "off_by_one",
+	}, http.StatusCreated)
+
+	analytics := getJSON[map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/analytics/cohorts/"+cohort.ID, http.StatusOK)
+	if got := analytics["active_misconceptions"]; got != float64(1) {
+		t.Fatalf("expected one active misconception in analytics, got %+v", analytics)
+	}
+	events := getJSON[[]core.Event](t, server, "/v1/tenants/"+tenant.ID+"/events/outbox?published=false", http.StatusOK)
+	if countEventType(events, "LearnerEnrolled") != 1 {
+		t.Fatalf("expected LearnerEnrolled event, got events=%+v", events)
+	}
+}
+
+func TestTenantMembershipEmitsUserCreatedEvent(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	user := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "u@example.test", "name": "U"}, http.StatusCreated)
+
+	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{
+		"user_id": user.ID,
+		"role":    string(core.RoleTrainer),
+	}, http.StatusCreated)
+	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{
+		"user_id": user.ID,
+		"role":    string(core.RoleTenantAdmin),
+	}, http.StatusCreated)
+
+	events := getJSON[[]core.Event](t, server, "/v1/tenants/"+tenant.ID+"/events/outbox?published=false", http.StatusOK)
+	if countEventType(events, "UserCreated") != 1 {
+		t.Fatalf("expected one UserCreated tenant event, got events=%+v", events)
+	}
+	if countEventType(events, "MembershipChanged") != 2 {
+		t.Fatalf("expected membership changes for create and role update, got events=%+v", events)
 	}
 }
 
@@ -869,6 +995,16 @@ func countEvents(events []core.Event, eventType, alertType string) int {
 			continue
 		}
 		if got, ok := event.Payload["alert_type"].(string); ok && got == alertType {
+			count++
+		}
+	}
+	return count
+}
+
+func countEventType(events []core.Event, eventType string) int {
+	count := 0
+	for _, event := range events {
+		if event.EventType == eventType {
 			count++
 		}
 	}

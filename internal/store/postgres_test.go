@@ -131,10 +131,117 @@ func TestPostgresRuntimeFlowPersistsStateReviewsAndEvents(t *testing.T) {
 	for _, e := range events {
 		seen[e.EventType] = true
 	}
-	for _, required := range []string{"TenantCreated", "InteractionRecorded", "LearnerStateUpdated", "ReviewScheduled"} {
+	for _, required := range []string{"TenantCreated", "ConceptGraphPublished", "InteractionRecorded", "LearnerStateUpdated", "ReviewScheduled"} {
 		if !seen[required] {
 			t.Fatalf("missing durable event %q; got %v", required, seen)
 		}
+	}
+}
+
+func TestPostgresPersistsMisconceptionsAndV1Events(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+	tenantID, domainID := seedDomain(t, st, "Acme", "acme")
+	user, err := st.CreateUser(ctx, "learner@example.test", "Learner")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := st.AddMembership(ctx, tenantID, user.ID, core.RoleLearner); err != nil {
+		t.Fatalf("add membership: %v", err)
+	}
+
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	engine := runtime.NewEngine(st).WithClock(func() time.Time { return now })
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenantID, LearnerID: user.ID, DomainID: domainID})
+	if err != nil {
+		t.Fatalf("plan initial: %v", err)
+	}
+	delta, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+		TenantID: tenantID, LearnerID: user.ID, ActivityID: decision.Activity.ID, Score: 0.10, Success: false, ErrorType: "off_by_one",
+	})
+	if err != nil {
+		t.Fatalf("record failed interaction: %v", err)
+	}
+	if len(delta.Misconceptions) != 1 || delta.Misconceptions[0].Status != "ACTIVE" {
+		t.Fatalf("expected one active misconception change, got %+v", delta.Misconceptions)
+	}
+	active, err := st.ListActiveMisconceptions(ctx, tenantID, user.ID, domainID)
+	if err != nil {
+		t.Fatalf("list active misconceptions: %v", err)
+	}
+	if len(active) != 1 || active[0].Description != "off_by_one" {
+		t.Fatalf("active misconception not persisted: %+v", active)
+	}
+
+	alerts, err := st.ListAlerts(ctx, tenantID, now)
+	if err != nil {
+		t.Fatalf("list alerts: %v", err)
+	}
+	if !hasAlert(alerts, "ReviewDue") {
+		t.Fatalf("expected ReviewDue alert, got %+v", alerts)
+	}
+	repair, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenantID, LearnerID: user.ID, DomainID: domainID})
+	if err != nil {
+		t.Fatalf("plan repair: %v", err)
+	}
+	if repair.Activity.ActivityType != core.ActivityMisconception {
+		t.Fatalf("expected misconception activity before review, got %s", repair.Activity.ActivityType)
+	}
+	if _, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+		TenantID: tenantID, LearnerID: user.ID, ActivityID: repair.Activity.ID, Score: 0.95, Success: true,
+	}); err != nil {
+		t.Fatalf("record repair interaction: %v", err)
+	}
+	active, err = st.ListActiveMisconceptions(ctx, tenantID, user.ID, domainID)
+	if err != nil {
+		t.Fatalf("list active misconceptions after repair: %v", err)
+	}
+	if len(active) != 0 {
+		t.Fatalf("misconception should be resolved, got %+v", active)
+	}
+
+	events, err := st.ListEvents(ctx, tenantID, false)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	for _, required := range []string{"UserCreated", "MisconceptionDetected", "ReviewDue", "MisconceptionResolved"} {
+		if !hasEvent(events, required) {
+			t.Fatalf("missing event %q; got %+v", required, events)
+		}
+	}
+}
+
+func TestPostgresPersistsLearnerAtRiskDomainEvent(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+	tenantID, domainID := seedDomain(t, st, "Risk", "risk")
+
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	engine := runtime.NewEngine(st).WithClock(func() time.Time { return now })
+	for range 3 {
+		decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenantID, LearnerID: "learner-risk", DomainID: domainID})
+		if err != nil {
+			t.Fatalf("plan failed activity: %v", err)
+		}
+		if _, err := engine.RecordInteraction(ctx, core.InteractionCommand{
+			TenantID: tenantID, LearnerID: "learner-risk", ActivityID: decision.Activity.ID, Score: 0.10, Success: false,
+		}); err != nil {
+			t.Fatalf("record failed interaction: %v", err)
+		}
+	}
+	alerts, err := st.ListAlerts(ctx, tenantID, now)
+	if err != nil {
+		t.Fatalf("list alerts: %v", err)
+	}
+	if !hasAlert(alerts, "LearnerAtRisk") {
+		t.Fatalf("expected LearnerAtRisk alert, got %+v", alerts)
+	}
+	events, err := st.ListEvents(ctx, tenantID, false)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if !hasEvent(events, "LearnerAtRisk") {
+		t.Fatalf("missing LearnerAtRisk event; got %+v", events)
 	}
 }
 
@@ -246,4 +353,22 @@ func withAppTenant(ctx context.Context, pool *pgxpool.Pool, tenantID string, fn 
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func hasAlert(alerts []core.Alert, alertType string) bool {
+	for _, alert := range alerts {
+		if alert.AlertType == alertType {
+			return true
+		}
+	}
+	return false
+}
+
+func hasEvent(events []core.Event, eventType string) bool {
+	for _, event := range events {
+		if event.EventType == eventType {
+			return true
+		}
+	}
+	return false
 }

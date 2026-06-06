@@ -5,6 +5,57 @@ pedagogical runtime owns progression, review scheduling, assessment readiness,
 learner state, traces, and audit decisions. LLM providers generate content from
 runtime instructions only.
 
+## What LORE Does
+
+LORE is not a content-first LMS. It is a learning orchestration backend: clients
+bring the UI, while LORE owns the pedagogical state machine, runtime decisions,
+tenant isolation, persistence, and events.
+
+```txt
+                    REST API + Auth + Events
+                              |
+                              v
+Tenant -> Programs -> Cohorts -> Learners
+                              |
+                              v
+Syllabi -> Domains -> Concept DAG
+                              |
+                              v
+                    Pedagogical Runtime
+                              |
+          +-------------------+-------------------+
+          |                   |                   |
+          v                   v                   v
+   Select concept       Select activity      Schedule review
+   Update mastery       Detect alerts        Detect misconceptions
+   Assess readiness     Persist trace        Emit events
+          |
+          v
+                  TutorInstruction
+                          |
+                          v
+        Ollama / OpenAI / Anthropic / Gemini / Mistral / Custom
+                          |
+                          v
+                  Generated learner content
+```
+
+Runtime flow:
+
+```txt
+Learner state + concept graph + recent evidence
+        -> deterministic pedagogical decision
+        -> planned activity + TutorInstruction
+        -> optional LLM-generated content
+        -> learner interaction
+        -> mastery/review/snapshot/alert/event updates
+```
+
+The LLM is interchangeable and never owns durable learning state. It receives a
+runtime-created `TutorInstruction` and returns content only; LORE remains the
+source of truth for mastery, retention, review timing, assessment completion,
+alerts, and progression.
+
 ## Run
 
 ```bash
@@ -75,13 +126,21 @@ LORE_LLM_API_KEY=          # required for hosted providers
 If a provider call fails, LORE falls back to instruction-only content so the
 headless runtime remains usable.
 
-Provider configuration can also be set per tenant:
+Provider configuration can also be set per tenant, program, cohort, or learner.
+Tenant scope is the default; `program`, `cohort`, and `learner` scopes use
+`scope_type` and `scope_id`. Generation resolves the most specific available
+configuration in this order: learner, cohort, program, tenant.
 
 ```bash
 curl -s http://127.0.0.1:8080/v1/tenants/$TENANT_ID/llm-configurations \
   -X PUT \
   -H 'Content-Type: application/json' \
-  -d '{"provider":"instruction_only","model":"tenant-runtime"}'
+  -d '{"provider":"instruction_only","model":"tenant-runtime","temperature":0.2,"max_tokens":512}'
+
+curl -s "http://127.0.0.1:8080/v1/tenants/$TENANT_ID/llm-configurations?scope_type=learner&scope_id=learner-1" \
+  -X PUT \
+  -H 'Content-Type: application/json' \
+  -d '{"provider":"instruction_only","model":"learner-runtime"}'
 ```
 
 Generated content is persisted and can be listed or fetched:
@@ -260,10 +319,18 @@ PORT=8080 go run ./cmd/lore
 - Docker Compose declares `lore`, `postgres`, `redis`, `nats`, and `ollama`.
 - Runtime planner includes DAG validation, BKT mastery update, FSRS-like review
   scheduling, diagnostic assessment for missing evidence, anti-repeat concept
-  selection, deterministic activity planning, snapshots, durable alerts, and
-  generated content linked to tutor instructions.
+  selection, overload escape, active misconception repair before recall,
+  deterministic activity planning, snapshots, durable alerts, and generated
+  content linked to tutor instructions.
 - Critical evidence mutations support durable idempotency records in memory and
   PostgreSQL.
+- Failed evidence with an `error_type` persists active misconceptions; corrected
+  follow-up evidence resolves them and emits the V1 misconception events.
+- Alerts cover due reviews, low retention, plateau, ZPD drift, overload,
+  mastery readiness, and learner risk with tenant-scoped deduplication.
+- LLM configuration supports tenant, program, cohort, and learner scopes, with
+  scoped provider, model, temperature, and token-limit overrides applied during
+  generated content creation.
 
 ## License
 
