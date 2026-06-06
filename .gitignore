@@ -1,0 +1,30 @@
+# Binaries
+/lore
+/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test & coverage
+*.test
+*.out
+coverage.txt
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendored deps (using modules)
+/vendor/
+
+# Local env & secrets
+.env
+.env.local
+*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

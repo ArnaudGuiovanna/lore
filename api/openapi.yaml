@@ -1,0 +1,978 @@
+openapi: 3.1.0
+info:
+  title: LORE Headless LMS API
+  version: 1.0.0
+  summary: Learning Orchestration Runtime Engine
+  description: >
+    Headless LMS API. The pedagogical runtime owns planning, mastery, review
+    scheduling, assessments, traces, snapshots and event emission. LLM providers
+    only generate content from runtime-created TutorInstruction records.
+servers:
+  - url: http://127.0.0.1:8080
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+  /v1/auth/token:
+    post:
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, user_id]
+              properties:
+                tenant_id: { type: string, format: uuid }
+                user_id: { type: string }
+                ttl_seconds: { type: integer, minimum: 1 }
+      responses:
+        "200": { $ref: "#/components/responses/Token" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/tenants:
+    post:
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                parent_id: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+
+  /v1/tenants/{tenant_id}:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      responses:
+        "200":
+          description: Tenant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/users:
+    post:
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                name: { type: string }
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+
+  /v1/tenants/{tenant_id}/memberships:
+    post:
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role]
+              properties:
+                user_id: { type: string }
+                role: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: Membership created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Membership" }
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      responses:
+        "200":
+          description: Tenant memberships
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Membership" }
+
+  /v1/tenants/{tenant_id}/programs:
+    post:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          description: Program created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Program" }
+
+  /v1/tenants/{tenant_id}/cohorts:
+    post:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                program_id: { type: string }
+                name: { type: string }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date }
+      responses:
+        "201":
+          description: Cohort created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cohort" }
+
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [learner_id]
+              properties:
+                learner_id: { type: string }
+      responses:
+        "201":
+          description: Learner enrolled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CohortEnrollment" }
+
+  /v1/tenants/{tenant_id}/syllabi:
+    post:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                objectives: { type: object, additionalProperties: true }
+                outcomes: { type: object, additionalProperties: true }
+      responses:
+        "201":
+          description: Syllabus created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Syllabus" }
+
+  /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: syllabus_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_id]
+              properties:
+                target_type: { type: string, enum: [PROGRAM, COHORT, LEARNER] }
+                target_id: { type: string }
+                adaptation_mode: { type: string, enum: [STRICT, GUIDED, FREE] }
+      responses:
+        "201":
+          description: Syllabus binding created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyllabusBinding" }
+
+  /v1/tenants/{tenant_id}/domains:
+    post:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DomainGraphRequest" }
+      responses:
+        "201":
+          description: Domain graph created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DomainGraph" }
+
+  /v1/tenants/{tenant_id}/domains/{domain_id}:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/DomainID"
+      responses:
+        "200":
+          description: Domain graph
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DomainGraph" }
+
+  /v1/tenants/{tenant_id}/domains/{domain_id}/graph:
+    put:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/DomainID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [concepts]
+              properties:
+                concepts:
+                  type: array
+                  items: { $ref: "#/components/schemas/ConceptDraft" }
+                dependencies:
+                  type: array
+                  items: { $ref: "#/components/schemas/DependencyDraft" }
+      responses:
+        "200":
+          description: Domain graph replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DomainGraph" }
+
+  /v1/tenants/{tenant_id}/learners/{learner_id}/activities/next:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LearnerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain_id]
+              properties:
+                domain_id: { type: string }
+                intent: { type: string, enum: [auto, review, assessment] }
+      responses:
+        "201":
+          description: Runtime planned next activity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RuntimeDecision" }
+
+  /v1/tenants/{tenant_id}/activities/{activity_id}/start:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/ActivityID"
+      responses:
+        "200":
+          description: Activity started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Activity" }
+
+  /v1/tenants/{tenant_id}/interactions:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InteractionCommand" }
+      responses:
+        "201":
+          description: Interaction recorded and learner model updated
+          headers:
+            X-LORE-Idempotent-Replay:
+              description: Present with value true when the response is replayed for a previously seen Idempotency-Key.
+              schema: { type: string, enum: ["true"] }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StateDelta" }
+
+  /v1/tenants/{tenant_id}/learners/{learner_id}/assessments/plan:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LearnerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain_id]
+              properties:
+                domain_id: { type: string }
+      responses:
+        "201":
+          description: Runtime planned an assessment activity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RuntimeDecision" }
+
+  /v1/tenants/{tenant_id}/assessments/{activity_id}/submit:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/ActivityID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InteractionCommand" }
+      responses:
+        "201":
+          description: Assessment evidence recorded by runtime
+          headers:
+            X-LORE-Idempotent-Replay:
+              description: Present with value true when the response is replayed for a previously seen Idempotency-Key.
+              schema: { type: string, enum: ["true"] }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StateDelta" }
+
+  /v1/tenants/{tenant_id}/learners/{learner_id}/state:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LearnerID"
+      responses:
+        "200":
+          description: Learner model
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LearnerState" }
+
+  /v1/tenants/{tenant_id}/learners/{learner_id}/reviews/due:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LearnerID"
+      responses:
+        "200":
+          description: Review cards due for learner
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReviewCard" }
+
+  /v1/tenants/{tenant_id}/learners/{learner_id}/snapshots:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LearnerID"
+      responses:
+        "200":
+          description: Pedagogical snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PedagogicalSnapshot" }
+
+  /v1/tenants/{tenant_id}/llm-configurations:
+    get:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      responses:
+        "200":
+          description: Active LLM configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LLMConfiguration" }
+    put:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LLMConfiguration" }
+      responses:
+        "200":
+          description: Updated LLM configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LLMConfiguration" }
+
+  /v1/tenants/{tenant_id}/tutor-instructions/{instruction_id}/generate:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: instruction_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Generated content linked to instruction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GeneratedContent" }
+
+  /v1/tenants/{tenant_id}/generated-content:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: instruction_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Generated content records
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GeneratedContent" }
+
+  /v1/tenants/{tenant_id}/generated-content/{content_id}:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: content_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Generated content record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GeneratedContent" }
+
+  /v1/tenants/{tenant_id}/events/outbox:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: published
+          in: query
+          required: false
+          schema: { type: string, enum: ["false"] }
+        - name: unpublished
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Tenant outbox events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Event" }
+
+  /v1/tenants/{tenant_id}/events/{event_id}/published:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: event_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Event marked published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+
+  /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      responses:
+        "200":
+          description: Cohort analytics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /v1/tenants/{tenant_id}/alerts:
+    get:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      responses:
+        "200":
+          description: Runtime alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Alert" }
+
+  /v1/tenants/{tenant_id}/alerts/{alert_id}:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: alert_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [OPEN, ACKNOWLEDGED, RESOLVED] }
+      responses:
+        "200":
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TenantID:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DomainID:
+      name: domain_id
+      in: path
+      required: true
+      schema: { type: string }
+    LearnerID:
+      name: learner_id
+      in: path
+      required: true
+      schema: { type: string }
+    ActivityID:
+      name: activity_id
+      in: path
+      required: true
+      schema: { type: string }
+    CohortID:
+      name: cohort_id
+      in: path
+      required: true
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 255
+      description: Reuses the first successful response for retry-safe critical mutations.
+  responses:
+    Error:
+      description: JSON error response
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string }
+    Token:
+      description: JWT token
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [access_token, token_type]
+            properties:
+              access_token: { type: string }
+              token_type: { type: string, const: Bearer }
+  schemas:
+    Role:
+      type: string
+      enum: [SUPER_ADMIN, TENANT_ADMIN, TRAINER, LEARNER]
+    Tenant:
+      type: object
+      required: [id, name, slug, status]
+      properties:
+        id: { type: string, format: uuid }
+        parent_id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+    Membership:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        user_id: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+    Program:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    Cohort:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        program_id: { type: string }
+        name: { type: string }
+        start_date: { type: string, format: date-time }
+        end_date: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    CohortEnrollment:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        cohort_id: { type: string }
+        learner_id: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+    Syllabus:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        objectives: { type: object, additionalProperties: true }
+        outcomes: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    SyllabusBinding:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        syllabus_id: { type: string }
+        target_type: { type: string }
+        target_id: { type: string }
+        adaptation_mode: { type: string }
+        created_at: { type: string, format: date-time }
+    DomainGraphRequest:
+      type: object
+      required: [name, concepts]
+      properties:
+        owner_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        source: { type: string }
+        concepts:
+          type: array
+          items: { $ref: "#/components/schemas/ConceptDraft" }
+        dependencies:
+          type: array
+          items: { $ref: "#/components/schemas/DependencyDraft" }
+    ConceptDraft:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        difficulty: { type: number, minimum: 0, maximum: 1 }
+    DependencyDraft:
+      type: object
+      required: [parent_concept_id, child_concept_id]
+      properties:
+        parent_concept_id: { type: string }
+        child_concept_id: { type: string }
+    DomainGraph:
+      type: object
+      properties:
+        domain: { $ref: "#/components/schemas/Domain" }
+        concepts:
+          type: array
+          items: { $ref: "#/components/schemas/Concept" }
+        dependencies:
+          type: array
+          items: { $ref: "#/components/schemas/Dependency" }
+    Domain:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        owner_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        source: { type: string }
+        graph_version: { type: integer }
+        status: { type: string }
+        phase: { type: string, enum: [DIAGNOSTIC, INSTRUCTION, MAINTENANCE] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Concept:
+      allOf:
+        - $ref: "#/components/schemas/ConceptDraft"
+        - type: object
+          properties:
+            tenant_id: { type: string, format: uuid }
+            domain_id: { type: string }
+            created_at: { type: string, format: date-time }
+    Dependency:
+      allOf:
+        - $ref: "#/components/schemas/DependencyDraft"
+        - type: object
+          properties:
+            tenant_id: { type: string, format: uuid }
+            domain_id: { type: string }
+    RuntimeDecision:
+      type: object
+      properties:
+        decision_id: { type: string }
+        activity: { $ref: "#/components/schemas/Activity" }
+        tutor_instruction: { $ref: "#/components/schemas/TutorInstruction" }
+        generated_content: { $ref: "#/components/schemas/GeneratedContent" }
+        snapshot: { $ref: "#/components/schemas/PedagogicalSnapshot" }
+    Activity:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        learner_id: { type: string }
+        domain_id: { type: string }
+        concept_id: { type: string }
+        activity_type:
+          type: string
+          enum: [EXPLANATION, SOCRATIC_DIALOGUE, GUIDED_PRACTICE, FREE_PRACTICE, REVIEW, ASSESSMENT, REFLECTION, TRANSFER, PROJECT, SIMULATION, SETUP_DOMAIN, REST, CLOSE_SESSION, DEBUG_MISCONCEPTION]
+        difficulty_target: { type: number, minimum: 0, maximum: 1 }
+        status: { type: string, enum: [PLANNED, STARTED, COMPLETED] }
+        instruction_id: { type: string }
+        audit_rationale: { type: string }
+        created_at: { type: string, format: date-time }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+    TutorInstruction:
+      type: object
+      properties:
+        id: { type: string }
+        tenant_id: { type: string, format: uuid }
+        learner_id: { type: string }
+        domain_id: { type: string }
+        concept_id: { type: string }
+        activity_id: { type: string }
+        activity_type: { type: string }
+        difficulty_target: { type: number }
+        constraints: { type: array, items: { type: string } }
+        allowed_variants: { type: array, items: { type: string } }
+        context: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    InteractionCommand:
+      type: object
+      required: [learner_id, activity_id, score]
+      properties:
+        learner_id: { type: string }
+        activity_id: { type: string }
+        success: { type: boolean }
+        score: { type: number, minimum: 0, maximum: 1 }
+        error_type: { type: string }
+        feedback: { type: string }
+        payload: { type: object, additionalProperties: true }
+    StateDelta:
+      type: object
+      properties:
+        interaction: { $ref: "#/components/schemas/Interaction" }
+        evaluation: { $ref: "#/components/schemas/Evaluation" }
+        before: { $ref: "#/components/schemas/LearnerState" }
+        after: { $ref: "#/components/schemas/LearnerState" }
+        snapshot: { $ref: "#/components/schemas/PedagogicalSnapshot" }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/Event" }
+    LearnerState:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        learner_id: { type: string }
+        domain_id: { type: string }
+        concept_id: { type: string }
+        mastery: { type: number, minimum: 0, maximum: 1 }
+        retention: { type: number, minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        ability: { type: number }
+        stability: { type: number }
+        difficulty: { type: number }
+        reps: { type: integer }
+        lapses: { type: integer }
+        card_state: { type: string }
+        due_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ReviewCard:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        learner_id: { type: string }
+        domain_id: { type: string }
+        concept_id: { type: string }
+        due_at: { type: string, format: date-time }
+        stability: { type: number }
+        difficulty: { type: number }
+        reps: { type: integer }
+        lapses: { type: integer }
+        state: { type: string }
+        retention: { type: number }
+    Interaction:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        learner_id: { type: string }
+        activity_id: { type: string }
+        domain_id: { type: string }
+        concept_id: { type: string }
+        success: { type: boolean }
+        score: { type: number }
+        error_type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    Evaluation:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        interaction_id: { type: string }
+        score: { type: number }
+        feedback: { type: string }
+        rubric: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    PedagogicalSnapshot:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        interaction_id: { type: string }
+        activity_id: { type: string }
+        learner_id: { type: string }
+        domain_id: { type: string }
+        concept_id: { type: string }
+        before: { type: object, additionalProperties: true }
+        observation: { type: object, additionalProperties: true }
+        after: { type: object, additionalProperties: true }
+        decision: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    GeneratedContent:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        instruction_id: { type: string }
+        provider: { type: string }
+        model: { type: string }
+        content: { type: string }
+        created_at: { type: string, format: date-time }
+    Event:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        schema_version: { type: integer, minimum: 1 }
+        actor_user_id: { type: string }
+        correlation_id: { type: string }
+        causation_id: { type: string }
+        event_type: { type: string }
+        aggregate_type: { type: string }
+        aggregate_id: { type: string }
+        payload: { type: object, additionalProperties: true }
+        occurred_at: { type: string, format: date-time }
+        published_at: { type: string, format: date-time }
+    Alert:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        learner_id: { type: string }
+        concept_id: { type: string }
+        alert_type: { type: string }
+        severity: { type: string }
+        status: { type: string }
+        payload: { type: object, additionalProperties: true }
+        recommended_action: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    LLMConfiguration:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        provider: { type: string, enum: [ollama, openai, anthropic, gemini, mistral, custom, instruction_only] }
+        model: { type: string }
+        base_url: { type: string }
+        api_key: { type: string, writeOnly: true }
+        api_key_configured: { type: boolean, readOnly: true }
+        temperature: { type: number }
+        max_tokens: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
