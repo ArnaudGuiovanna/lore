@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -61,12 +62,17 @@ type Server struct {
 	engine    *runtime.Engine
 	generator llm.Generator
 
-	configMu    sync.RWMutex
-	llmProvider string
-	llmModel    string
-	tokens      *auth.TokenService
-	cache       cache.Cache
+	configMu       sync.RWMutex
+	llmProvider    string
+	llmModel       string
+	tokens         *auth.TokenService
+	bootstrapToken string
+	cache          cache.Cache
 }
+
+// maxTokenTTL caps the lifetime of any issued JWT regardless of the requested
+// ttl_seconds, limiting the blast radius of a leaked token.
+const maxTokenTTL = 24 * time.Hour
 
 func NewServer(store Repository, engine *runtime.Engine, generator llm.Generator, provider, model string) *Server {
 	return &Server{store: store, engine: engine, generator: generator, llmProvider: provider, llmModel: model}
@@ -76,6 +82,13 @@ func (s *Server) EnableJWT(secret string) {
 	if secret != "" {
 		s.tokens = auth.NewTokenService(secret)
 	}
+}
+
+// EnableBootstrap installs an operator-side secret that authorizes the trust
+// anchor operations (issuing tokens and managing memberships) so the first
+// administrator can be provisioned before any JWT exists.
+func (s *Server) EnableBootstrap(token string) {
+	s.bootstrapToken = token
 }
 
 func (s *Server) EnableCache(c cache.Cache) {
@@ -178,6 +191,9 @@ func (s *Server) issueToken(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	if !s.authorizeTokenIssue(w, r, req.TenantID, req.UserID) {
+		return
+	}
 	memberships, err := s.store.ListMemberships(r.Context(), req.TenantID)
 	if err != nil {
 		respond(w, nil, err, http.StatusOK)
@@ -195,6 +211,9 @@ func (s *Server) issueToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ttl := time.Duration(req.TTLSeconds) * time.Second
+	if ttl > maxTokenTTL {
+		ttl = maxTokenTTL
+	}
 	token, err := s.tokens.Issue(req.UserID, req.TenantID, string(role), ttl)
 	if err != nil {
 		respond(w, nil, err, http.StatusOK)
@@ -211,7 +230,19 @@ func (s *Server) addMembership(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	membership, err := s.store.AddMembership(r.Context(), r.PathValue("tenant_id"), req.UserID, req.Role)
+	role := req.Role
+	if role == "" {
+		role = core.RoleLearner
+	}
+	if !role.Valid() {
+		problem(w, http.StatusBadRequest, "role must be one of SUPER_ADMIN, TENANT_ADMIN, TRAINER, LEARNER")
+		return
+	}
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeMembershipWrite(w, r, tenantID, role) {
+		return
+	}
+	membership, err := s.store.AddMembership(r.Context(), tenantID, req.UserID, role)
 	respond(w, membership, err, http.StatusCreated)
 }
 
@@ -571,12 +602,16 @@ func (s *Server) generatorForTenant(ctx context.Context, tenantID string) llm.Ge
 	if config.Model == "" {
 		config.Model = defaults.Model
 	}
+	// Tenant-configurable base URLs are an SSRF vector: route remote provider
+	// calls through a client that blocks private/loopback/link-local targets
+	// and refuses redirects.
 	return llm.NewGeneratorFromConfig(llm.ProviderConfig{
 		Provider:      config.Provider,
 		Model:         config.Model,
 		OllamaBaseURL: config.BaseURL,
 		BaseURL:       config.BaseURL,
 		APIKey:        config.APIKey,
+		Client:        llm.GuardedHTTPClient(20 * time.Second),
 	})
 }
 
@@ -699,9 +734,100 @@ func parseDate(value string) (time.Time, error) {
 	return parsed, nil
 }
 
+// callerIsBootstrap reports whether the request carries the operator bootstrap
+// secret. The comparison is constant time to avoid leaking the secret through
+// timing, and a request never qualifies when no bootstrap secret is configured.
+func (s *Server) callerIsBootstrap(r *http.Request) bool {
+	if s.bootstrapToken == "" {
+		return false
+	}
+	provided := r.Header.Get("X-LORE-Bootstrap-Token")
+	if provided == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(s.bootstrapToken)) == 1
+}
+
+// callerClaims verifies and returns the bearer-token claims on the request, if
+// any. It is used by the trust-anchor handlers (token issuance, membership
+// management) which are not covered by the generic tenant-scoped middleware.
+func (s *Server) callerClaims(r *http.Request) (auth.Claims, bool) {
+	if s.tokens == nil {
+		return auth.Claims{}, false
+	}
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, "Bearer ") {
+		return auth.Claims{}, false
+	}
+	claims, err := s.tokens.Verify(strings.TrimPrefix(header, "Bearer "))
+	if err != nil {
+		return auth.Claims{}, false
+	}
+	return claims, true
+}
+
+// authorizeTokenIssue ensures only an authenticated caller may mint a JWT: the
+// operator bootstrap secret, a super-admin, a tenant administrator of the
+// target tenant, or a user refreshing their own token.
+func (s *Server) authorizeTokenIssue(w http.ResponseWriter, r *http.Request, tenantID, userID string) bool {
+	if s.callerIsBootstrap(r) {
+		return true
+	}
+	claims, ok := s.callerClaims(r)
+	if !ok {
+		problem(w, http.StatusUnauthorized, "authentication is required to issue a token")
+		return false
+	}
+	switch {
+	case claims.Role == string(core.RoleSuperAdmin):
+		return true
+	case claims.Subject == userID && claims.TenantID == tenantID:
+		return true
+	case claims.Role == string(core.RoleTenantAdmin) && claims.TenantID == tenantID:
+		return true
+	default:
+		problem(w, http.StatusForbidden, "insufficient privilege to issue a token for this user")
+		return false
+	}
+}
+
+// authorizeMembershipWrite gates membership creation when authentication is
+// enabled: the bootstrap secret, a super-admin, or a tenant administrator of
+// the path tenant. Only the bootstrap secret or a super-admin may grant the
+// SUPER_ADMIN role. With JWT disabled the server runs in open local mode and
+// authorization is skipped (role validity is still enforced by the caller).
+func (s *Server) authorizeMembershipWrite(w http.ResponseWriter, r *http.Request, tenantID string, role core.Role) bool {
+	if s.tokens == nil {
+		return true
+	}
+	if s.callerIsBootstrap(r) {
+		return true
+	}
+	claims, ok := s.callerClaims(r)
+	if !ok {
+		problem(w, http.StatusUnauthorized, "authentication is required to manage memberships")
+		return false
+	}
+	isSuperAdmin := claims.Role == string(core.RoleSuperAdmin)
+	isTenantAdmin := claims.Role == string(core.RoleTenantAdmin) && claims.TenantID == tenantID
+	if !isSuperAdmin && !isTenantAdmin {
+		problem(w, http.StatusForbidden, "only a super-admin or tenant administrator may manage memberships")
+		return false
+	}
+	if role == core.RoleSuperAdmin && !isSuperAdmin {
+		problem(w, http.StatusForbidden, "only a super-admin may grant the SUPER_ADMIN role")
+		return false
+	}
+	return true
+}
+
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isPublicRoute(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if s.callerIsBootstrap(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -792,10 +918,10 @@ func isPublicRoute(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/health" {
 		return true
 	}
+	// /v1/auth/token performs its own caller authorization (bootstrap secret or
+	// an authorized JWT) inside the handler, so it is exempt from the generic
+	// tenant-scoped bearer check but is NOT unauthenticated.
 	if r.Method == http.MethodPost && (r.URL.Path == "/v1/tenants" || r.URL.Path == "/v1/users" || r.URL.Path == "/v1/auth/token") {
-		return true
-	}
-	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/memberships") {
 		return true
 	}
 	return false

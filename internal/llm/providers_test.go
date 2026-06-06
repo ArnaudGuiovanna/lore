@@ -73,10 +73,11 @@ func TestAnthropicProviderUsesMessagesContract(t *testing.T) {
 }
 
 func TestGeminiProviderUsesGenerateContentContract(t *testing.T) {
-	var gotPath, gotKey string
+	var gotPath, gotKey, gotQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		gotKey = r.URL.Query().Get("key")
+		gotKey = r.Header.Get("x-goog-api-key")
+		gotQuery = r.URL.RawQuery
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"candidates": []map[string]any{{
 				"content": map[string]any{"parts": []map[string]string{{"text": "gemini content"}}},
@@ -91,6 +92,9 @@ func TestGeminiProviderUsesGenerateContentContract(t *testing.T) {
 	}
 	if gotPath != "/v1beta/models/gemini-test:generateContent" || gotKey != "gemini-key" {
 		t.Fatalf("unexpected gemini request: path=%s key=%s", gotPath, gotKey)
+	}
+	if gotQuery != "" {
+		t.Fatalf("api key must not appear in the request URL query: %q", gotQuery)
 	}
 	if content.Provider != "gemini" || content.Content != "gemini content" {
 		t.Fatalf("unexpected content: %+v", content)

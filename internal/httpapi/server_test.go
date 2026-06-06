@@ -3,10 +3,12 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -368,11 +370,11 @@ func TestJWTProtectsTenantScopedRoutes(t *testing.T) {
 	tenantB := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "B", "slug": "b"}, http.StatusCreated)
 	userA := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "a@example.test", "name": "A"}, http.StatusCreated)
 	userB := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "b@example.test", "name": "B"}, http.StatusCreated)
-	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": userA.ID, "role": string(core.RoleTrainer)}, http.StatusCreated)
-	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenantB.ID+"/memberships", map[string]any{"user_id": userB.ID, "role": string(core.RoleTrainer)}, http.StatusCreated)
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": userA.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenantB.ID+"/memberships", map[string]any{"user_id": userB.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
 
-	tokenA := postJSON[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantA.ID, "user_id": userA.ID}, http.StatusOK)["access_token"]
-	tokenB := postJSON[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantB.ID, "user_id": userB.ID}, http.StatusOK)["access_token"]
+	tokenA := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantA.ID, "user_id": userA.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	tokenB := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantB.ID, "user_id": userB.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/"+tenantA.ID+"/domains", jsonBody(map[string]any{
 		"owner_id": "trainer",
@@ -418,10 +420,10 @@ func TestJWTRoleRestrictsLearnerRoutes(t *testing.T) {
 	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
 	trainer := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "trainer@example.test", "name": "Trainer"}, http.StatusCreated)
 	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner@example.test", "name": "Learner"}, http.StatusCreated)
-	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": trainer.ID, "role": string(core.RoleTrainer)}, http.StatusCreated)
-	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, http.StatusCreated)
-	trainerToken := postJSON[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": trainer.ID}, http.StatusOK)["access_token"]
-	learnerToken := postJSON[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": learner.ID}, http.StatusOK)["access_token"]
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": trainer.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, bootstrapHeaders(), http.StatusCreated)
+	trainerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": trainer.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	learnerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": learner.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
 
 	domainBody := map[string]any{
 		"owner_id": "trainer",
@@ -458,6 +460,99 @@ func TestJWTRoleRestrictsLearnerRoutes(t *testing.T) {
 		"score":       0.9,
 	}, bearerHeaders(learnerToken), http.StatusCreated)
 	getJSONWithHeaders[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/"+learner.ID+"/state", bearerHeaders(learnerToken), http.StatusOK)
+}
+
+// TestAuthBootstrapBypassIsClosed asserts the previously chained privilege
+// escalation is gone: with JWT enabled an unauthenticated caller can neither
+// add a membership nor mint a token.
+func TestAuthBootstrapBypassIsClosed(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	user := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "u@example.test", "name": "U"}, http.StatusCreated)
+
+	// No bootstrap secret and no bearer token: membership write is rejected.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": user.ID, "role": string(core.RoleSuperAdmin)}, nil, http.StatusUnauthorized)
+	// Token minting is rejected too, so the self-grant chain cannot start.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/auth/token",
+		map[string]any{"tenant_id": tenant.ID, "user_id": user.ID}, nil, http.StatusUnauthorized)
+	// A wrong bootstrap secret must not authorize either.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": user.ID, "role": string(core.RoleTrainer)},
+		map[string]string{"X-LORE-Bootstrap-Token": "wrong"}, http.StatusUnauthorized)
+}
+
+// TestInvalidMembershipRoleRejected covers the role-enum validation in both the
+// open (no-JWT) handler path and the store defense-in-depth layer.
+func TestInvalidMembershipRoleRejected(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	user := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "u@example.test", "name": "U"}, http.StatusCreated)
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": user.ID, "role": "WIZARD"}, nil, http.StatusBadRequest)
+}
+
+// TestTenantAdminCannotGrantSuperAdmin asserts a tenant administrator can grant
+// ordinary roles but not escalate anyone to SUPER_ADMIN, while a super-admin
+// can.
+func TestTenantAdminCannotGrantSuperAdmin(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	admin := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "admin@example.test", "name": "Admin"}, http.StatusCreated)
+	super := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "super@example.test", "name": "Super"}, http.StatusCreated)
+	target := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "t@example.test", "name": "Target"}, http.StatusCreated)
+
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": admin.ID, "role": string(core.RoleTenantAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": super.ID, "role": string(core.RoleSuperAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	adminToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": admin.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	superToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": super.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	// Tenant admin may grant an ordinary role.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": target.ID, "role": string(core.RoleTrainer)}, bearerHeaders(adminToken), http.StatusCreated)
+	// Tenant admin may NOT escalate to SUPER_ADMIN.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": target.ID, "role": string(core.RoleSuperAdmin)}, bearerHeaders(adminToken), http.StatusForbidden)
+	// A super-admin may.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": target.ID, "role": string(core.RoleSuperAdmin)}, bearerHeaders(superToken), http.StatusCreated)
+}
+
+// TestIssuedTokenTTLIsCapped asserts an oversized ttl_seconds request cannot
+// mint a long-lived token.
+func TestIssuedTokenTTLIsCapped(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	user := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "u@example.test", "name": "U"}, http.StatusCreated)
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": user.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+
+	token := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token",
+		map[string]any{"tenant_id": tenant.ID, "user_id": user.ID, "ttl_seconds": 60 * 60 * 24 * 365}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	iat, exp := tokenLifetime(t, token)
+	if lifetime := exp - iat; lifetime > int64((24*time.Hour)/time.Second) {
+		t.Fatalf("token lifetime %ds exceeds 24h cap", lifetime)
+	}
+}
+
+func tokenLifetime(t *testing.T, token string) (iat, exp int64) {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		t.Fatalf("malformed token: %q", token)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("decode token payload: %v", err)
+	}
+	var claims struct {
+		IssuedAt int64 `json:"iat"`
+		Expires  int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		t.Fatalf("unmarshal claims: %v", err)
+	}
+	return claims.IssuedAt, claims.Expires
 }
 
 func TestLearnerStateCacheIsPopulatedAndInvalidated(t *testing.T) {
@@ -554,7 +649,14 @@ func newTestServerWithJWT() http.Handler {
 	})
 	server := httpapi.NewServer(mem, engine, llm.InstructionOnlyGenerator{Provider: "instruction_only", Model: "runtime"}, "instruction_only", "runtime")
 	server.EnableJWT("test-secret")
+	server.EnableBootstrap(testBootstrapToken)
 	return server.Handler()
+}
+
+const testBootstrapToken = "test-bootstrap-secret"
+
+func bootstrapHeaders() map[string]string {
+	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
 func postJSON[T any](t *testing.T, server http.Handler, path string, body any, wantStatus int) T {
@@ -580,6 +682,12 @@ func postJSONWithHeaders[T any](t *testing.T, server http.Handler, path string, 
 		t.Fatalf("decode response: %v body=%s", err, resp.Body.String())
 	}
 	return decoded, resp
+}
+
+func postJSONWithHeadersValue[T any](t *testing.T, server http.Handler, path string, body any, headers map[string]string, wantStatus int) T {
+	t.Helper()
+	decoded, _ := postJSONWithHeaders[T](t, server, path, body, headers, wantStatus)
+	return decoded
 }
 
 func patchJSON[T any](t *testing.T, server http.Handler, path string, body any, wantStatus int) T {

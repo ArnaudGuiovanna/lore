@@ -163,6 +163,51 @@ curl -s http://127.0.0.1:8080/v1/tenants/$TENANT_ID/assessments/$ASSESSMENT_ACTI
   -d '{"learner_id":"learner-1","success":true,"score":0.91}'
 ```
 
+## Authentication & Security
+
+By default (no `JWT_SECRET`) the server runs in **open local mode** with no
+authentication — intended for local development only. Do not expose this mode.
+
+For production set `JWT_SECRET` to enable bearer-token auth on every
+tenant-scoped route, and set `LORE_BOOTSTRAP_TOKEN` to an operator secret used
+to provision the first administrator:
+
+```bash
+JWT_SECRET='<random-256-bit-secret>' \
+LORE_BOOTSTRAP_TOKEN='<random-operator-secret>' \
+PORT=8080 go run ./cmd/lore
+```
+
+The trust-anchor endpoints are protected as follows:
+
+- `POST /v1/auth/token` requires the bootstrap secret (header
+  `X-LORE-Bootstrap-Token`) **or** an authorized JWT (a super-admin, a tenant
+  administrator of the target tenant, or a user refreshing their own token).
+  The issued role is always derived from an active membership — clients cannot
+  request a role. Token lifetime is capped at 24 hours.
+- `POST /v1/tenants/{tenant_id}/memberships` requires the bootstrap secret or an
+  admin JWT. Only the bootstrap secret or an existing super-admin may grant the
+  `SUPER_ADMIN` role; roles are validated against the known enum.
+
+Bootstrap the first super-admin, then mint a token:
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/v1/tenants/$TENANT_ID/memberships \
+  -H "X-LORE-Bootstrap-Token: $LORE_BOOTSTRAP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"admin-1","role":"SUPER_ADMIN"}'
+
+curl -s -X POST http://127.0.0.1:8080/v1/auth/token \
+  -H "X-LORE-Bootstrap-Token: $LORE_BOOTSTRAP_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"tenant_id":"'$TENANT_ID'","user_id":"admin-1"}'
+```
+
+**SSRF protection.** Tenant-configurable LLM base URLs are routed through a
+hardened HTTP client that refuses redirects and blocks private, loopback,
+link-local, and carrier-grade-NAT destinations. Provider API keys are sent as
+request headers (never in the URL query string).
+
 ## Current Implementation
 
 - 100% Go server, stdlib HTTP router, no UI.

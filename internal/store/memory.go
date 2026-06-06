@@ -134,6 +134,9 @@ func (s *MemoryStore) AddMembership(_ context.Context, tenantID, userID string, 
 	if role == "" {
 		role = core.RoleLearner
 	}
+	if !role.Valid() {
+		return core.Membership{}, fmt.Errorf("%w: unknown role %q", core.ErrInvalidInput, role)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.tenants[tenantID]; !ok {

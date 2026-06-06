@@ -102,13 +102,17 @@ func (g GeminiGenerator) Generate(ctx context.Context, instruction core.TutorIns
 	model := fallback(g.Model, "gemini-1.5-flash")
 	base := strings.TrimRight(fallback(g.BaseURL, "https://generativelanguage.googleapis.com"), "/")
 	url := base + "/v1beta/models/" + model + ":generateContent"
-	if g.APIKey != "" {
-		url += "?key=" + g.APIKey
-	}
 	body := map[string]any{
 		"contents": []map[string]any{{
 			"parts": []map[string]string{{"text": instructionPrompt(instruction)}},
 		}},
+	}
+	// Send the API key in a header rather than the query string so it is not
+	// captured by request logs, proxies, or referrer headers.
+	withKey := func(req *http.Request) {
+		if g.APIKey != "" {
+			req.Header.Set("x-goog-api-key", g.APIKey)
+		}
 	}
 	content, _, err := postJSON(ctx, g.Client, url, "", body, func(resp *http.Response) (string, string, error) {
 		var decoded struct {
@@ -127,7 +131,7 @@ func (g GeminiGenerator) Generate(ctx context.Context, instruction core.TutorIns
 			return "", "", fmt.Errorf("gemini response contained no content")
 		}
 		return decoded.Candidates[0].Content.Parts[0].Text, model, nil
-	})
+	}, withKey)
 	return generated(instruction, "gemini", model, content, err)
 }
 

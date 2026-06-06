@@ -35,6 +35,9 @@ func main() {
 	if cfg.JWTSecret != "" {
 		server.EnableJWT(cfg.JWTSecret)
 	}
+	if cfg.BootstrapToken != "" {
+		server.EnableBootstrap(cfg.BootstrapToken)
+	}
 	if cfg.RedisURL != "" {
 		redisCache, err := cache.NewRedisCache(cfg.RedisURL)
 		if err != nil {

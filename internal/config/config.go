@@ -6,36 +6,38 @@ import (
 )
 
 type Config struct {
-	Port          string
-	StoreDriver   string
-	DatabaseURL   string
-	AutoMigrate   bool
-	MigrationPath string
-	RedisURL      string
-	NATSURL       string
-	JWTSecret     string
-	LLMProvider   string
-	LLMModel      string
-	OllamaBaseURL string
-	LLMBaseURL    string
-	LLMAPIKey     string
+	Port           string
+	StoreDriver    string
+	DatabaseURL    string
+	AutoMigrate    bool
+	MigrationPath  string
+	RedisURL       string
+	NATSURL        string
+	JWTSecret      string
+	BootstrapToken string
+	LLMProvider    string
+	LLMModel       string
+	OllamaBaseURL  string
+	LLMBaseURL     string
+	LLMAPIKey      string
 }
 
 func Load() Config {
 	cfg := Config{
-		Port:          getenv("PORT", "8080"),
-		StoreDriver:   getenv("STORE_DRIVER", "memory"),
-		DatabaseURL:   getenv("DATABASE_URL", ""),
-		AutoMigrate:   boolenv("LORE_AUTO_MIGRATE", false),
-		MigrationPath: getenv("LORE_MIGRATION_PATH", ""),
-		RedisURL:      getenv("REDIS_URL", ""),
-		NATSURL:       getenv("NATS_URL", ""),
-		JWTSecret:     getenv("JWT_SECRET", ""),
-		LLMProvider:   getenv("LORE_LLM_PROVIDER", "ollama"),
-		LLMModel:      getenv("LORE_LLM_MODEL", "gemma4"),
-		OllamaBaseURL: getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-		LLMBaseURL:    getenv("LORE_LLM_BASE_URL", ""),
-		LLMAPIKey:     getenv("LORE_LLM_API_KEY", ""),
+		Port:           getenv("PORT", "8080"),
+		StoreDriver:    getenv("STORE_DRIVER", "memory"),
+		DatabaseURL:    getenv("DATABASE_URL", ""),
+		AutoMigrate:    boolenv("LORE_AUTO_MIGRATE", false),
+		MigrationPath:  getenv("LORE_MIGRATION_PATH", ""),
+		RedisURL:       getenv("REDIS_URL", ""),
+		NATSURL:        getenv("NATS_URL", ""),
+		JWTSecret:      getenv("JWT_SECRET", ""),
+		BootstrapToken: getenv("LORE_BOOTSTRAP_TOKEN", ""),
+		LLMProvider:    getenv("LORE_LLM_PROVIDER", "ollama"),
+		LLMModel:       getenv("LORE_LLM_MODEL", "gemma4"),
+		OllamaBaseURL:  getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+		LLMBaseURL:     getenv("LORE_LLM_BASE_URL", ""),
+		LLMAPIKey:      getenv("LORE_LLM_API_KEY", ""),
 	}
 	return cfg
 }

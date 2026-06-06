@@ -21,6 +21,16 @@ const (
 	RoleLearner     Role = "LEARNER"
 )
 
+// Valid reports whether r is one of the recognized membership roles.
+func (r Role) Valid() bool {
+	switch r {
+	case RoleSuperAdmin, RoleTenantAdmin, RoleTrainer, RoleLearner:
+		return true
+	default:
+		return false
+	}
+}
+
 type Phase string
 
 const (

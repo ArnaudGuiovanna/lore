@@ -88,6 +88,12 @@ func (s *PostgresStore) CreateUser(ctx context.Context, email, name string) (cor
 }
 
 func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID string, role core.Role) (core.Membership, error) {
+	if role == "" {
+		role = core.RoleLearner
+	}
+	if !role.Valid() {
+		return core.Membership{}, fmt.Errorf("%w: unknown role %q", core.ErrInvalidInput, role)
+	}
 	var membership core.Membership
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `
