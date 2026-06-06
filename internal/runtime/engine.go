@@ -9,6 +9,9 @@ import (
 
 	"lore/internal/core"
 	"lore/internal/ids"
+	"lore/internal/observability"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Store interface {
@@ -45,6 +48,12 @@ func (e *Engine) WithClock(clock func() time.Time) *Engine {
 }
 
 func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDecision, error) {
+	ctx, span := observability.StartSpan(ctx, "runtime.PlanNext",
+		attribute.String("tenant_id", in.TenantID),
+		attribute.String("learner_id", in.LearnerID),
+		attribute.String("domain_id", in.DomainID),
+	)
+	defer span.End()
 	if in.TenantID == "" || in.LearnerID == "" || in.DomainID == "" {
 		return core.RuntimeDecision{}, fmt.Errorf("%w: tenant_id, learner_id and domain_id are required", core.ErrInvalidInput)
 	}
@@ -159,6 +168,11 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 }
 
 func (e *Engine) RecordInteraction(ctx context.Context, cmd core.InteractionCommand) (core.StateDelta, error) {
+	ctx, span := observability.StartSpan(ctx, "runtime.RecordInteraction",
+		attribute.String("tenant_id", cmd.TenantID),
+		attribute.String("learner_id", cmd.LearnerID),
+	)
+	defer span.End()
 	delta, completed, err := e.PrepareInteractionDelta(ctx, cmd)
 	if err != nil {
 		return core.StateDelta{}, err

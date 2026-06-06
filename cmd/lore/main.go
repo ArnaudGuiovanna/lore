@@ -12,12 +12,21 @@ import (
 	"lore/internal/events"
 	"lore/internal/httpapi"
 	"lore/internal/llm"
+	"lore/internal/observability"
 	"lore/internal/runtime"
 	"lore/internal/store"
 )
 
 func main() {
 	cfg := config.Load()
+
+	shutdownTracing, err := observability.SetupTracing(context.Background(), "lore")
+	if err != nil {
+		slog.Error("tracing setup failed", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
 	repo, err := newRepository(context.Background(), cfg)
 	if err != nil {
 		slog.Error("repository setup failed", "err", err)

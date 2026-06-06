@@ -14,6 +14,7 @@ import (
 	"lore/internal/cache"
 	"lore/internal/core"
 	"lore/internal/llm"
+	"lore/internal/observability"
 	"lore/internal/runtime"
 )
 
@@ -68,6 +69,7 @@ type Server struct {
 	tokens         *auth.TokenService
 	bootstrapToken string
 	cache          cache.Cache
+	metrics        *observability.Metrics
 }
 
 // maxTokenTTL caps the lifetime of any issued JWT regardless of the requested
@@ -75,7 +77,7 @@ type Server struct {
 const maxTokenTTL = 24 * time.Hour
 
 func NewServer(store Repository, engine *runtime.Engine, generator llm.Generator, provider, model string) *Server {
-	return &Server{store: store, engine: engine, generator: generator, llmProvider: provider, llmModel: model}
+	return &Server{store: store, engine: engine, generator: generator, llmProvider: provider, llmModel: model, metrics: observability.NewMetrics()}
 }
 
 func (s *Server) EnableJWT(secret string) {
@@ -100,6 +102,7 @@ func (s *Server) EnableCache(c cache.Cache) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
+	mux.Handle("GET /metrics", s.metrics.Handler())
 
 	mux.HandleFunc("POST /v1/auth/token", s.issueToken)
 	mux.HandleFunc("POST /v1/tenants", s.createTenant)
@@ -138,10 +141,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}", s.cohortAnalytics)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/alerts", s.alerts)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/alerts/{alert_id}", s.patchAlert)
-	if s.tokens == nil {
-		return mux
+	var handler http.Handler = mux
+	if s.tokens != nil {
+		handler = s.authMiddleware(mux)
 	}
-	return s.authMiddleware(mux)
+	// Metrics wrap the auth layer so rejected requests are measured too; the mux
+	// is passed separately to resolve the low-cardinality route label. OTel server
+	// spans wrap the outside (no-op unless a collector endpoint is configured).
+	handler = s.metrics.Instrument(mux, handler)
+	return observability.WrapHTTP(handler, "lore-http")
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -915,7 +923,7 @@ func (s *Server) authorizeLearnerCommand(w http.ResponseWriter, r *http.Request,
 }
 
 func isPublicRoute(r *http.Request) bool {
-	if r.Method == http.MethodGet && r.URL.Path == "/health" {
+	if r.Method == http.MethodGet && (r.URL.Path == "/health" || r.URL.Path == "/metrics") {
 		return true
 	}
 	// /v1/auth/token performs its own caller authorization (bootstrap secret or

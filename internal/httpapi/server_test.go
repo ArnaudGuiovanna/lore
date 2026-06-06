@@ -555,6 +555,34 @@ func tokenLifetime(t *testing.T, token string) (iat, exp int64) {
 	return claims.IssuedAt, claims.Expires
 }
 
+func TestMetricsEndpointExposesHTTPMetrics(t *testing.T) {
+	server := newTestServer()
+	// Generate some traffic so the counters have something to report.
+	_ = getJSON[map[string]string](t, server, "/health", http.StatusOK)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("metrics status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	body := resp.Body.String()
+	for _, want := range []string{
+		"lore_http_requests_total",
+		"lore_http_request_duration_seconds",
+		"lore_http_requests_in_flight",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics output missing %q", want)
+		}
+	}
+	// The route label uses the matched template, not the raw path, keeping
+	// cardinality bounded.
+	if !strings.Contains(body, `route="GET /health"`) {
+		t.Fatalf("expected a bounded route label for /health, body=%s", body)
+	}
+}
+
 func TestLearnerStateCacheIsPopulatedAndInvalidated(t *testing.T) {
 	mem := store.NewMemoryStore()
 	engine := runtime.NewEngine(mem).WithClock(func() time.Time {

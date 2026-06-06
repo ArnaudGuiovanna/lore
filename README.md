@@ -208,6 +208,30 @@ hardened HTTP client that refuses redirects and blocks private, loopback,
 link-local, and carrier-grade-NAT destinations. Provider API keys are sent as
 request headers (never in the URL query string).
 
+## Observability
+
+Prometheus metrics are exposed (unauthenticated) at:
+
+```http
+GET /metrics
+```
+
+They include `lore_http_requests_total{method,route,status}`,
+`lore_http_request_duration_seconds{method,route}`, and
+`lore_http_requests_in_flight`, plus standard Go/process collectors. The `route`
+label uses the matched route template (e.g. `POST /v1/tenants/{tenant_id}/memberships`)
+so cardinality stays bounded.
+
+OpenTelemetry tracing is **off by default**. Set the standard OTLP environment
+variables to enable export to a collector — tracing then wraps HTTP requests and
+the runtime `PlanNext` / `RecordInteraction` operations:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT='http://otel-collector:4318' \
+OTEL_SERVICE_NAME='lore' \
+PORT=8080 go run ./cmd/lore
+```
+
 ## Current Implementation
 
 - 100% Go server, stdlib HTTP router, no UI.
