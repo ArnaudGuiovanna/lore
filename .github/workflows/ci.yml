@@ -18,9 +18,42 @@ jobs:
   test:
     name: Build, vet & test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Non-superuser role so Postgres RLS (FORCE ROW LEVEL SECURITY) is actually
+      # enforced during the integration tests; the durable store is tested for real.
+      LORE_TEST_DATABASE_URL: postgres://lore:lore@localhost:5432/lore_test?sslmode=disable
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Provision RLS test database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='lore') THEN
+              CREATE ROLE lore LOGIN PASSWORD 'lore' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+            END IF;
+          END $$;
+          CREATE DATABASE lore_test OWNER lore;
+          SQL
+          psql -h localhost -U postgres -d lore_test -v ON_ERROR_STOP=1 \
+            -c "ALTER SCHEMA public OWNER TO lore; GRANT CREATE, USAGE ON SCHEMA public TO lore;"
 
       - name: Set up Go
         uses: actions/setup-go@v5
