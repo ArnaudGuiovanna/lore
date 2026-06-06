@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
+	"lore/internal/auth"
 	"lore/internal/cache"
 	"lore/internal/config"
 	"lore/internal/events"
@@ -41,8 +43,9 @@ func main() {
 		APIKey:        cfg.LLMAPIKey,
 	})
 	server := httpapi.NewServer(repo, engine, generator, cfg.LLMProvider, cfg.LLMModel)
-	if cfg.JWTSecret != "" {
-		server.EnableJWT(cfg.JWTSecret)
+	if err := configureAuth(server, cfg); err != nil {
+		slog.Error("jwt configuration failed", "err", err)
+		os.Exit(1)
 	}
 	if cfg.BootstrapToken != "" {
 		server.EnableBootstrap(cfg.BootstrapToken)
@@ -66,6 +69,28 @@ func main() {
 	if err := http.ListenAndServe(addr, server.Handler()); err != nil {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)
+	}
+}
+
+func configureAuth(server *httpapi.Server, cfg config.Config) error {
+	switch strings.ToUpper(strings.TrimSpace(cfg.JWTAlgorithm)) {
+	case "", "HS256":
+		if cfg.JWTSecret != "" {
+			server.EnableJWT(cfg.JWTSecret)
+		}
+		return nil
+	case "RS256":
+		if cfg.JWTPublicKey == "" && cfg.JWTPrivateKey == "" {
+			return fmt.Errorf("JWT_ALG=RS256 requires JWT_PUBLIC_KEY and/or JWT_PRIVATE_KEY")
+		}
+		svc, err := auth.NewRS256TokenServiceFromPEM([]byte(cfg.JWTPrivateKey), []byte(cfg.JWTPublicKey))
+		if err != nil {
+			return err
+		}
+		server.EnableJWTService(svc)
+		return nil
+	default:
+		return fmt.Errorf("unsupported JWT_ALG %q (use HS256 or RS256)", cfg.JWTAlgorithm)
 	}
 }
 

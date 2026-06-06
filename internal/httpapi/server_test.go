@@ -3,6 +3,8 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"lore/internal/auth"
 	"lore/internal/cache"
 	"lore/internal/core"
 	"lore/internal/httpapi"
@@ -553,6 +556,63 @@ func tokenLifetime(t *testing.T, token string) (iat, exp int64) {
 		t.Fatalf("unmarshal claims: %v", err)
 	}
 	return claims.IssuedAt, claims.Expires
+}
+
+// TestRS256VerifyOnlyServerAcceptsExternalTokensAndDelegatesIssuance exercises
+// the OIDC boundary: the server holds only a public key, so it verifies
+// externally-issued RS256 tokens on tenant routes but refuses to mint tokens.
+func TestRS256VerifyOnlyServerAcceptsExternalTokensAndDelegatesIssuance(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	issuer, err := auth.NewRS256TokenService(priv, &priv.PublicKey)
+	if err != nil {
+		t.Fatalf("issuer: %v", err)
+	}
+
+	mem := store.NewMemoryStore()
+	engine := runtime.NewEngine(mem).WithClock(func() time.Time {
+		return time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	})
+	server := httpapi.NewServer(mem, engine, llm.InstructionOnlyGenerator{Provider: "instruction_only", Model: "runtime"}, "instruction_only", "runtime")
+	verifier, err := auth.NewRS256TokenService(nil, &priv.PublicKey)
+	if err != nil {
+		t.Fatalf("verifier: %v", err)
+	}
+	server.EnableJWTService(verifier)
+	server.EnableBootstrap(testBootstrapToken)
+	h := server.Handler()
+
+	tenant := postJSON[core.Tenant](t, h, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	user := postJSON[core.User](t, h, "/v1/users", map[string]any{"email": "u@example.test", "name": "U"}, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, h, "/v1/tenants/"+tenant.ID+"/memberships",
+		map[string]any{"user_id": user.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+
+	// Issuance is delegated to the IdP: the local endpoint refuses.
+	expectJSONStatus(t, h, http.MethodPost, "/v1/auth/token",
+		map[string]any{"tenant_id": tenant.ID, "user_id": user.ID}, bootstrapHeaders(), http.StatusNotImplemented)
+
+	// An externally-issued RS256 token is accepted on a tenant-scoped route.
+	external, err := issuer.Issue(user.ID, tenant.ID, string(core.RoleTrainer), time.Hour)
+	if err != nil {
+		t.Fatalf("issue external token: %v", err)
+	}
+	_ = postJSONWithHeadersValue[core.DomainGraph](t, h, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, bearerHeaders(external), http.StatusCreated)
+
+	// A token signed by a different key is rejected.
+	otherPriv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	otherIssuer, _ := auth.NewRS256TokenService(otherPriv, &otherPriv.PublicKey)
+	forged, _ := otherIssuer.Issue(user.ID, tenant.ID, string(core.RoleTrainer), time.Hour)
+	expectJSONStatus(t, h, http.MethodPost, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer", "name": "Go", "source": "TRAINER",
+		"concepts": []map[string]any{{"id": "c2", "name": "X", "difficulty": 0.4}},
+	}, bearerHeaders(forged), http.StatusUnauthorized)
 }
 
 func TestMetricsEndpointExposesHTTPMetrics(t *testing.T) {

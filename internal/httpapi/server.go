@@ -86,6 +86,15 @@ func (s *Server) EnableJWT(secret string) {
 	}
 }
 
+// EnableJWTService installs a pre-built token service, allowing asymmetric
+// (RS256) configuration, including verify-only services for externally issued
+// (OIDC) tokens.
+func (s *Server) EnableJWTService(svc *auth.TokenService) {
+	if svc != nil {
+		s.tokens = svc
+	}
+}
+
 // EnableBootstrap installs an operator-side secret that authorizes the trust
 // anchor operations (issuing tokens and managing memberships) so the first
 // administrator can be provisioned before any JWT exists.
@@ -189,6 +198,10 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 func (s *Server) issueToken(w http.ResponseWriter, r *http.Request) {
 	if s.tokens == nil {
 		problem(w, http.StatusNotFound, "jwt authentication is not enabled")
+		return
+	}
+	if !s.tokens.CanIssue() {
+		problem(w, http.StatusNotImplemented, "token issuance is delegated to the identity provider; present an externally-issued bearer token")
 		return
 	}
 	var req struct {

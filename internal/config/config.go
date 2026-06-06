@@ -14,6 +14,9 @@ type Config struct {
 	RedisURL       string
 	NATSURL        string
 	JWTSecret      string
+	JWTAlgorithm   string
+	JWTPrivateKey  string
+	JWTPublicKey   string
 	BootstrapToken string
 	LLMProvider    string
 	LLMModel       string
@@ -32,6 +35,9 @@ func Load() Config {
 		RedisURL:       getenv("REDIS_URL", ""),
 		NATSURL:        getenv("NATS_URL", ""),
 		JWTSecret:      getenv("JWT_SECRET", ""),
+		JWTAlgorithm:   getenv("JWT_ALG", "HS256"),
+		JWTPrivateKey:  fileOrValue("JWT_PRIVATE_KEY"),
+		JWTPublicKey:   fileOrValue("JWT_PUBLIC_KEY"),
 		BootstrapToken: getenv("LORE_BOOTSTRAP_TOKEN", ""),
 		LLMProvider:    getenv("LORE_LLM_PROVIDER", "ollama"),
 		LLMModel:       getenv("LORE_LLM_MODEL", "gemma4"),
@@ -40,6 +46,18 @@ func Load() Config {
 		LLMAPIKey:      getenv("LORE_LLM_API_KEY", ""),
 	}
 	return cfg
+}
+
+// fileOrValue resolves a secret from <NAME>_FILE (path) when set, otherwise from
+// <NAME> directly. This supports both inline PEM env values and mounted secret
+// files for the asymmetric JWT keys.
+func fileOrValue(name string) string {
+	if path := os.Getenv(name + "_FILE"); path != "" {
+		if data, err := os.ReadFile(path); err == nil {
+			return string(data)
+		}
+	}
+	return os.Getenv(name)
 }
 
 func getenv(name, fallback string) string {

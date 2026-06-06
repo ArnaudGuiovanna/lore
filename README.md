@@ -178,6 +178,25 @@ LORE_BOOTSTRAP_TOKEN='<random-operator-secret>' \
 PORT=8080 go run ./cmd/lore
 ```
 
+### Signing algorithm
+
+`JWT_ALG` selects the algorithm (default `HS256`):
+
+- **HS256** (symmetric): set `JWT_SECRET`.
+- **RS256** (asymmetric): set `JWT_PRIVATE_KEY` and/or `JWT_PUBLIC_KEY` (PEM, or
+  `*_FILE` paths to mounted secrets). With both keys the server issues and
+  verifies tokens. With **only the public key** the server is verify-only and
+  delegates issuance to an external identity provider — the **OIDC boundary**:
+  `POST /v1/auth/token` returns `501 Not Implemented` and tenant routes accept
+  RS256 tokens minted by the IdP. The `alg` header is enforced on every token to
+  prevent algorithm-confusion attacks.
+
+```bash
+JWT_ALG=RS256 \
+JWT_PUBLIC_KEY_FILE=/run/secrets/idp_public.pem \
+PORT=8080 go run ./cmd/lore   # verify-only, OIDC-issued tokens
+```
+
 The trust-anchor endpoints are protected as follows:
 
 - `POST /v1/auth/token` requires the bootstrap secret (header
