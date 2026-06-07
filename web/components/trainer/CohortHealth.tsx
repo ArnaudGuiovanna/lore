@@ -5,6 +5,7 @@ import { Metric } from "@/components/ui/Metric";
 import { DataTable } from "@/components/ui/DataTable";
 import type { Column } from "@/components/ui/DataTable";
 import { SourceMark } from "@/components/runtime/SourceMark";
+import { RosterAttestationLink } from "@/components/certificates/DownloadAttestation";
 import { fmtPct } from "@/lib/format";
 import type { CohortAnalytics, LearnerRow } from "./types";
 
@@ -92,6 +93,18 @@ export function CohortHealth({
           </span>
         );
       },
+    },
+    {
+      key: "attestation",
+      header: "Attestation",
+      // Per-learner completion attestation (PDF). Only offered once the runtime has
+      // tracked >= 1 concept — no attestation for a learner with no evidence yet.
+      render: (r) =>
+        r.tracked > 0 ? (
+          <RosterAttestationLink learnerId={r.id} />
+        ) : (
+          <span className="quiet mono" style={{ fontSize: 11 }}>—</span>
+        ),
     },
   ];
 

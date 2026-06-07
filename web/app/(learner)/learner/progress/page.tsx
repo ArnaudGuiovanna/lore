@@ -10,6 +10,7 @@ import {
   loadStates,
 } from "@/components/learner/data";
 import { LearnerError, LearnerEmpty } from "@/components/learner/LearnerStatus";
+import { LearnerAttestationButton } from "@/components/certificates/DownloadAttestation";
 import { BOUND_SYLLABUS_TITLE, prerequisites, servesTrace } from "@/components/learner/lineage";
 import type { LearnerState } from "@/lib/types";
 
@@ -135,10 +136,23 @@ export default async function ProgressScreen() {
       )}
 
       {sorted.length ? (
-      <p className="soft" style={{ fontSize: 13, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-        Some work is retention upkeep the runtime scheduled outside any single
-        objective — kept honest rather than hidden.
-      </p>
+        <div
+          className="col"
+          style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 14 }}
+        >
+          <p className="soft" style={{ fontSize: 13, margin: 0 }}>
+            Some work is retention upkeep the runtime scheduled outside any single
+            objective — kept honest rather than hidden.
+          </p>
+          {/* Real progress exists (>= 1 tracked concept): offer the OF attestation
+              (attestation de fin de formation) as a downloadable PDF. */}
+          <div className="col" style={{ gap: 6 }}>
+            <LearnerAttestationButton learnerId={learner.id} />
+            <span className="quiet mono" style={{ fontSize: 11 }}>
+              Attestation de fin de formation — niveaux de maîtrise tels que mesurés par le moteur.
+            </span>
+          </div>
+        </div>
       ) : null}
     </div>
   );
