@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function LoginForm({ firstEmail, defaultPw }: { firstEmail?: string; defaultPw?: string }) {
+export function LoginForm({ firstEmail }: { firstEmail?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState(firstEmail || "");
-  const [password, setPassword] = useState(defaultPw || "");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

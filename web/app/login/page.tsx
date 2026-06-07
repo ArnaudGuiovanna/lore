@@ -9,11 +9,13 @@ export default async function LoginPage() {
   const session = await getSession();
   if (session) redirect(roleHome(session.role));
 
-  // Surface the seeded demo logins so an evaluator can sign in immediately.
-  const demo = listCredentials()
-    .slice(0, 6)
-    .map((c) => ({ email: c.email, role: c.role, name: c.name }));
-  const defaultPw = process.env.DEFAULT_SEED_PASSWORD || "lore123!";
+  // Demo logins are OFF by default. They are only surfaced when explicitly opted
+  // in (LORE_SHOW_DEMO_LOGINS=1) — never expose seeded credentials in production.
+  const showDemo = process.env.LORE_SHOW_DEMO_LOGINS === "1";
+  const demo = showDemo
+    ? listCredentials().slice(0, 6).map((c) => ({ email: c.email, role: c.role, name: c.name }))
+    : [];
+  const demoPw = showDemo ? process.env.DEFAULT_SEED_PASSWORD || "lore123!" : "";
 
   return (
     <main className="wrap" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
@@ -30,7 +32,7 @@ export default async function LoginPage() {
           </p>
           {demo.length > 0 && (
             <div className="panel" style={{ marginTop: 22, padding: 16 }}>
-              <p className="kicker" style={{ marginBottom: 8 }}>Demo accounts · password <code>{defaultPw}</code></p>
+              <p className="kicker" style={{ marginBottom: 8 }}>Demo accounts · password <code>{demoPw}</code></p>
               <ul className="mono" style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 12.5, lineHeight: 1.9 }}>
                 {demo.map((d) => (
                   <li key={d.email} className="spread"><span>{d.email}</span><span className="quiet">{d.role}</span></li>
@@ -39,7 +41,7 @@ export default async function LoginPage() {
             </div>
           )}
         </div>
-        <LoginForm firstEmail={demo[0]?.email} defaultPw={defaultPw} />
+        <LoginForm firstEmail={demo[0]?.email} />
       </div>
     </main>
   );

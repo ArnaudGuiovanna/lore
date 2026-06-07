@@ -4,6 +4,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import type { Role } from "@/lib/types";
+import { sessionSecret as secret } from "./secret";
 
 const COOKIE = "lore_session";
 const TTL_SECONDS = 60 * 60 * 12; // 12h (the backend caps LORE tokens at 24h)
@@ -15,11 +16,6 @@ export interface Session {
   name: string;
   email: string;
   loreToken: string; // bearer for the LORE backend (role/tenant scoped)
-}
-
-function secret(): Uint8Array {
-  const s = process.env.SESSION_SECRET || "dev-session-secret-change-me-please-32bytes-minimum";
-  return new TextEncoder().encode(s);
 }
 
 export async function createSession(s: Session): Promise<void> {
