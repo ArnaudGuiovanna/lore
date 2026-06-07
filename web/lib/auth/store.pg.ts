@@ -197,3 +197,24 @@ export async function setCredentialRole(userId: string, role: Role): Promise<boo
   );
   return (res.rowCount ?? 0) > 0;
 }
+
+// RGPD erasure (right to be forgotten): anonymize a credential by LORE user id.
+// The row is KEPT for referential/audit integrity, but personal data (email/name)
+// is redacted and the password hash is scrambled so the account can no longer be
+// used to sign in. Returns the redacted email assigned, or null if no row matched.
+export async function anonymizeCredential(userId: string): Promise<string | null> {
+  await ensureReady();
+  // A stable, unique, non-identifying email so the PK/email-map stays consistent.
+  const redactedEmail = `anonymized-${userId}@redacted.invalid`;
+  const scrambled = bcrypt.hashSync(`erased-${userId}-${Date.now()}-${Math.random()}`, 10);
+  const res = await pool().query(
+    `UPDATE lore_web_credentials
+        SET email = $2,
+            name = 'Utilisateur supprimé (RGPD)',
+            password_hash = $3,
+            must_change_password = TRUE
+      WHERE user_id = $1`,
+    [userId, redactedEmail, scrambled]
+  );
+  return (res.rowCount ?? 0) > 0 ? redactedEmail : null;
+}

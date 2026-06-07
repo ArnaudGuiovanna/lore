@@ -345,12 +345,17 @@ export default async function AdminHome() {
   return (
     <main style={{ minHeight: "100vh" }}>
       <div className="wrap" style={{ paddingTop: 28, paddingBottom: 90 }}>
-        <div className="spread" style={{ marginBottom: 18 }}>
+        <div className="spread" style={{ marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
           <Link href="/" className="mono quiet" style={{ fontSize: 12 }}>
             ← LORE
           </Link>
-          <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-            tenant {s.tenantSlug} · TENANT_ADMIN · S. Aalto
+          <span className="row" style={{ gap: 16, alignItems: "center" }}>
+            <Link href="/admin/rgpd" className="mono" style={{ fontSize: 12, textDecoration: "underline" }}>
+              RGPD / Données personnelles →
+            </Link>
+            <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
+              tenant {s.tenantSlug} · TENANT_ADMIN · S. Aalto
+            </span>
           </span>
         </div>
 
