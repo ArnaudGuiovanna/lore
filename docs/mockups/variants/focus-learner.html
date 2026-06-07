@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Workbench — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Spline+Sans+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#efe8dc;
+    --card:#fbf8f2;
+    --ink:#23211c;
+    --ink-soft:#4a463d;
+    --ink-faint:#7d776a;
+    --line:#ddd4c3;
+    --line-soft:#e7dfd1;
+    --accent:#1f4a3a;        /* deep ink-green */
+    --accent-deep:#143229;
+    --accent-soft:#e3ece5;
+    --oxblood:#7a2230;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,28,.05), 0 12px 34px -18px rgba(35,33,28,.28);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  /* accessible focus ring for every interactive control */
+  a:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible,[role="tab"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;
+  }
+  input[type=range]:focus-visible{outline-offset:6px}
+  body{
+    margin:0;
+    background:
+      radial-gradient(120% 80% at 85% -10%, #f8f3ea 0%, rgba(248,243,234,0) 55%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:17px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    min-height:100vh;
+  }
+  ::selection{background:var(--accent);color:#f4efe6}
+  a{color:inherit}
+
+  .mono{font-family:"Spline Sans Mono", ui-monospace, monospace}
+  .ser{font-family:"Fraunces", serif}
+
+  /* gallery badge */
+  .gallery-badge{
+    position:fixed;top:14px;right:14px;z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.82);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+
+  /* ---------- header ---------- */
+  header.top{
+    position:sticky;top:0;z-index:100;
+    background:linear-gradient(180deg, rgba(244,239,230,.96), rgba(244,239,230,.86));
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .top-inner{display:flex;align-items:center;gap:20px;padding:14px 28px;max-width:1080px;margin:0 auto}
+  .brand{display:flex;align-items:baseline;gap:11px;flex:0 0 auto}
+  .brand .logo{
+    font-family:"Fraunces",serif;font-weight:600;font-size:23px;letter-spacing:-.01em;
+    font-variation-settings:"opsz" 40;color:var(--accent);
+  }
+  .brand .logo b{font-style:italic;font-weight:500}
+  .brand .tag{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-faint);border-left:1px solid var(--line);padding-left:11px}
+
+  .learner-chip{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .avatar{
+    width:34px;height:34px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #356c54, #1f4a3a);
+    color:#f4efe6;display:grid;place-items:center;font-family:"Fraunces",serif;font-weight:600;font-size:14px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+  }
+  .learner-chip .who{line-height:1.15}
+  .learner-chip .who .n{font-family:"Spline Sans Mono",monospace;font-size:12.5px;font-weight:500;color:var(--ink)}
+  .learner-chip .who .r{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+
+  /* ---------- tab nav ---------- */
+  nav.tabs{border-bottom:1px solid var(--line);background:transparent}
+  .tabs-inner{display:flex;gap:2px;max-width:1080px;margin:0 auto;padding:0 22px;overflow-x:auto;scrollbar-width:none}
+  .tabs-inner::-webkit-scrollbar{display:none}
+  .tab{
+    appearance:none;background:none;border:none;cursor:pointer;
+    font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-faint);padding:15px 16px 13px;position:relative;white-space:nowrap;transition:color .2s;
+  }
+  .tab:hover{color:var(--ink-soft)}
+  .tab[aria-selected="true"]{color:var(--accent)}
+  .tab::after{content:"";position:absolute;left:16px;right:16px;bottom:-1px;height:2px;background:var(--accent);
+    transform:scaleX(0);transform-origin:left;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+  .tab[aria-selected="true"]::after{transform:scaleX(1)}
+  .tab .ct{display:inline-block;margin-left:7px;font-size:10px;background:var(--accent);color:#f4efe6;
+    border-radius:999px;padding:1px 6px;vertical-align:middle}
+  .tab .ct.warn{background:var(--oxblood)}
+
+  main{padding:42px 0 90px}
+  .panel{display:none}
+  .panel.active{display:block;animation:fadeUp .55s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  /* page-load reveal of the chrome */
+  header.top,nav.tabs,.gallery-badge{opacity:0;animation:chromeIn .6s ease both}
+  nav.tabs{animation-delay:.08s}
+  .gallery-badge{animation-delay:.18s}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important}
+    html{scroll-behavior:auto}
+  }
+
+  .eyebrow{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-faint);display:flex;align-items:center;gap:9px}
+  .eyebrow::before{content:"";width:18px;height:1px;background:var(--accent)}
+
+  h1.page{font-family:"Fraunces",serif;font-weight:400;font-size:clamp(30px,5vw,46px);line-height:1.05;
+    letter-spacing:-.015em;margin:14px 0 6px;font-variation-settings:"opsz" 60}
+  h1.page i{font-weight:500;color:var(--accent)}
+  .page-sub{color:var(--ink-soft);max-width:60ch;margin:0 0 30px;font-size:18px}
+
+  /* ---------- decision card ---------- */
+  .decision{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);overflow:hidden;position:relative;
+  }
+  .decision::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+    background:linear-gradient(180deg,var(--accent),var(--accent-deep))}
+  .decision .pad{padding:30px 34px 30px 38px}
+  .dec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  .badge-runtime{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-soft);border:1px solid #cadbcf;
+    border-radius:999px;padding:5px 11px;display:inline-flex;align-items:center;gap:7px;
+  }
+  .badge-runtime .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 0 rgba(31,74,58,.5);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,74,58,.45)}70%{box-shadow:0 0 0 8px rgba(31,74,58,0)}100%{box-shadow:0 0 0 0 rgba(31,74,58,0)}}
+
+  .dec-meta{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);text-align:right;line-height:1.7}
+  .dec-meta b{color:var(--ink-soft);font-weight:500}
+
+  .dec-title{font-family:"Fraunces",serif;font-weight:400;font-size:clamp(26px,4vw,38px);
+    letter-spacing:-.015em;margin:20px 0 4px;line-height:1.08}
+  .dec-title .concept{color:var(--accent);font-style:italic;font-weight:500}
+  .dec-kicker{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+
+  .why{
+    margin:22px 0 4px;padding:18px 20px;background:var(--paper-2);border-radius:10px;
+    border:1px solid var(--line-soft);font-size:18.5px;line-height:1.5;color:var(--ink);position:relative;
+  }
+  .why .label{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);display:block;margin-bottom:8px}
+  .why em{font-style:normal;color:var(--oxblood);font-weight:500;font-family:"Fraunces",serif}
+
+  .metrics-row{display:flex;gap:0;margin-top:24px;border-top:1px solid var(--line-soft);flex-wrap:wrap}
+  .metric{flex:1 1 130px;padding:16px 18px 14px;border-right:1px solid var(--line-soft)}
+  .metric:last-child{border-right:none}
+  .metric .k{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+  .metric .v{font-family:"Fraunces",serif;font-size:30px;font-weight:500;line-height:1;margin-top:7px;display:flex;align-items:baseline;gap:7px}
+  .metric .v .trend{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500}
+  .trend.down{color:var(--oxblood)}.trend.up{color:var(--accent)}.trend.flat{color:var(--amber)}
+  .metric .bar{height:5px;border-radius:3px;background:var(--line-soft);margin-top:12px;overflow:hidden;position:relative}
+  .metric .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;display:block}
+
+  /* ---------- generated activity ---------- */
+  .activity{margin-top:26px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+  .activity-head{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--line-soft);background:var(--paper-2);flex-wrap:wrap}
+  .src-badge{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;border:1px solid}
+  .src-badge.fallback{color:var(--amber);background:var(--amber-soft);border-color:#e3cf9d}
+  .src-badge.llm{color:var(--accent);background:var(--accent-soft);border-color:#cadbcf}
+  .activity-head .hint{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);margin-left:auto}
+  .toggle-src{appearance:none;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);padding:6px 11px;transition:.2s}
+  .toggle-src:hover{border-color:var(--accent);color:var(--accent)}
+
+  .activity-body{padding:26px 28px}
+  .activity-body h3{font-family:"Fraunces",serif;font-weight:500;font-size:22px;margin:0 0 12px;letter-spacing:-.01em}
+  .activity-body p{margin:0 0 14px;color:var(--ink-soft);font-size:17.5px}
+  .activity-body code, .codeblk{font-family:"Spline Sans Mono",monospace;font-size:13.5px}
+  .codeblk{display:block;background:#22251f;color:#e7e4d3;border-radius:10px;padding:16px 18px;line-height:1.7;
+    overflow-x:auto;margin:14px 0;border:1px solid #2f332a}
+  .codeblk .cmt{color:#8f9384}.codeblk .kw{color:#b6cdaa}.codeblk .fn{color:#e6c98a}.codeblk .err{color:#e09a8a}
+
+  .instr-only{padding:24px 26px}
+  .instr-only .scaffold{display:grid;gap:12px}
+  .instr-line{display:flex;gap:13px;align-items:flex-start;padding:13px 16px;background:var(--paper-2);border:1px solid var(--line-soft);border-radius:9px}
+  .instr-line .num{font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--accent);font-weight:600;flex:0 0 auto;margin-top:2px}
+  .instr-line .txt{font-size:16.5px;color:var(--ink-soft)}
+  .instr-line .txt b{color:var(--ink);font-weight:600}
+  .instr-note{font-family:"Spline Sans Mono",monospace;font-size:11.5px;color:var(--amber);margin-top:16px;display:flex;gap:8px;align-items:flex-start}
+
+  /* ---------- evidence submitter ---------- */
+  .evidence{margin-top:8px;padding:24px 28px;border-top:1px dashed var(--line)}
+  .evidence h4{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin:0 0 16px;display:flex;align-items:center;gap:9px}
+  .evidence h4::before{content:"";width:16px;height:1px;background:var(--accent)}
+  textarea.answer{width:100%;min-height:120px;resize:vertical;background:var(--paper);border:1px solid var(--line);
+    border-radius:10px;padding:14px 16px;font-family:"Spline Sans Mono",monospace;font-size:13.5px;color:var(--ink);
+    line-height:1.6;transition:.2s}
+  textarea.answer:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,74,58,.12);background:var(--card)}
+
+  .conf{margin:20px 0 6px}
+  .conf-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .conf-top .lbl{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .conf-top .val{font-family:"Fraunces",serif;font-size:22px;font-weight:500}
+  .conf-top .val #conf-word{font-size:12px;font-family:"Spline Sans Mono",monospace;color:var(--ink-faint);margin-left:8px;text-transform:lowercase}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:4px;
+    background:linear-gradient(90deg,var(--accent) 60%, var(--line-soft) 60%);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:var(--card);border:2px solid var(--accent);cursor:pointer;box-shadow:var(--shadow);transition:.15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.12)}
+  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--card);border:2px solid var(--accent);cursor:pointer}
+  .conf-scale{display:flex;justify-content:space-between;font-family:"Spline Sans Mono",monospace;font-size:10px;
+    color:var(--ink-faint);margin-top:7px;letter-spacing:.05em}
+
+  .submit-row{display:flex;align-items:center;gap:16px;margin-top:22px;flex-wrap:wrap}
+  .btn-primary{appearance:none;border:none;cursor:pointer;background:var(--accent);color:#f4efe6;
+    font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:500;
+    padding:14px 26px;border-radius:10px;transition:.22s;box-shadow:0 8px 20px -10px rgba(31,74,58,.7)}
+  .btn-primary:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .btn-primary:active{transform:translateY(0)}
+  .btn-primary:disabled{opacity:.5;cursor:default;transform:none}
+  .submit-note{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint)}
+  .submit-note b{color:var(--ink-soft)}
+
+  /* ---------- state delta ---------- */
+  .delta{margin-top:26px;border:1px solid var(--accent);border-radius:var(--r);background:linear-gradient(180deg,var(--card),#f6f9f4);
+    box-shadow:var(--shadow);overflow:hidden;display:none}
+  .delta.show{display:block;animation:deltaIn .6s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes deltaIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+  .delta-head{padding:16px 26px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:11px;background:var(--accent-soft)}
+  .delta-head .ic{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#f4efe6;display:grid;place-items:center;font-size:14px;flex:0 0 auto}
+  .delta-head .t{font-family:"Fraunces",serif;font-weight:500;font-size:19px}
+  .delta-head .sub{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--accent);margin-left:auto;letter-spacing:.06em}
+  .delta-body{padding:8px 26px 22px}
+  .delta-item{display:flex;align-items:center;gap:16px;padding:15px 0;border-bottom:1px solid var(--line-soft);opacity:0;transform:translateX(-10px)}
+  .delta-item:last-child{border-bottom:none}
+  .delta.show .delta-item{animation:itemIn .5s ease forwards}
+  @keyframes itemIn{to{opacity:1;transform:none}}
+  .delta-item .di-ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
+    font-family:"Spline Sans Mono",monospace;font-size:15px;background:var(--accent-soft);color:var(--accent)}
+  .delta-item.warn .di-ic{background:#f6e3dd;color:var(--oxblood)}
+  .delta-item .di-main{flex:1}
+  .delta-item .di-k{font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .delta-item .di-v{font-size:17px;color:var(--ink);margin-top:2px}
+  .delta-item .di-v .from{color:var(--ink-faint);font-family:"Spline Sans Mono",monospace;font-size:14px}
+  .delta-item .di-v .arrow{color:var(--accent);margin:0 8px;font-family:"Spline Sans Mono",monospace}
+  .delta-item .di-v .to{font-family:"Fraunces",serif;font-weight:600;font-size:21px;color:var(--accent)}
+  .delta-item.warn .di-v .to{color:var(--oxblood)}
+  .delta-next{padding:18px 26px;background:var(--paper-2);border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .delta-next .lbl{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .delta-next .nx{font-family:"Fraunces",serif;font-size:17px}
+  .delta-next .nx b{color:var(--accent);font-style:italic}
+  .link-btn{margin-left:auto;appearance:none;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:9px 16px;border-radius:8px;transition:.2s}
+  .link-btn:hover{background:var(--accent);color:#f4efe6}
+
+  /* ---------- reviews ---------- */
+  .review-q{display:grid;gap:14px}
+  .rev{display:flex;align-items:center;gap:20px;padding:20px 24px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r);box-shadow:var(--shadow);transition:.22s;position:relative;overflow:hidden}
+  .rev::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+  .rev.overdue::before{background:var(--oxblood)}
+  .rev.due::before{background:var(--amber)}
+  .rev.soon::before{background:var(--accent)}
+  .rev:hover{transform:translateY(-2px);border-color:var(--line)}
+  .rev .urg{flex:0 0 92px;text-align:center}
+  .rev .urg .big{font-family:"Fraunces",serif;font-weight:600;font-size:30px;line-height:1}
+  .rev .urg .lab{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;margin-top:5px}
+  .rev.overdue .urg .big,.rev.overdue .urg .lab{color:var(--oxblood)}
+  .rev.due .urg .big,.rev.due .urg .lab{color:var(--amber)}
+  .rev.soon .urg .big,.rev.soon .urg .lab{color:var(--accent)}
+  .rev .info{flex:1;border-left:1px solid var(--line-soft);padding-left:20px}
+  .rev .info .cn{font-family:"Fraunces",serif;font-size:21px;font-weight:500;letter-spacing:-.01em}
+  .rev .info .meta{font-family:"Spline Sans Mono",monospace;font-size:11.5px;color:var(--ink-faint);margin-top:5px;display:flex;gap:16px;flex-wrap:wrap}
+  .rev .info .meta b{color:var(--ink-soft);font-weight:500}
+  .rev .go{appearance:none;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:11px 18px;border-radius:9px;transition:.2s;flex:0 0 auto}
+  .rev .go:hover{background:var(--accent);color:#f4efe6}
+  .rev.overdue .go{border-color:var(--oxblood);color:var(--oxblood)}
+  .rev.overdue .go:hover{background:var(--oxblood);color:#f4efe6}
+
+  /* ---------- progress ---------- */
+  .recovery-banner{display:flex;align-items:center;gap:18px;padding:20px 24px;border-radius:var(--r);
+    background:linear-gradient(100deg,#f6e9e0,#f3ede2);border:1px solid #e8d2c4;margin-bottom:30px}
+  .recovery-banner .ic{width:42px;height:42px;border-radius:11px;background:#fff;border:1px solid #e8d2c4;display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+  .recovery-banner .t{font-family:"Fraunces",serif;font-weight:500;font-size:19px}
+  .recovery-banner .d{color:var(--ink-soft);font-size:15.5px;margin-top:2px}
+  .recovery-banner .d b{color:var(--oxblood)}
+
+  .concept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+  .cstate{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:22px 24px;box-shadow:var(--shadow);transition:.22s}
+  .cstate:hover{transform:translateY(-2px)}
+  .cstate .ch{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .cstate .cn{font-family:"Fraunces",serif;font-size:21px;font-weight:500;letter-spacing:-.01em;line-height:1.1}
+  .cstate .st{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 9px;border-radius:999px;border:1px solid;white-space:nowrap;flex:0 0 auto}
+  .st.command{color:var(--accent);background:var(--accent-soft);border-color:#cadbcf}
+  .st.repair{color:var(--oxblood);background:#f6e3dd;border-color:#e6c0b9}
+  .st.plateau{color:var(--amber);background:var(--amber-soft);border-color:#e3cf9d}
+  .st.ready{color:var(--accent);background:#dcefe0;border-color:#a9d8b4}
+  .cstate .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:18px}
+  .cstate .ind{}
+  .cstate .ind .k{font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+  .cstate .ind .vv{font-family:"Fraunces",serif;font-size:23px;font-weight:600;line-height:1;margin-top:4px}
+  .cstate .ind .vv small{font-size:11px;font-family:"Spline Sans Mono",monospace;font-weight:400;color:var(--ink-faint)}
+  .ring{position:relative;width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:5px}
+  .cstate .foot{margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft);font-size:14.5px;color:var(--ink-soft)}
+  .cstate .foot .mis{color:var(--oxblood);font-family:"Spline Sans Mono",monospace;font-size:12px}
+
+  /* ---------- history ---------- */
+  .timeline{position:relative;padding-left:34px}
+  .timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--line)}
+  .snap{position:relative;margin-bottom:6px;padding:18px 22px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:18px}
+  .snap::before{content:"";position:absolute;left:-30px;top:24px;width:14px;height:14px;border-radius:50%;
+    background:var(--card);border:3px solid var(--accent)}
+  .snap.warn::before{border-color:var(--oxblood)}
+  .snap.event::before{border-color:var(--amber);width:11px;height:11px;left:-28.5px}
+  .snap .sh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .snap .sh .ev{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    padding:3px 9px;border-radius:6px;background:var(--accent-soft);color:var(--accent);border:1px solid #cadbcf}
+  .snap.warn .sh .ev{background:#f6e3dd;color:var(--oxblood);border-color:#e6c0b9}
+  .snap.event .sh .ev{background:var(--amber-soft);color:var(--amber);border-color:#e3cf9d}
+  .snap .sh .when{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);margin-left:auto}
+  .snap .title{font-family:"Fraunces",serif;font-size:19px;font-weight:500;margin:12px 0 4px;letter-spacing:-.01em}
+  .snap .obs{color:var(--ink-soft);font-size:16px}
+  .snap .rationale{margin-top:12px;padding:12px 15px;background:var(--paper-2);border-radius:8px;border-left:2px solid var(--accent);
+    font-size:15px;color:var(--ink-soft)}
+  .snap .rationale .l{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+  .snap .ba{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap}
+  .snap .ba .chip{font-family:"Spline Sans Mono",monospace;font-size:11.5px;color:var(--ink-soft);
+    background:var(--paper-2);border:1px solid var(--line-soft);border-radius:7px;padding:6px 11px}
+  .snap .ba .chip b{color:var(--accent)}
+
+  .section-label{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin:0 0 18px;display:flex;align-items:center;gap:10px}
+  .section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  footer{border-top:1px solid var(--line);padding:26px 0;margin-top:40px}
+  footer .fi{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:"Spline Sans Mono",monospace;
+    font-size:11px;color:var(--ink-faint);letter-spacing:.04em}
+  footer a{color:var(--accent);text-decoration:none}
+
+  @media(max-width:680px){
+    .wrap{padding:0 18px}
+    .top-inner{padding:12px 18px}
+    .brand .tag{display:none}
+    .decision .pad{padding:24px 22px 24px 26px}
+    .metric{flex-basis:50%;border-bottom:1px solid var(--line-soft)}
+    .dec-meta{text-align:left}
+    .rev{flex-wrap:wrap}
+    .rev .go{width:100%;text-align:center}
+  }
+</style>
+</head>
+<body>
+<a class="gallery-badge" href="../" title="Back to mockup gallery">↩ mockup index</a>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <span class="logo">L<b>O</b>RE</span>
+      <span class="tag">Workbench · Learner</span>
+    </div>
+    <div class="learner-chip">
+      <div class="who">
+        <div class="n">Amara Okafor</div>
+        <div class="r">Go-Spring-24 · learner-1</div>
+      </div>
+      <div class="avatar" aria-hidden="true">AO</div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Workbench sections">
+  <div class="tabs-inner">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="now" id="t-now" onclick="go('now')">Now</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="reviews" id="t-reviews" onclick="go('reviews')">Reviews <span class="ct warn">3</span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="progress" id="t-progress" onclick="go('progress')">Progress</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="history" id="t-history" onclick="go('history')">History</button>
+  </div>
+</nav>
+
+<main>
+  <!-- ================= NOW ================= -->
+  <section class="panel active wrap" id="now" role="tabpanel" aria-labelledby="t-now">
+    <p class="eyebrow">Runtime decision · today, 09:12</p>
+    <h1 class="page">Your next <i>move</i>.</h1>
+    <p class="page-sub">One thing at a time. The runtime chose this — not a menu, not a guess. Here is what to do, and exactly why.</p>
+
+    <!-- DECISION CARD -->
+    <article class="decision">
+      <div class="pad">
+        <div class="dec-head">
+          <span class="badge-runtime"><span class="dot"></span> Runtime decided</span>
+          <div class="dec-meta">
+            decision <b>rd_8f12a4</b><br>
+            policy <b>repair-before-advance</b><br>
+            confidence <b>high</b>
+          </div>
+        </div>
+
+        <div class="dec-kicker">Concept · persistence (difficulty 0.7)</div>
+        <h2 class="dec-title">Repair <span class="concept">transaction rollback</span> on persistence</h2>
+
+        <div class="why">
+          <span class="label">Why this, in plain language</span>
+          Your retention on <b>persistence</b> dropped to <em>38%</em> and a scheduled review is <em>2 days overdue</em>. You also have an active misconception — <em>forgetting to roll back on error</em>. We'll repair this <b>before</b> moving you forward to <i>transactions</i>, so the foundation holds.
+        </div>
+
+        <div class="metrics-row">
+          <div class="metric">
+            <div class="k">Mastery</div>
+            <div class="v">0.41 <span class="trend down" id="m-mastery-trend">▼ declining</span></div>
+            <div class="bar"><i style="width:41%;background:var(--oxblood)"></i></div>
+          </div>
+          <div class="metric">
+            <div class="k">Retention</div>
+            <div class="v">0.38 <span class="trend down">▼ overdue</span></div>
+            <div class="bar"><i style="width:38%;background:var(--amber)"></i></div>
+          </div>
+          <div class="metric">
+            <div class="k">Misconception</div>
+            <div class="v" style="font-size:18px;color:var(--oxblood)">active</div>
+            <div class="bar"><i style="width:100%;background:var(--oxblood)"></i></div>
+          </div>
+          <div class="metric">
+            <div class="k">Zone (ZPD)</div>
+            <div class="v" style="font-size:18px;color:var(--accent)">in-band</div>
+            <div class="bar"><i style="width:64%;background:var(--accent)"></i></div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- GENERATED ACTIVITY (instruction-only fallback for learner-1) -->
+    <section class="activity" id="activity">
+      <div class="activity-head">
+        <span class="src-badge fallback" id="src-badge">⚠ Instruction-only fallback</span>
+        <button class="toggle-src" onclick="toggleSrc()" id="toggle-src">Preview if LLM were live</button>
+        <span class="hint" id="src-hint">scope: learner-1 → instruction_only</span>
+      </div>
+
+      <!-- Fallback view: runtime-authored scaffold, no LLM prose -->
+      <div class="instr-only" id="view-fallback">
+        <p style="font-size:15px;color:var(--ink-soft);margin:0 0 18px;font-family:'Spline Sans Mono',monospace;line-height:1.6">
+          Your LLM scope is set to <b>instruction_only</b>, so no model generated prose this time. The runtime still hands you a complete, structured task built from the <b>TutorInstruction</b> — nothing is missing, only the narrated wrapper.
+        </p>
+        <div class="scaffold">
+          <div class="instr-line"><span class="num">01</span><span class="txt">Open <b>transferRepo.SaveOrder</b>. Wrap the two writes (order + inventory decrement) in a single <b>tx, err := db.Begin()</b>.</span></div>
+          <div class="instr-line"><span class="num">02</span><span class="txt">On <b>any</b> error path after Begin, call <b>tx.Rollback()</b> before returning. This is the exact step you skipped last attempt.</span></div>
+          <div class="instr-line"><span class="num">03</span><span class="txt">Commit only after both writes succeed. Paste your corrected handler below and rate how sure you are.</span></div>
+        </div>
+        <div class="instr-note">↳ Target misconception: <b style="margin-left:4px">forgot-tx-rollback</b> · TutorInstruction ti_4471 · objective: defended-write</div>
+      </div>
+
+      <!-- LLM preview view (hidden until toggled) -->
+      <div class="activity-body" id="view-llm" style="display:none">
+        <h3>Worked scenario: the order that half-committed</h3>
+        <p>An online store decrements inventory and writes an order in two steps. Last week, a payment timeout left inventory reduced but <em>no order saved</em>. Read the handler below — it has the exact bug you hit twice.</p>
+        <code class="codeblk"><span class="kw">func</span> (r *Repo) <span class="fn">SaveOrder</span>(ctx, o Order) <span class="kw">error</span> {
+  tx, _ := r.db.<span class="fn">Begin</span>()
+  <span class="kw">if</span> err := <span class="fn">insertOrder</span>(tx, o); err != <span class="kw">nil</span> {
+    <span class="err">return err  // ← bug: tx never rolled back</span>
+  }
+  <span class="kw">if</span> err := <span class="fn">decrementStock</span>(tx, o); err != <span class="kw">nil</span> {
+    <span class="err">return err  // ← same leak here</span>
+  }
+  <span class="kw">return</span> tx.<span class="fn">Commit</span>()
+}</code>
+        <p><b>Your task:</b> rewrite <code>SaveOrder</code> so that every early return rolls the transaction back first. Then explain, in one sentence, why a dangling transaction is worse than a failed one.</p>
+      </div>
+
+      <!-- EVIDENCE SUBMITTER -->
+      <div class="evidence">
+        <h4>Submit your evidence</h4>
+        <textarea class="answer" id="answer" aria-label="Your answer" placeholder="Paste your corrected SaveOrder handler, plus one sentence on why a dangling transaction is dangerous…">func (r *Repo) SaveOrder(ctx, o Order) error {
+    tx, err := r.db.Begin()
+    if err != nil { return err }
+    if err := insertOrder(tx, o); err != nil {
+        tx.Rollback(); return err
+    }
+    // ...
+}</textarea>
+
+        <div class="conf">
+          <div class="conf-top">
+            <span class="lbl">How confident are you?</span>
+            <span class="val"><span id="conf-val">65</span>%<span id="conf-word">fairly sure</span></span>
+          </div>
+          <input type="range" id="conf" min="0" max="100" value="65" oninput="confChange(this.value)" aria-label="Confidence level" />
+          <div class="conf-scale"><span>guessing</span><span>unsure</span><span>fairly sure</span><span>certain</span></div>
+        </div>
+
+        <div class="submit-row">
+          <button class="btn-primary" id="submit-btn" onclick="submitEvidence()">Submit evidence →</button>
+          <span class="submit-note">POST <b>/v1/tenants/acme/interactions</b> · Idempotency-Key set</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATE DELTA -->
+    <section class="delta" id="delta" aria-live="polite">
+      <div class="delta-head">
+        <span class="ic">✓</span>
+        <span class="t">Evidence recorded — here's what changed in your model</span>
+        <span class="sub">snapshot ps_9920 written</span>
+      </div>
+      <div class="delta-body">
+        <div class="delta-item" style="animation-delay:.05s">
+          <span class="di-ic">↑</span>
+          <div class="di-main">
+            <div class="di-k">Mastery · persistence</div>
+            <div class="di-v"><span class="from">0.41</span><span class="arrow">→</span><span class="to">0.47</span></div>
+          </div>
+        </div>
+        <div class="delta-item" style="animation-delay:.18s">
+          <span class="di-ic">⟳</span>
+          <div class="di-main">
+            <div class="di-k">Retention · review rescheduled</div>
+            <div class="di-v"><span class="from">overdue 2d</span><span class="arrow">→</span><span class="to" style="font-size:17px">due in 3 days</span></div>
+          </div>
+        </div>
+        <div class="delta-item warn" style="animation-delay:.31s">
+          <span class="di-ic">!</span>
+          <div class="di-main">
+            <div class="di-k">Misconception · forgot-tx-rollback</div>
+            <div class="di-v"><span class="from">active</span><span class="arrow">→</span><span class="to" style="font-size:17px">still active — 1 more clean attempt to clear</span></div>
+          </div>
+        </div>
+        <div class="delta-item" style="animation-delay:.44s">
+          <span class="di-ic">◷</span>
+          <div class="di-main">
+            <div class="di-k">Recovery state</div>
+            <div class="di-v"><span class="from">overload</span><span class="arrow">→</span><span class="to" style="font-size:17px">stabilising</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="delta-next">
+        <span class="lbl">Next move</span>
+        <span class="nx">One more <b>defended-write</b> rep to clear the misconception, then unlock <b>transactions</b>.</span>
+        <button class="link-btn" onclick="resetNow()">Continue →</button>
+      </div>
+    </section>
+  </section>
+
+  <!-- ================= REVIEWS ================= -->
+  <section class="panel wrap" id="reviews" role="tabpanel" aria-labelledby="t-reviews" hidden>
+    <p class="eyebrow">Spaced retrieval · FSRS schedule</p>
+    <h1 class="page">Your <i>review</i> queue.</h1>
+    <p class="page-sub">These are timed to hit just as memory fades — retrieving now is what makes it stick. Overdue items first; the runtime won't advance you while debt is high.</p>
+
+    <div class="review-q">
+      <div class="rev overdue">
+        <div class="urg"><div class="big">2d</div><div class="lab">overdue</div></div>
+        <div class="info">
+          <div class="cn">persistence</div>
+          <div class="meta"><span>retention <b>0.38</b></span><span>last seen <b>5d ago</b></span><span>card <b>rc_3310</b></span><span style="color:var(--oxblood)">tied to active misconception</span></div>
+        </div>
+        <button class="go" onclick="go('now')">Repair now →</button>
+      </div>
+
+      <div class="rev due">
+        <div class="urg"><div class="big">0d</div><div class="lab">due today</div></div>
+        <div class="info">
+          <div class="cn">middleware</div>
+          <div class="meta"><span>retention <b>0.61</b></span><span>last seen <b>8d ago</b></span><span>card <b>rc_2871</b></span><span>est. <b>4 min</b></span></div>
+        </div>
+        <button class="go">Review →</button>
+      </div>
+
+      <div class="rev due">
+        <div class="urg"><div class="big">0d</div><div class="lab">due today</div></div>
+        <div class="info">
+          <div class="cn">http-handlers</div>
+          <div class="meta"><span>retention <b>0.79</b></span><span>last seen <b>11d ago</b></span><span>card <b>rc_2204</b></span><span>est. <b>3 min</b></span></div>
+        </div>
+        <button class="go">Review →</button>
+      </div>
+
+      <div class="rev soon">
+        <div class="urg"><div class="big">3d</div><div class="lab">upcoming</div></div>
+        <div class="info">
+          <div class="cn">middleware → auth-jwt</div>
+          <div class="meta"><span>retention <b>0.70</b></span><span>scheduled <b>Mon 09 Jun</b></span><span>card <b>rc_3015</b></span></div>
+        </div>
+        <button class="go" disabled style="opacity:.45;cursor:default">Not yet</button>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:36px">Why these intervals</p>
+    <div class="why" style="max-width:none">
+      <span class="label">Runtime note</span>
+      Intervals come from the FSRS scheduler reading each card's stability and your last recall. <b>persistence</b> surfaced early and urgent because its stability collapsed after two failed attempts — retrieval is the cheapest repair. Stronger concepts (<b>http-handlers</b>) get pushed further out to avoid wasting your effort.
+    </div>
+  </section>
+
+  <!-- ================= PROGRESS ================= -->
+  <section class="panel wrap" id="progress" role="tabpanel" aria-labelledby="t-progress" hidden>
+    <p class="eyebrow">Concept state · honest signals</p>
+    <h1 class="page">Where you actually <i>stand</i>.</h1>
+    <p class="page-sub">No vanity bars. Three independent signals per concept — what you can do (mastery), whether you'll keep it (retention), and how well you read yourself (confidence calibration).</p>
+
+    <div class="recovery-banner">
+      <div class="ic">◷</div>
+      <div>
+        <div class="t">You're in overload recovery</div>
+        <div class="d">Two failed attempts on <b>persistence</b> triggered a protective slowdown. The runtime has narrowed today to a single repair task and paused new concepts. This is by design — not a setback.</div>
+      </div>
+    </div>
+
+    <p class="section-label">Active concepts</p>
+    <div class="concept-grid">
+
+      <div class="cstate">
+        <div class="ch">
+          <div class="cn">persistence</div>
+          <span class="st repair">repair</span>
+        </div>
+        <div class="three">
+          <div class="ind"><div class="k">Mastery</div><div class="vv" style="color:var(--oxblood)">.41 <small>▼</small></div></div>
+          <div class="ind"><div class="k">Retention</div><div class="vv" style="color:var(--amber)">.38 <small>▼</small></div></div>
+          <div class="ind"><div class="k">Calibration</div><div class="vv" style="color:var(--oxblood)">over <small>+22</small></div></div>
+        </div>
+        <div class="foot"><span class="mis">⚠ misconception: forgot-tx-rollback</span> · declining 6 days. Current repair target.</div>
+      </div>
+
+      <div class="cstate">
+        <div class="ch">
+          <div class="cn">http-handlers</div>
+          <span class="st command">command</span>
+        </div>
+        <div class="three">
+          <div class="ind"><div class="k">Mastery</div><div class="vv" style="color:var(--accent)">.86 <small>▲</small></div></div>
+          <div class="ind"><div class="k">Retention</div><div class="vv" style="color:var(--accent)">.79</div></div>
+          <div class="ind"><div class="k">Calibration</div><div class="vv" style="color:var(--accent)">tight <small>±4</small></div></div>
+        </div>
+        <div class="foot">Solid command. Holding steady — light review keeps it warm.</div>
+      </div>
+
+      <div class="cstate">
+        <div class="ch">
+          <div class="cn">middleware</div>
+          <span class="st command">command</span>
+        </div>
+        <div class="three">
+          <div class="ind"><div class="k">Mastery</div><div class="vv" style="color:var(--accent)">.72</div></div>
+          <div class="ind"><div class="k">Retention</div><div class="vv" style="color:var(--amber)">.61</div></div>
+          <div class="ind"><div class="k">Calibration</div><div class="vv">good <small>±7</small></div></div>
+        </div>
+        <div class="foot">Due for review today — retrieval will lift retention.</div>
+      </div>
+
+      <div class="cstate">
+        <div class="ch">
+          <div class="cn">transactions</div>
+          <span class="st plateau" style="color:var(--ink-faint);background:var(--paper-2);border-color:var(--line)">locked</span>
+        </div>
+        <div class="three">
+          <div class="ind"><div class="k">Mastery</div><div class="vv" style="color:var(--ink-faint)">—</div></div>
+          <div class="ind"><div class="k">Retention</div><div class="vv" style="color:var(--ink-faint)">—</div></div>
+          <div class="ind"><div class="k">Prereq</div><div class="vv" style="color:var(--ink-faint);font-size:15px">persistence</div></div>
+        </div>
+        <div class="foot">Unlocks once persistence is repaired and the misconception clears (difficulty 0.8).</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= HISTORY ================= -->
+  <section class="panel wrap" id="history" role="tabpanel" aria-labelledby="t-history" hidden>
+    <p class="eyebrow">Pedagogical snapshots · audit trail</p>
+    <h1 class="page">What the runtime <i>saw</i>.</h1>
+    <p class="page-sub">Every decision leaves a snapshot: the state before, what it observed, the state after, and the human-readable rationale. This is your record — fully auditable.</p>
+
+    <div class="timeline">
+
+      <div class="snap warn">
+        <div class="sh"><span class="ev">Misconception detected</span><span class="when">Today · 09:12</span></div>
+        <div class="title">Repair task selected over advancement</div>
+        <div class="obs">Two consecutive failed attempts on persistence; both omitted <code>tx.Rollback()</code> on the error path. Retention had decayed below the review threshold.</div>
+        <div class="ba">
+          <span class="chip">before: mastery <b>0.44</b></span>
+          <span class="chip">obs: 2 fails</span>
+          <span class="chip">after: mastery <b>0.41</b></span>
+          <span class="chip">flagged: <b>forgot-tx-rollback</b></span>
+        </div>
+        <div class="rationale"><span class="l">Rationale</span>Advancing to transactions on a broken persistence model would compound the error. Policy <b>repair-before-advance</b> engaged; learner moved into overload recovery to reduce load.</div>
+      </div>
+
+      <div class="snap event">
+        <div class="sh"><span class="ev">Alert raised · Overload</span><span class="when">Today · 09:12</span></div>
+        <div class="title">Protective slowdown engaged</div>
+        <div class="obs">Failure streak + rising confidence-vs-correctness gap (over-confident). Today narrowed to one repair task; new-concept intake paused.</div>
+        <div class="ba"><span class="chip">severity: <b>medium</b></span><span class="chip">type: <b>Overload</b></span><span class="chip">visible to: <b>trainer</b></span></div>
+      </div>
+
+      <div class="snap warn">
+        <div class="sh"><span class="ev">Review missed</span><span class="when">2 days ago · 18:40</span></div>
+        <div class="title">persistence review went overdue</div>
+        <div class="obs">Scheduled FSRS card rc_3310 was not completed by its due time. Retention estimate dropped from 0.52 → 0.38, raising forgetting risk.</div>
+        <div class="ba"><span class="chip">retention: <b>0.52 → 0.38</b></span><span class="chip">alert: <b>ReviewDue</b></span></div>
+      </div>
+
+      <div class="snap">
+        <div class="sh"><span class="ev">Mastery update</span><span class="when">4 days ago · 11:05</span></div>
+        <div class="title">middleware reached command</div>
+        <div class="obs">Correct response on a chained-middleware ordering task. BKT posterior crossed 0.70; concept marked as command-level.</div>
+        <div class="ba"><span class="chip">before: <b>0.63</b></span><span class="chip">after: <b>0.72</b></span><span class="chip">confidence: well-calibrated</span></div>
+      </div>
+
+      <div class="snap">
+        <div class="sh"><span class="ev">Assessment passed</span><span class="when">6 days ago · 14:22</span></div>
+        <div class="title">http-handlers — readiness confirmed</div>
+        <div class="obs">Planned assessment cleared at 0.86 mastery with tight calibration. Runtime opened the persistence branch of the domain graph.</div>
+        <div class="ba"><span class="chip">mastery: <b>0.86</b></span><span class="chip">unlocked: <b>persistence</b></span><span class="chip">unlocked: <b>middleware</b></span></div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="fi">
+    <span>LORE · Learning Orchestration Runtime Engine — headless LMS</span>
+    <span>tenant <b style="color:var(--ink-soft)">acme</b> · program Backend Engineering 2026 · cohort Go-Spring-24 · <a href="../">mockup index</a></span>
+  </div>
+</footer>
+
+<script>
+  const TABS = ['now','reviews','progress','history'];
+  function go(id){
+    TABS.forEach(t=>{
+      const panel=document.getElementById(t);
+      const tab=document.getElementById('t-'+t);
+      const on = t===id;
+      panel.classList.toggle('active',on);
+      panel.hidden = !on;
+      tab.setAttribute('aria-selected', on?'true':'false');
+    });
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  // confidence slider
+  const confWords = [[0,'guessing'],[35,'unsure'],[55,'fairly sure'],[80,'quite sure'],[95,'certain']];
+  function confChange(v){
+    v=+v;
+    document.getElementById('conf-val').textContent=v;
+    const slider=document.getElementById('conf');
+    slider.style.background=`linear-gradient(90deg,var(--accent) ${v}%, var(--line-soft) ${v}%)`;
+    let w='guessing';
+    for(const [t,l] of confWords){ if(v>=t) w=l; }
+    document.getElementById('conf-word').textContent=w;
+  }
+  confChange(65);
+
+  // submit evidence -> reveal delta
+  let submitted=false;
+  function submitEvidence(){
+    if(submitted) return;
+    submitted=true;
+    const btn=document.getElementById('submit-btn');
+    btn.textContent='Recording…';
+    btn.disabled=true;
+    setTimeout(()=>{
+      const d=document.getElementById('delta');
+      d.classList.add('show');
+      d.scrollIntoView({behavior:'smooth',block:'center'});
+      btn.textContent='Submitted ✓';
+    },620);
+  }
+  function resetNow(){
+    submitted=false;
+    document.getElementById('delta').classList.remove('show');
+    const btn=document.getElementById('submit-btn');
+    btn.textContent='Submit evidence →';
+    btn.disabled=false;
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  // toggle LLM preview vs instruction-only fallback
+  let llmView=false;
+  function toggleSrc(){
+    llmView=!llmView;
+    document.getElementById('view-fallback').style.display=llmView?'none':'block';
+    document.getElementById('view-llm').style.display=llmView?'block':'none';
+    const badge=document.getElementById('src-badge');
+    const tog=document.getElementById('toggle-src');
+    const hint=document.getElementById('src-hint');
+    if(llmView){
+      badge.className='src-badge llm';
+      badge.innerHTML='◆ LLM generated · anthropic/claude';
+      tog.textContent='Back to your fallback';
+      hint.textContent='preview only · temp 0.2';
+    }else{
+      badge.className='src-badge fallback';
+      badge.innerHTML='⚠ Instruction-only fallback';
+      tog.textContent='Preview if LLM were live';
+      hint.textContent='scope: learner-1 → instruction_only';
+    }
+  }
+
+  // keyboard nav for tabs
+  document.querySelectorAll('.tab').forEach((tab,i,all)=>{
+    tab.addEventListener('keydown',e=>{
+      if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+        e.preventDefault();
+        const dir=e.key==='ArrowRight'?1:-1;
+        const next=all[(i+dir+all.length)%all.length];
+        next.focus(); go(TABS[(i+dir+all.length)%all.length]);
+      }
+    });
+  });
+</script>
+</body>
+</html>

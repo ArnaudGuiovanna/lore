@@ -1,0 +1,93 @@
+# Self-host stack for the LORE web front (LECTURE) + the LORE backend in JWT mode.
+#
+# This is the simplest runnable deployment for a training organization (OF):
+#   - lore         : the headless Go backend, JWT auth, in-memory store (no Postgres needed)
+#   - web          : the Next.js LECTURE front (standalone build)
+#   - seed         : a one-shot job that seeds demo data once the backend is healthy
+#
+# Quick start (from the repo root):
+#   export LORE_BOOTSTRAP_TOKEN=$(openssl rand -hex 24)
+#   export JWT_SECRET=$(openssl rand -hex 32)
+#   export SESSION_SECRET=$(openssl rand -hex 32)
+#   docker compose -f deploy/docker-compose.web.yml up --build
+#   # then open http://localhost:3001
+#
+# For a durable, multi-node deployment use deploy/docker-compose.yml instead
+# (Postgres + Redis + NATS); point this web service's LORE_BASE at that backend.
+
+services:
+  lore:
+    build:
+      context: ..
+      dockerfile: deploy/lore.Dockerfile
+    environment:
+      PORT: "8080"
+      # In-memory store: zero external deps, resets on restart. Swap for postgres
+      # (see deploy/docker-compose.yml) for persistence.
+      STORE_DRIVER: memory
+      # JWT mode. JWT_SECRET signs per-user tokens; the bootstrap token gates
+      # membership creation and token minting. CHANGE BOTH for any real use.
+      JWT_SECRET: ${JWT_SECRET:-local-dev-change-me-32-bytes-minimum}
+      JWT_ALG: HS256
+      LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:-boot-dev-secret}
+      # Runtime works without an LLM (instruction_only); set these to enable generation.
+      LORE_LLM_PROVIDER: ${LORE_LLM_PROVIDER:-instruction_only}
+      LORE_LLM_MODEL: ${LORE_LLM_MODEL:-tenant-runtime}
+    ports:
+      - "8080:8080"
+
+  # One-shot: seeds tenant, program, cohort, users+roles, domain, syllabus, runtime
+  # state via web/scripts/seed.sh, then writes web/.gen/seed.json into a shared volume.
+  seed:
+    image: alpine:3.20
+    depends_on:
+      lore:
+        condition: service_started
+    environment:
+      LORE_BASE: http://lore:8080
+      LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:-boot-dev-secret}
+    volumes:
+      - ../web:/web:ro
+      - web-gen:/gen
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        apk add --no-cache bash curl jq >/dev/null &&
+        cp -r /web /tmp/web &&
+        until curl -sf http://lore:8080/health >/dev/null 2>&1; do
+          echo 'waiting for lore backend...'; sleep 2;
+        done &&
+        bash /tmp/web/scripts/seed.sh &&
+        cp /tmp/web/.gen/seed.json /gen/seed.json &&
+        echo 'seed complete'
+    restart: "no"
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    depends_on:
+      lore:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
+    environment:
+      # Server-side base URL for the backend (Docker network DNS name).
+      LORE_BASE: http://lore:8080
+      # MUST match the backend's bootstrap token: the Next server mints per-user
+      # LORE tokens with it after verifying passwords.
+      LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:-boot-dev-secret}
+      # Signs the session cookie. >= 32 bytes. CHANGE for any real use.
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-me-please-32bytes-minimum}
+      # Default password for the seeded demo accounts. CHANGE for any real use.
+      DEFAULT_SEED_PASSWORD: ${DEFAULT_SEED_PASSWORD:-lore123!}
+      PORT: "3001"
+    ports:
+      - "3001:3001"
+    volumes:
+      # Share the seeded ids so the credential store derives the demo logins on boot.
+      - web-gen:/app/.gen
+    restart: unless-stopped
+
+volumes:
+  web-gen:

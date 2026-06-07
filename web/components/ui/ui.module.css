@@ -1,0 +1,261 @@
+/* Shared LECTURE primitive styles (scoped via CSS Module to avoid global edits).
+   Tokens come from app/globals.css :root. */
+
+/* Stepper */
+.stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 140px;
+}
+.stepRail {
+  flex: 0 0 24px;
+  height: 1px;
+  background: var(--line-2);
+  margin: 0 6px;
+  align-self: center;
+}
+.stepBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  padding: 8px 6px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  flex: 1;
+}
+.stepBtn[disabled] {
+  cursor: default;
+}
+.stepDot {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  background: var(--card);
+}
+.stepText {
+  gap: 1px;
+}
+.stepLabel {
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.stepCaption {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.isDone .stepDot {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+.isActive .stepDot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+.isActive .stepLabel {
+  color: var(--accent);
+}
+.isUpcoming .stepLabel,
+.isLocked .stepLabel {
+  color: var(--muted);
+}
+.isLocked {
+  opacity: 0.6;
+}
+
+/* DataTable */
+.dtWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+.dt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.dtTh {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--quiet);
+  font-weight: 400;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.dtTr {
+  transition: background 0.15s ease;
+}
+.dtTr:hover {
+  background: var(--paper-2);
+}
+.dtTd {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  vertical-align: top;
+}
+.dtTr:last-child .dtTd {
+  border-bottom: 0;
+}
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.dtEmpty {
+  padding: 28px 18px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* Timeline */
+.tl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+.tlItem {
+  position: relative;
+  padding: 0 0 22px 30px;
+}
+.tlItem::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--line-2);
+}
+.tlItem:last-child::before {
+  display: none;
+}
+.tlNode {
+  position: absolute;
+  left: 2px;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.tlCard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.tlTitle {
+  font-family: var(--display);
+  font-weight: 430;
+  font-size: 17px;
+}
+.tlSlotBody {
+  font-size: 15px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+/* Drawer */
+.drawerRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+.drawerScrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(31, 33, 27, 0.34);
+  animation: scrimIn 0.2s ease both;
+}
+.drawerPanel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 92vw;
+  background: var(--paper);
+  border-left: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  animation: drawerIn 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.drawerHead {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+  align-items: flex-start;
+}
+.drawerBody {
+  padding: 22px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.drawerFoot {
+  padding: 18px 24px;
+  border-top: 1px solid var(--line);
+}
+
+/* StreamReader caret */
+.srCaret {
+  display: inline-block;
+  width: 0.5ch;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: caretBlink 1s steps(2, start) infinite;
+}
+
+@keyframes scrimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes drawerIn {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes caretBlink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawerScrim,
+  .drawerPanel,
+  .srCaret {
+    animation: none !important;
+  }
+  .srCaret { display: none; }
+}

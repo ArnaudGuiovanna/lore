@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Zen / Soufflé — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-deep:#ece3d4;
+    --card:#fbf8f2;
+    --ink:#211f1a;
+    --ink-soft:#4a463d;
+    --ink-faint:#7d776a;
+    --ink-ghost:#aaa190;
+    --line:#ddd4c3;
+    --line-soft:#e7dfd1;
+    --accent:#1f4a3a;
+    --accent-deep:#143229;
+    --accent-soft:#e3ece5;
+    --oxblood:#7a2230;
+    --oxblood-soft:#f1dfe0;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(33,31,26,.05), 0 40px 90px -50px rgba(33,31,26,.55);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,textarea:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;
+  }
+  body.fallback a:focus-visible,body.fallback button:focus-visible,body.fallback textarea:focus-visible{
+    outline-color:var(--amber);
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(130% 80% at 50% -8%, #faf6ee 0%, rgba(250,246,238,0) 58%),
+      radial-gradient(90% 70% at 90% 112%, #ebe2d2 0%, rgba(235,226,210,0) 55%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:19px; line-height:1.7;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    min-height:100vh; overflow-x:hidden;
+  }
+  ::selection{background:var(--accent);color:#f5f0e7}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,monospace}
+  .ser{font-family:"Fraunces",serif}
+
+  /* ---- ambient chrome, all dimmable ---- */
+  .chrome{transition:opacity .7s ease, filter .7s ease}
+  body.breathing .chrome{opacity:.07; filter:blur(2px); pointer-events:none}
+  body.breathing .chrome.keep{opacity:.32; filter:none}
+
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:400;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.7);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    opacity:0;animation:chromeIn .8s .2s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px);transition:.25s}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:400;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn .8s .3s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #356c54, #1f4a3a);
+    color:#f5f0e7;display:grid;place-items:center;
+    font-family:"Fraunces",serif;font-weight:600;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:300;
+    font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn .9s .45s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:500;color:var(--accent)}
+
+  .mode-pill{
+    position:fixed;bottom:16px;right:20px;z-index:300;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;
+    opacity:0;animation:chromeIn .9s .5s ease both;
+  }
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .mode-dot{background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+  .mode-pill .lbl b{color:var(--ink-soft);font-weight:600}
+
+  /* ================= VOID STAGE ================= */
+  .stage{
+    min-height:100vh;min-height:100dvh;position:relative;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:120px 24px;
+  }
+
+  .zen{
+    width:100%;max-width:640px;margin:0 auto;text-align:center;
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .zen.gone{opacity:0;transform:translateY(-16px);pointer-events:none}
+
+  .eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.24em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:22px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    opacity:0;animation:riseIn 1s .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .eyebrow .rl{flex:0 0 36px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
+  .eyebrow .rl.r{background:linear-gradient(90deg,var(--line),transparent)}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;white-space:nowrap;
+  }
+  .badge.runtime{background:var(--accent);color:#f5f0e7}
+  .badge.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .badge.fallbk{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  .badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  .intent-line{
+    font-family:"Fraunces",serif;font-weight:330;font-size:35px;line-height:1.36;
+    letter-spacing:-.014em;color:var(--ink);
+    font-variation-settings:"opsz" 88;margin:0 auto;max-width:600px;
+    opacity:0;animation:riseIn 1.1s .65s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .intent-line em{font-style:italic;color:var(--accent);font-weight:430}
+  .intent-line .neg{color:var(--oxblood);font-style:normal;font-weight:500;
+    font-family:"Spline Sans Mono",monospace;font-size:.6em;letter-spacing:-.01em}
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .intent-meta{
+    margin-top:24px;display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;align-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+    opacity:0;animation:riseIn 1.1s .8s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .metric{display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px}
+  .metric .k{letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--oxblood)}
+  .metric .v.warn{color:var(--amber)}
+
+  .recovery{
+    margin-top:20px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.04em;color:var(--amber);display:inline-flex;align-items:center;gap:7px;
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:999px;padding:4px 13px;
+    opacity:0;animation:riseIn 1.1s .95s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .recovery svg{width:12px;height:12px}
+
+  /* ---- the single summon field ---- */
+  .summon{
+    margin-top:48px;position:relative;width:100%;max-width:430px;margin-left:auto;margin-right:auto;
+    opacity:0;animation:riseIn 1.1s 1.1s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .summon-line{
+    display:flex;align-items:center;gap:12px;justify-content:center;
+    border-bottom:1px solid var(--line);padding:10px 4px 12px;cursor:text;
+    transition:border-color .35s ease;position:relative;
+  }
+  .summon.focused .summon-line{border-color:var(--accent)}
+  body.fallback .summon.focused .summon-line{border-color:var(--amber)}
+  .summon .glyph{
+    font-family:"Spline Sans Mono",monospace;font-size:20px;font-weight:600;color:var(--accent);
+    flex:0 0 auto;user-select:none;transition:color .3s;line-height:1;
+  }
+  body.fallback .summon .glyph{color:var(--amber)}
+  .field-wrap{flex:1 1 auto;position:relative;min-height:30px;text-align:left;display:flex;align-items:center}
+  .field{
+    width:100%;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:18px;line-height:1.5;
+    color:var(--ink);padding:0;margin:0;overflow:hidden;caret-color:transparent;
+  }
+  .field::placeholder{color:var(--ink-ghost)}
+  .caret{
+    position:absolute;width:9px;height:22px;background:var(--accent);border-radius:1px;
+    top:50%;transform:translateY(-50%);left:0;pointer-events:none;opacity:0;
+    transition:left .05s linear;animation:blink 1.05s steps(1) infinite;
+  }
+  body.fallback .caret{background:var(--amber)}
+  .summon.focused .caret{opacity:1}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+  .whisper-hint{
+    margin-top:18px;text-align:center;font-family:"Spline Sans Mono",monospace;
+    font-size:10.5px;letter-spacing:.06em;color:var(--ink-ghost);
+    transition:opacity .35s ease;
+  }
+  .whisper-hint kbd{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;background:var(--card);
+    border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink-soft);
+  }
+  .summon.focused .whisper-hint{opacity:0;pointer-events:none}
+
+  /* ---- bounded sanctioned moves: quiet inline list revealed on focus ---- */
+  .moves{
+    margin-top:18px;display:flex;flex-direction:column;gap:1px;
+    max-height:0;overflow:hidden;opacity:0;
+    transition:max-height .4s ease, opacity .35s ease;
+  }
+  .summon.focused .moves.armed{max-height:380px;opacity:1}
+  .moves-head{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-ghost);padding:4px 6px 8px;text-align:left;
+    display:flex;justify-content:space-between;
+  }
+  .moves-head .ct{color:var(--accent)}
+  .move{
+    display:flex;align-items:baseline;gap:14px;padding:8px 8px;border-radius:8px;cursor:pointer;
+    text-align:left;transition:background .14s;
+  }
+  .move[aria-selected="true"],.move:hover{background:var(--accent-soft)}
+  .move-key{font-family:"Spline Sans Mono",monospace;font-size:13px;font-weight:600;color:var(--accent);
+    flex:0 0 auto;min-width:168px}
+  .move-desc{font-family:"Newsreader",serif;font-size:15px;color:var(--ink-soft);flex:1 1 auto;line-height:1.3}
+  .move-tag{font-family:"Spline Sans Mono",monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-ghost);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+  .move.is-disabled{opacity:.32;cursor:not-allowed}
+  .move.is-disabled:hover{background:transparent}
+
+  /* ================= THE BREATHING STEPPER (full-screen beats) ================= */
+  .breath-stage{
+    position:fixed;inset:0;z-index:200;
+    background:
+      radial-gradient(130% 80% at 50% -8%, #faf6ee 0%, rgba(250,246,238,0) 58%),
+      var(--paper);
+    display:none;
+    opacity:0;transition:opacity .7s ease;
+  }
+  .breath-stage.show{display:block;opacity:1}
+  body.beating{overflow:hidden}
+
+  /* the beat scene: vertically centered, vast whitespace, ONE idea */
+  .beat{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:120px 24px 140px;
+    opacity:0;transform:translateY(22px);pointer-events:none;
+    transition:opacity .62s cubic-bezier(.2,.7,.2,1), transform .62s cubic-bezier(.2,.7,.2,1);
+    overflow-y:auto;
+  }
+  .beat.live{opacity:1;transform:none;pointer-events:auto}
+  .beat.leaving{opacity:0;transform:translateY(-22px);pointer-events:none}
+  .beat-inner{
+    width:100%;max-width:600px;margin:0 auto;text-align:center;
+    display:flex;flex-direction:column;align-items:center;
+  }
+
+  /* whisper-quiet status above the single idea */
+  .beat-kicker{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-ghost);
+    display:flex;align-items:center;gap:10px;margin-bottom:30px;min-height:16px;
+  }
+  .beat-kicker .spin{
+    width:12px;height:12px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .7s linear infinite;
+  }
+  body.fallback .beat-kicker .spin{border-top-color:var(--amber)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .beat-kicker.done .spin{display:none}
+  .beat-kicker .src{color:var(--ink-faint);font-weight:600;letter-spacing:.04em}
+
+  /* the single reading idea — large, airy serif, optimal measure */
+  .idea{
+    font-family:"Newsreader",serif;font-size:22px;line-height:1.74;color:var(--ink);
+    max-width:34ch;margin:0 auto;font-weight:370;letter-spacing:.002em;
+  }
+  .idea.measure{max-width:62ch}
+  .idea p{margin:0 0 1.1em}
+  .idea p:last-child{margin-bottom:0}
+  .idea strong{font-weight:600;color:var(--ink)}
+  .idea em{font-style:italic;color:var(--accent)}
+
+  /* beat 1 framing — a calm headline */
+  .idea-lead{
+    font-family:"Fraunces",serif;font-weight:340;font-size:30px;line-height:1.4;
+    letter-spacing:-.012em;color:var(--ink);max-width:18ch;margin:0 auto 28px;
+    font-variation-settings:"opsz" 60;
+  }
+  .idea-lead em{font-style:italic;color:var(--accent);font-weight:430}
+
+  /* the single question beat */
+  .question{
+    font-family:"Fraunces",serif;font-weight:340;font-size:33px;line-height:1.42;
+    letter-spacing:-.014em;color:var(--ink);max-width:20ch;margin:0 auto;
+    font-variation-settings:"opsz" 72;
+  }
+  .question em{font-style:italic;color:var(--accent);font-weight:430}
+
+  /* the lone code beat — airy, nothing else on screen */
+  pre.code{
+    margin:6px auto 0;background:#1c2420;border-radius:14px;padding:26px 28px;overflow-x:auto;
+    text-align:left;max-width:560px;width:100%;
+    font-family:"Spline Sans Mono",monospace;font-size:14.5px;line-height:1.85;color:#d8e2da;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05), 0 30px 70px -40px rgba(28,36,32,.7);
+  }
+  pre.code .kw{color:#9ec8ad}
+  pre.code .fn{color:#e6c98a}
+  pre.code .str{color:#c9a98a}
+  pre.code .cm{color:#6f8076;font-style:italic}
+  pre.code .err{color:#e08896}
+  .code-cap{
+    margin-top:18px;font-family:"Spline Sans Mono",monospace;font-size:11px;
+    letter-spacing:.05em;color:var(--ink-faint);text-align:center;
+  }
+
+  /* fallback scaffold beat — numbered runtime-authored steps, still airy */
+  ol.scaffold{margin:0 auto;padding:0;list-style:none;counter-reset:step;text-align:left;max-width:560px;width:100%}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:14px 0 14px 52px;
+    font-family:"Newsreader",serif;font-size:18.5px;line-height:1.6;color:var(--ink-soft);
+    border-bottom:1px dashed var(--line-soft);
+  }
+  ol.scaffold li:last-child{border-bottom:none}
+  ol.scaffold li::before{
+    content:counter(step,decimal-leading-zero);position:absolute;left:0;top:13px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;font-weight:700;color:var(--amber);
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:7px;
+    width:32px;height:24px;display:grid;place-items:center;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:600}
+
+  /* the evidence beat — a lone, calm field */
+  .evidence{
+    width:100%;max-width:560px;margin:0 auto;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;
+    box-shadow:var(--shadow);
+  }
+  .evidence-head{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .evidence-row{display:flex;align-items:flex-start;gap:12px}
+  .evidence .eglyph{font-family:"Spline Sans Mono",monospace;font-size:17px;color:var(--ink-faint);line-height:1.6}
+  .evidence textarea{
+    flex:1 1 auto;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:14.5px;line-height:1.6;color:var(--ink);
+    min-height:70px;overflow:hidden;
+  }
+  .evidence textarea::placeholder{color:var(--ink-ghost)}
+  .evidence-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:12px;flex-wrap:wrap}
+  .evidence-foot .ehint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+  .submit{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.04em;color:#f5f0e7;background:var(--accent);border:1px solid var(--accent-deep);
+    border-radius:9px;padding:9px 17px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .submit:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .submit kbd{font-family:inherit;font-size:10px;background:rgba(255,255,255,.16);border-radius:4px;padding:1px 5px}
+
+  /* the state-delta beat — calm rows, no overlay, full screen */
+  .delta-rows{display:flex;flex-direction:column;gap:13px;text-align:left;max-width:560px;width:100%;margin:0 auto}
+  .drow{display:flex;align-items:baseline;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px;flex-wrap:wrap}
+  .drow .dk{flex:0 0 150px;color:var(--ink-faint);letter-spacing:.03em}
+  .drow .dv{display:flex;align-items:baseline;gap:9px;color:var(--ink);flex:1 1 auto;flex-wrap:wrap}
+  .drow .from{color:var(--ink-ghost)}
+  .drow .arr{color:var(--accent)}
+  .drow .to{font-weight:700;color:var(--accent)}
+  .drow .to.warn{color:var(--amber)}
+  .drow .to.bad{color:var(--oxblood)}
+  .drow .note{font-family:"Newsreader",serif;font-style:italic;font-size:13.5px;color:var(--ink-faint)}
+  .delta-note{
+    margin-top:26px;font-family:"Newsreader",serif;font-size:17px;font-style:italic;
+    color:var(--ink-soft);max-width:46ch;text-align:center;line-height:1.6;
+  }
+
+  /* ---- the single low-effort affordance: continue / back ---- */
+  .beat-nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:210;
+    display:flex;align-items:center;justify-content:center;gap:18px;
+    padding:24px 24px 30px;
+    opacity:0;pointer-events:none;transition:opacity .5s ease;
+  }
+  .beat-nav.show{opacity:1;pointer-events:auto}
+  .nav-btn{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;
+    letter-spacing:.04em;color:var(--ink-soft);background:var(--card);
+    border:1px solid var(--line);border-radius:999px;padding:9px 18px;transition:.18s ease;
+    display:inline-flex;align-items:center;gap:9px;
+  }
+  .nav-btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  body.fallback .nav-btn:hover{border-color:var(--amber);color:var(--amber)}
+  .nav-btn.primary{color:#f5f0e7;background:var(--accent);border-color:var(--accent-deep)}
+  .nav-btn.primary:hover{background:var(--accent-deep);color:#f5f0e7}
+  body.fallback .nav-btn.primary{background:var(--amber);border-color:#7a520f}
+  .nav-btn[hidden]{display:none}
+  .nav-btn kbd{font-family:inherit;font-size:10px;background:var(--card);border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:4px;padding:1px 6px;color:var(--ink-soft)}
+  .nav-btn.primary kbd{background:rgba(255,255,255,.16);border:none;color:#f5f0e7}
+
+  /* whisper-quiet beat orientation: four faint dots, no vanity numbers */
+  .beat-dots{
+    position:fixed;left:0;right:0;top:34px;z-index:210;
+    display:flex;align-items:center;justify-content:center;gap:11px;
+    opacity:0;pointer-events:none;transition:opacity .6s ease;
+  }
+  .beat-dots.show{opacity:1}
+  .bdot{
+    width:7px;height:7px;border-radius:50%;background:var(--line);
+    transition:background .45s ease, transform .45s ease, box-shadow .45s ease;
+  }
+  .bdot.done{background:var(--ink-ghost)}
+  .bdot.active{background:var(--accent);transform:scale(1.45);box-shadow:0 0 0 5px var(--accent-soft)}
+  body.fallback .bdot.active{background:var(--amber);box-shadow:0 0 0 5px var(--amber-soft)}
+  .bdot.extra{background:var(--amber);opacity:.6}
+  .beat-count{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.12em;
+    color:var(--ink-ghost);margin-left:6px;
+  }
+
+  /* the faint summonable moves bar — quiet, present on every beat */
+  .moves-bar{
+    position:fixed;left:0;right:0;bottom:78px;z-index:205;
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .55s ease;
+  }
+  .moves-bar.show{opacity:1;pointer-events:auto}
+  .moves-summon{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.05em;
+    color:var(--ink-ghost);background:transparent;border:none;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;transition:.2s;
+  }
+  .moves-summon:hover{color:var(--accent)}
+  .moves-summon kbd{font-family:inherit;font-size:9.5px;background:var(--card);border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px}
+  .moves-tray{
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;
+    max-width:760px;padding:0 16px;
+    max-height:0;overflow:hidden;opacity:0;transition:max-height .4s ease,opacity .35s ease;
+  }
+  .moves-bar.open .moves-tray{max-height:120px;opacity:1}
+  .moves-bar.open .moves-summon{display:none}
+  .gesture{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11.5px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .gesture:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  .gesture .g{color:var(--accent);font-weight:600}
+  .gesture.danger:hover{border-color:var(--oxblood);color:var(--oxblood)}
+  .gesture.danger .g{color:var(--oxblood)}
+  .gesture:disabled{opacity:.38;cursor:not-allowed;transform:none}
+  .moves-close{
+    font-family:"Spline Sans Mono",monospace;font-size:14px;color:var(--ink-ghost);
+    background:transparent;border:none;cursor:pointer;padding:4px 8px;transition:.2s;line-height:1;
+  }
+  .moves-close:hover{color:var(--oxblood)}
+
+  /* an inserted "aside" beat (from a sanctioned move) reads like any other beat */
+  .aside-tag{margin-bottom:26px}
+
+  /* breath flash between intents */
+  .breath-flash{
+    position:fixed;inset:0;z-index:260;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;opacity:0;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-ghost);background:var(--paper);
+  }
+  .breath-flash.show{opacity:1;transition:opacity .55s ease}
+
+  /* streamed word reveal */
+  .stream-cursor{
+    display:inline-block;width:8px;height:1.05em;background:var(--accent);
+    vertical-align:-2px;margin-left:1px;border-radius:1px;animation:blink 1s steps(1) infinite;
+  }
+  body.fallback .stream-cursor{background:var(--amber)}
+  .w{opacity:0;animation:wordIn .3s ease forwards}
+  @keyframes wordIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+
+  @media (max-width:640px){
+    body{font-size:18px}
+    .intent-line{font-size:27px}
+    .idea{font-size:20px}
+    .idea-lead{font-size:25px}
+    .question{font-size:27px}
+    .stage{padding:96px 18px}
+    .beat{padding:96px 18px 150px}
+    .drow .dk{flex-basis:118px}
+    .move-key{min-width:128px;font-size:12px}
+    .brand-whisper,.mode-pill{display:none}
+    pre.code{font-size:13px;padding:20px 18px}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+    .caret,.stream-cursor{animation:none;opacity:1}
+    .w{opacity:1;animation:none}
+    .bdot.active{box-shadow:none}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge chrome keep" href="../">&larr; gallery index</a>
+
+  <div class="ident chrome" aria-label="Learner identity">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar" aria-hidden="true">AO</div>
+  </div>
+
+  <div class="brand-whisper chrome" aria-hidden="true"><b>LORE</b> · learning runtime</div>
+
+  <div class="mode-pill chrome keep" role="status" aria-live="polite">
+    <span class="mode-dot" aria-hidden="true"></span>
+    <span class="lbl">tutor · <b id="modeLabel">anthropic/claude</b></span>
+  </div>
+
+  <main class="stage">
+    <!-- THE VOID: a single runtime intent + one summon field -->
+    <section class="zen" id="zen">
+      <div class="eyebrow chrome">
+        <span class="rl"></span>
+        <span class="badge runtime"><span class="dot"></span>runtime decided</span>
+        <span class="rl r"></span>
+      </div>
+      <h1 class="intent-line" id="intentLine">
+        Now — repair <em>persistence</em> before advancing.
+        <span class="neg">review overdue 2d</span>
+      </h1>
+
+      <div class="intent-meta chrome" id="intentMeta">
+        <span class="metric"><span class="k">mastery</span><span class="v bad" id="mMastery">0.41 ↓</span></span>
+        <span class="metric"><span class="k">retention</span><span class="v bad">0.38</span></span>
+        <span class="metric"><span class="k">misconception</span><span class="v warn">forgot-tx-rollback</span></span>
+        <span class="metric"><span class="k">gate</span><span class="v">transactions · locked</span></span>
+      </div>
+
+      <div class="chrome" style="margin-top:0">
+        <span class="recovery" id="recovery" title="The runtime deliberately lowered load after 2 failed attempts.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/>
+          </svg>
+          overload recovery — load lowered after 2 failed attempts
+        </span>
+      </div>
+
+      <!-- the single summon field -->
+      <section class="summon" id="summon" aria-label="Runtime command — summon">
+        <div class="summon-line" id="summonLine">
+          <span class="glyph" aria-hidden="true" id="glyph">&rsaquo;</span>
+          <div class="field-wrap">
+            <span class="caret" id="caret"></span>
+            <textarea class="field" id="field" rows="1" spellcheck="false" autocomplete="off"
+              aria-label="Summon a runtime move, or begin the practice"
+              placeholder="press / or ⏎ to begin"></textarea>
+          </div>
+        </div>
+
+        <div class="whisper-hint" id="whisperHint">
+          one breath at a time · press <kbd>/</kbd> to reveal the sanctioned moves
+        </div>
+
+        <div class="moves" id="moves" role="listbox" aria-label="Sanctioned runtime moves">
+          <div class="moves-head"><span>sanctioned runtime moves</span><span class="ct" id="movesCount">7</span></div>
+          <div id="moveList"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- THE BREATHING STEPPER -->
+  <div class="breath-stage" id="breathStage" aria-live="polite" aria-hidden="true">
+    <div id="beatHost"></div>
+  </div>
+
+  <!-- whisper-quiet orientation dots -->
+  <div class="beat-dots" id="beatDots" aria-hidden="true"></div>
+
+  <!-- the faint summonable moves bar -->
+  <div class="moves-bar" id="movesBar">
+    <button class="moves-summon" id="movesSummon" aria-expanded="false" aria-controls="movesTray">
+      sanctioned moves <kbd>M</kbd>
+    </button>
+    <div class="moves-tray" id="movesTray" role="group" aria-label="Sanctioned runtime moves">
+      <button class="gesture" data-cmd="/explain-differently"><span class="g">/</span>explain differently</button>
+      <button class="gesture" data-cmd="/example"><span class="g">/</span>another example</button>
+      <button class="gesture danger" data-cmd="/stuck"><span class="g">/</span>I’m stuck</button>
+      <button class="gesture" data-cmd="/why"><span class="g">/</span>why this?</button>
+      <button class="gesture" data-cmd="/regenerate"><span class="g">/</span>regenerate</button>
+      <button class="gesture" data-cmd="/fallback" id="trayFallback"><span class="g">/</span>fallback</button>
+      <button class="moves-close" id="movesClose" aria-label="Close moves">✕</button>
+    </div>
+  </div>
+
+  <!-- the single low-effort affordance -->
+  <nav class="beat-nav" id="beatNav" aria-label="Beat navigation">
+    <button class="nav-btn" id="navBack" hidden>&larr; <kbd>←</kbd> back</button>
+    <button class="nav-btn primary" id="navNext" hidden>next <kbd>Space</kbd></button>
+  </nav>
+
+  <!-- breath flash -->
+  <div class="breath-flash" id="breathFlash" aria-hidden="true"></div>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- elements ---------- */
+  const body = document.body;
+  const zen = document.getElementById("zen");
+  const summon = document.getElementById("summon");
+  const summonLine = document.getElementById("summonLine");
+  const field = document.getElementById("field");
+  const caret = document.getElementById("caret");
+  const moves = document.getElementById("moves");
+  const moveList = document.getElementById("moveList");
+  const movesCount = document.getElementById("movesCount");
+  const breathStage = document.getElementById("breathStage");
+  const beatHost = document.getElementById("beatHost");
+  const beatDots = document.getElementById("beatDots");
+  const beatNav = document.getElementById("beatNav");
+  const navNext = document.getElementById("navNext");
+  const navBack = document.getElementById("navBack");
+  const movesBar = document.getElementById("movesBar");
+  const movesSummon = document.getElementById("movesSummon");
+  const movesTray = document.getElementById("movesTray");
+  const movesClose = document.getElementById("movesClose");
+  const breathFlash = document.getElementById("breathFlash");
+  const modeLabel = document.getElementById("modeLabel");
+
+  /* ---------- state ---------- */
+  let mode = "llm";            // "llm" | "fallback"
+  let inStepper = false;
+  let busy = false;            // a stream/transition is running
+  let selIdx = 0;
+  let mastery = 0.41;
+  let retention = 0.38;
+  let regen = 0;               // regenerate count
+  let cleared = 0;             // successful evidence rounds
+
+  // the beat sequence — built fresh on /start
+  let beats = [];              // array of {build, kind}
+  let idx = -1;                // current beat index
+  let liveEl = null;           // current beat element
+  const baseCount = 5;         // canonical beats: situation, code, question, evidence, delta
+
+  /* ---------- sanctioned command set ---------- */
+  const COMMANDS = [
+    { key:"/start",               desc:"Begin the persistence repair — one breath at a time", tag:"generate", needsPractice:false },
+    { key:"/explain-differently", desc:"Reframe the current idea another way",                tag:"gesture",  needsPractice:true  },
+    { key:"/example",             desc:"Breathe in one more worked example",                  tag:"gesture",  needsPractice:true  },
+    { key:"/stuck",               desc:"Ask the runtime for a lighter scaffold",              tag:"gesture",  needsPractice:true  },
+    { key:"/why",                 desc:"Why did the runtime choose this move?",               tag:"meta",     needsPractice:false },
+    { key:"/fallback",            desc:"Flip tutor off — instruction-only scaffold",          tag:"runtime",  needsPractice:false },
+    { key:"/regenerate",          desc:"Discard & re-summon this practice",                   tag:"generate", needsPractice:true  },
+  ];
+
+  /* ---------- custom caret over transparent textarea ---------- */
+  const mirror = document.createElement("div");
+  Object.assign(mirror.style,{position:"absolute",visibility:"hidden",whiteSpace:"pre",left:"0",top:"0",pointerEvents:"none"});
+  field.parentNode.appendChild(mirror);
+  function syncMirrorFont(){ const cs=getComputedStyle(field); mirror.style.font=cs.font; mirror.style.letterSpacing=cs.letterSpacing; }
+  function updateCaret(){ syncMirrorFont(); mirror.textContent=field.value.substring(0,field.selectionEnd)||""; caret.style.left=mirror.offsetWidth+"px"; }
+  function autoGrow(el){ el.style.height="auto"; el.style.height=el.scrollHeight+"px"; }
+
+  /* ---------- moves list (void) ---------- */
+  function renderMoves(filter){
+    moveList.innerHTML="";
+    const f=(filter||"").toLowerCase();
+    const items=COMMANDS.filter(c=>!f||c.key.toLowerCase().startsWith(f));
+    movesCount.textContent=items.length;
+    items.forEach((c,i)=>{
+      const disabled=c.needsPractice && !inStepper;
+      const el=document.createElement("div");
+      el.className="move"+(disabled?" is-disabled":"");
+      el.setAttribute("role","option");
+      el.dataset.key=c.key; el.dataset.disabled=disabled?"1":"0"; el.tabIndex=-1;
+      el.innerHTML=`<span class="move-key">${c.key}</span><span class="move-desc">${c.desc}</span><span class="move-tag">${c.tag}</span>`;
+      el.addEventListener("mousedown",(e)=>{ e.preventDefault(); if(!disabled) runCommand(c.key); });
+      el.addEventListener("mouseenter",()=>{ selIdx=i; paintSel(); });
+      moveList.appendChild(el);
+    });
+    selIdx=Math.min(selIdx,Math.max(0,items.length-1));
+    paintSel();
+    return items;
+  }
+  function paintSel(){
+    [...moveList.children].forEach((el,i)=>el.setAttribute("aria-selected",i===selIdx?"true":"false"));
+    const cur=moveList.children[selIdx];
+    if(cur) cur.scrollIntoView({block:"nearest"});
+  }
+  function armMoves(){ moves.classList.add("armed"); }
+  function disarmMoves(){ moves.classList.remove("armed"); }
+
+  /* ---------- streaming engine (reading-paced, humane) ---------- */
+  function streamWords(target, text, opts){
+    opts=opts||{};
+    const speed=opts.speed||78;          // genuinely reading-paced — a calm exhale, not a dump
+    const words=text.split(/(\s+)/);
+    let i=0;
+    const cursor=document.createElement("span");
+    cursor.className="stream-cursor";
+    target.appendChild(cursor);
+    return new Promise(resolve=>{
+      if(reduceMotion){ cursor.remove(); target.insertAdjacentText("beforeend",text); return resolve(); }
+      function tick(){
+        if(i>=words.length){ cursor.remove(); return resolve(); }
+        const span=document.createElement("span");
+        span.className="w"; span.textContent=words[i];
+        target.insertBefore(span,cursor);
+        i++;
+        // gentle breathing cadence: a longer pause after sentence-enders
+        const prev=words[i-1]||"";
+        let jitter=0;
+        if(/[.?!]["”’]?$/.test(prev)) jitter=300;
+        else if(/[,;:—]$/.test(prev)) jitter=150;
+        setTimeout(tick, speed + Math.random()*30 + jitter);
+      }
+      tick();
+    });
+  }
+  function streamLines(target, html, perDelay){
+    target.innerHTML=html;
+    const reveals=[...target.querySelectorAll("[data-reveal]")];
+    return new Promise(resolve=>{
+      if(reduceMotion){ reveals.forEach(r=>r.style.opacity=1); return resolve(); }
+      let i=0;
+      reveals.forEach(r=>{ r.style.opacity="0"; r.style.transform="translateY(6px)"; r.style.transition="opacity .34s, transform .34s"; });
+      function tick(){
+        if(i>=reveals.length) return resolve();
+        reveals[i].style.opacity="1"; reveals[i].style.transform="none";
+        i++; setTimeout(tick, perDelay||90);
+      }
+      tick();
+    });
+  }
+
+  /* ---------- content fixtures ---------- */
+  const SITUATION =
+    "A week ago you wrote a Go function that records a new enrollment. It opens a transaction, inserts a row, then returns the moment something goes wrong. The runtime has watched this idea slip — mastery is drifting and the review is overdue. So before anything new, we sit with persistence, gently, one piece at a time.";
+
+  const CODE_HTML =
+`<pre class="code" aria-label="Go function with a missing rollback"><span data-reveal><span class="kw">func</span> <span class="fn">RecordEnrollment</span>(ctx context.Context, db *sql.DB, e Enrollment) <span class="kw">error</span> {</span>
+<span data-reveal>    tx, err := db.BeginTx(ctx, <span class="kw">nil</span>)</span>
+<span data-reveal>    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }</span>
+<span data-reveal>
+    <span class="cm">// insert the enrollment row inside the tx</span></span>
+<span data-reveal>    <span class="kw">if</span> err := <span class="fn">InsertEnrollment</span>(ctx, tx, e); err != <span class="kw">nil</span> {</span>
+<span data-reveal>        <span class="err">return err   // ← leaks the tx: no tx.Rollback()</span></span>
+<span data-reveal>    }</span>
+<span data-reveal>    <span class="kw">return</span> tx.<span class="fn">Commit</span>()</span>
+<span data-reveal>}</span></pre>`;
+
+  const QUESTION = "When the insert fails, where must the <em>rollback</em> go — and what should the function still return?";
+
+  const FALLBACK_STEPS = [
+    "Open <b>RecordEnrollment</b>; find the error branch right after <b>InsertEnrollment</b>.",
+    "On that branch the code does <b>return err</b> directly — the open transaction is never closed.",
+    "Before returning, call <b>tx.Rollback()</b> so the partial write is discarded.",
+    "Handle the rollback’s own error: log or join it, but still return the <b>original</b> insert error.",
+    "Confirm the success path still ends in <b>tx.Commit()</b> — Commit and Rollback are mutually exclusive.",
+    "Say the invariant aloud: every BeginTx must reach exactly one of Commit or Rollback."
+  ];
+
+  const GESTURE_TEXT = {
+    "/explain-differently":
+      "Picture a transaction as a sealed envelope. BeginTx opens it. Commit seals and mails it. Rollback shreds it. Your error branch opens the envelope and then simply walks away — neither mailed nor shredded. Adding tx.Rollback() on that branch is how every opened envelope reaches one of its two honest endings.",
+    "/example":
+      "Here is the same bug wearing different clothes. A money transfer debits one account, then errors before it can credit the other, and returns. Without a rollback, the debit can persist all alone. The repair is identical: discard the half-done work with tx.Rollback() on the error path before you return.",
+    "/stuck":
+      "A lighter footing, in three calm lines. One — find the error branch that returns. Two — add tx.Rollback() just before it. Three — keep returning the original error. That one line is the whole fix. Wrapping the rollback’s own error is optional polish, not the lesson."
+  };
+
+  const WHY_TEXT =
+    "The runtime chose persistence over advancing for three reasons it can defend. Retention fell to 0.38 with a spaced review two days overdue, so FSRS surfaced it. Mastery sits at 0.41 and is declining under BKT. And one misconception — forgot-tx-rollback — is still active. Because transactions depends on persistence in the concept graph, it stays locked. This rationale is runtime-owned and authoritative; the reading you are doing is the disposable, regenerable part.";
+
+  /* ============================================================
+     beat machinery — build a beat element, transition between
+     ============================================================ */
+  function newBeat(kind){
+    const b=document.createElement("section");
+    b.className="beat";
+    b.dataset.kind=kind||"";
+    const inner=document.createElement("div");
+    inner.className="beat-inner";
+    b.appendChild(inner);
+    return b;
+  }
+  function kicker(inner, text, streaming){
+    const k=document.createElement("div");
+    k.className="beat-kicker"+(streaming?"":" done");
+    k.innerHTML=(streaming?`<span class="spin"></span>`:"")+`<span class="src">${text}</span>`;
+    inner.appendChild(k);
+    return k;
+  }
+  function resolveKicker(k, text){
+    k.classList.add("done");
+    k.innerHTML=`<span class="src">${text}</span>`;
+  }
+
+  // mount a beat into the host with a soft cross-fade / vertical drift (a breath)
+  async function showBeat(el){
+    setNavBusy(true);
+    if(liveEl){
+      const leaving=liveEl;
+      leaving.classList.remove("live");
+      leaving.classList.add("leaving");
+      setTimeout(()=>{ if(leaving.parentNode) leaving.parentNode.removeChild(leaving); }, reduceMotion?0:650);
+    }
+    beatHost.appendChild(el);
+    liveEl=el;
+    // force reflow so the transition runs
+    void el.offsetWidth;
+    await wait(reduceMotion?0:40);
+    el.classList.add("live");
+    await wait(reduceMotion?0:60);
+  }
+
+  function renderDots(){
+    beatDots.innerHTML="";
+    const total=beats.length;
+    for(let i=0;i<total;i++){
+      const d=document.createElement("span");
+      d.className="bdot"+(beats[i].extra?" extra":"");
+      if(i<idx) d.classList.add("done");
+      if(i===idx) d.classList.add("active");
+      beatDots.appendChild(d);
+    }
+    const cnt=document.createElement("span");
+    cnt.className="beat-count";
+    cnt.textContent=(idx+1)+" / "+total;
+    beatDots.appendChild(cnt);
+  }
+
+  function setNav(opts){
+    // opts: {next:'label'|false, back:true|false, nextKey:'Space', primary:true}
+    if(opts.next===false){ navNext.hidden=true; }
+    else { navNext.hidden=false; navNext.innerHTML=(opts.next||"next")+` <kbd>${opts.nextKey||"Space"}</kbd>`; }
+    navBack.hidden=!opts.back;
+  }
+  function setNavBusy(on){
+    busy=!!on;
+    navNext.disabled=!!on; navBack.disabled=!!on;
+  }
+
+  /* ============================================================
+     /start — enter the breathing stepper
+     ============================================================ */
+  async function enterStepper(){
+    inStepper=true;
+    buildSequence();
+    field.blur();                              // hand keyboard to the stepper (Space/Enter advance)
+    body.classList.add("beating");
+    body.classList.add("breathing");          // dim void chrome
+    zen.classList.add("gone");
+    breathStage.classList.add("show");
+    breathStage.setAttribute("aria-hidden","false");
+    beatDots.classList.add("show");
+    movesBar.classList.add("show");
+    await wait(reduceMotion?0:120);
+    idx=-1;
+    await gotoBeat(0);
+  }
+
+  function buildSequence(){
+    beats=[
+      { kind:"situation", extra:false, build:buildSituation },
+      { kind:"code",      extra:false, build:buildCode },
+      { kind:"question",  extra:false, build:buildQuestion },
+      { kind:"evidence",  extra:false, build:buildEvidence },
+      { kind:"delta",     extra:false, build:buildDelta },
+    ];
+  }
+  // fallback rebuilds the reading beats as a numbered runtime scaffold sequence
+  function buildFallbackSequence(){
+    beats=[
+      { kind:"situation",  extra:false, build:buildFallbackIntro },
+      { kind:"scaffold",   extra:false, build:buildScaffold },
+      { kind:"question",   extra:false, build:buildQuestion },
+      { kind:"evidence",   extra:false, build:buildEvidence },
+      { kind:"delta",      extra:false, build:buildDelta },
+    ];
+  }
+
+  async function gotoBeat(n){
+    if(n<0 || n>=beats.length) return;
+    idx=n;
+    renderDots();
+    const beat=beats[n];
+    const el=newBeat(beat.kind);
+    await showBeat(el);
+    await beat.build(el.querySelector(".beat-inner"), false);
+  }
+  // re-entering a beat we've already seen (back/forward): rebuild but don't re-stream long bodies
+  async function reBeat(n){
+    if(n<0 || n>=beats.length) return;
+    idx=n;
+    renderDots();
+    const beat=beats[n];
+    const el=newBeat(beat.kind);
+    await showBeat(el);
+    await beat.build(el.querySelector(".beat-inner"), true);
+  }
+
+  /* ---------- BEAT 1 · the situation (LLM) ---------- */
+  async function buildSituation(inner, instant){
+    const k=kicker(inner, instant?"resolved · claude · temp 0.2":"generating · TutorInstruction · claude · temp 0.2", !instant);
+    const badge=document.createElement("div");
+    badge.className="aside-tag";
+    badge.innerHTML=`<span class="badge llm"><span class="dot"></span>LLM generated · claude</span>`;
+    inner.appendChild(badge);
+    const idea=document.createElement("div");
+    idea.className="idea measure";
+    const p=document.createElement("p");
+    idea.appendChild(p);
+    inner.appendChild(idea);
+    if(instant){ p.textContent=SITUATION; setNav({next:"breathe in",back:false}); revealNav(); return; }
+    await wait(reduceMotion?0:480);
+    await streamWords(p, SITUATION, {speed:80});
+    resolveKicker(k,"resolved · claude · temp 0.2 · llm generated");
+    setNav({next:"breathe in",back:false});
+    revealNav();
+  }
+
+  /* ---------- BEAT 1 · fallback intro (no LLM) ---------- */
+  async function buildFallbackIntro(inner, instant){
+    const k=kicker(inner, instant?"resolved · instruction_only":"runtime authoring · instruction_only · no LLM", !instant);
+    const badge=document.createElement("div");
+    badge.className="aside-tag";
+    badge.innerHTML=`<span class="badge fallbk"><span class="dot"></span>instruction-only · runtime authored</span>`;
+    inner.appendChild(badge);
+    const idea=document.createElement("div");
+    idea.className="idea measure";
+    const p=document.createElement("p");
+    idea.appendChild(p);
+    inner.appendChild(idea);
+    const txt="Tutor LLM is off for you, learner-1 — the override is instruction_only. The runtime still owns this repair, and authors it as a calm numbered scaffold. No prose, no model, same task. The surface keeps breathing without the LLM.";
+    if(instant){ p.textContent=txt; setNav({next:"the scaffold",back:false}); revealNav(); return; }
+    await wait(reduceMotion?0:420);
+    await streamWords(p, txt, {speed:80});
+    resolveKicker(k,"resolved · instruction_only · runtime authored");
+    setNav({next:"the scaffold",back:false});
+    revealNav();
+  }
+
+  /* ---------- BEAT 2 · the buggy function, alone ---------- */
+  async function buildCode(inner, instant){
+    const k=kicker(inner, instant?"resolved · claude · temp 0.2":"generating · the function under repair", !instant);
+    const slot=document.createElement("div");
+    slot.style.width="100%";
+    inner.appendChild(slot);
+    const cap=document.createElement("div");
+    cap.className="code-cap";
+    cap.textContent="read it slowly · the bug lives on the error branch";
+    if(instant){
+      slot.innerHTML=CODE_HTML;
+      slot.querySelectorAll("[data-reveal]").forEach(r=>r.style.opacity=1);
+      inner.appendChild(cap);
+      resolveKicker(k,"resolved · claude · temp 0.2");
+      setNav({next:"breathe in",back:true}); revealNav(); return;
+    }
+    await wait(reduceMotion?0:360);
+    await streamLines(slot, CODE_HTML, 95);
+    inner.appendChild(cap);
+    requestAnimationFrame(()=>{ cap.style.opacity="0"; cap.style.transition="opacity .5s"; requestAnimationFrame(()=>cap.style.opacity="1"); });
+    resolveKicker(k,"resolved · claude · temp 0.2 · llm generated");
+    setNav({next:"breathe in",back:true});
+    revealNav();
+  }
+
+  /* ---------- BEAT 2 (fallback) · the numbered scaffold ---------- */
+  async function buildScaffold(inner, instant){
+    const k=kicker(inner, instant?"resolved · instruction_only":"runtime authoring · numbered scaffold", !instant);
+    const ol=document.createElement("ol");
+    ol.className="scaffold";
+    inner.appendChild(ol);
+    if(instant){
+      FALLBACK_STEPS.forEach(s=>{ const li=document.createElement("li"); li.innerHTML=s; ol.appendChild(li); });
+      resolveKicker(k,"resolved · instruction_only · runtime authored");
+      setNav({next:"breathe in",back:true}); revealNav(); return;
+    }
+    await wait(reduceMotion?0:300);
+    for(let i=0;i<FALLBACK_STEPS.length;i++){
+      const li=document.createElement("li");
+      li.innerHTML=FALLBACK_STEPS[i];
+      li.style.opacity="0"; li.style.transform="translateY(8px)"; li.style.transition="opacity .4s, transform .4s";
+      ol.appendChild(li);
+      await wait(reduceMotion?0:120);
+      li.style.opacity="1"; li.style.transform="none";
+      await wait(reduceMotion?0:170);
+    }
+    resolveKicker(k,"resolved · instruction_only · runtime authored");
+    setNav({next:"breathe in",back:true});
+    revealNav();
+  }
+
+  /* ---------- BEAT 3 · the single question ---------- */
+  async function buildQuestion(inner, instant){
+    kicker(inner, mode==="fallback"?"the one question · runtime":"the one question", false);
+    const q=document.createElement("h2");
+    q.className="question";
+    inner.appendChild(q);
+    if(instant){ q.innerHTML=QUESTION; setNav({next:"answer",back:true}); revealNav(); return; }
+    await wait(reduceMotion?0:260);
+    // stream the question with its emphasis preserved
+    await streamWords(q, "When the insert fails, where must the rollback go — and what should the function still return?", {speed:90});
+    // restore emphasis after stream
+    q.innerHTML=QUESTION;
+    setNav({next:"answer",back:true});
+    revealNav();
+  }
+
+  /* ---------- BEAT 4 · the evidence field, alone ---------- */
+  async function buildEvidence(inner, instant){
+    kicker(inner, "your fix · evidence", false);
+    const lead=document.createElement("div");
+    lead.className="idea";
+    lead.style.maxWidth="40ch"; lead.style.fontSize="19px"; lead.style.marginBottom="26px";
+    lead.innerHTML="<p>Add the rollback path. Describe it or paste the lines — the runtime scores it against your mastery and the active misconception.</p>";
+    inner.appendChild(lead);
+
+    const ev=document.createElement("div");
+    ev.className="evidence";
+    ev.innerHTML=
+      `<div class="evidence-head"><span>persistence · forgot-tx-rollback</span><span>attempt ${regen+cleared+1}</span></div>`+
+      `<div class="evidence-row"><span class="eglyph">&rsaquo;</span>`+
+      `<textarea id="evField" rows="3" spellcheck="false" placeholder="the rollback fix you'd add on the error branch…"></textarea></div>`+
+      `<div class="evidence-foot"><span class="ehint">scored against BKT + the active misconception</span>`+
+      `<button class="submit" id="evSubmit" disabled>submit evidence <kbd>⌘⏎</kbd></button></div>`;
+    inner.appendChild(ev);
+
+    const ef=ev.querySelector("#evField");
+    const sb=ev.querySelector("#evSubmit");
+    // pre-seed a near-correct answer (rollback present, error unhandled -> partial credit)
+    ef.value="if err := InsertEnrollment(ctx, tx, e); err != nil {\n    tx.Rollback()\n    return err\n}";
+    autoGrow(ef);
+    sb.disabled=ef.value.trim().length<3;
+    ef.addEventListener("input",()=>{ autoGrow(ef); sb.disabled=ef.value.trim().length<3; });
+    ef.addEventListener("keydown",(e)=>{
+      if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){ e.preventDefault(); if(!sb.disabled) advanceToDelta(); }
+    });
+    sb.addEventListener("click",()=>{ if(!sb.disabled) advanceToDelta(); });
+
+    // on this beat, "next" submits evidence; back returns to the question
+    setNav({next:"submit & breathe out",nextKey:"⌘⏎",back:true});
+    revealNav();
+    if(!instant && !reduceMotion){ setTimeout(()=>ef.focus(), 360); }
+  }
+
+  // submit evidence -> compute delta -> advance to delta beat
+  function advanceToDelta(){
+    if(busy) return;
+    // record a successful round
+    const prevM=mastery, prevR=retention;
+    mastery=Math.min(0.66, +(mastery+0.06).toFixed(2));
+    retention=Math.min(0.7, +(retention+0.14).toFixed(2));
+    cleared++;
+    deltaSnapshot={prevM, prevR};
+    gotoBeat(beatIndexOf("delta"));
+  }
+  let deltaSnapshot=null;
+
+  /* ---------- BEAT 5 · the state delta, full screen ---------- */
+  async function buildDelta(inner, instant){
+    const k=kicker(inner, instant?"committed · runtime":"committing · BKT update + FSRS reschedule", !instant);
+    const badge=document.createElement("div");
+    badge.className="aside-tag";
+    badge.innerHTML=`<span class="badge runtime"><span class="dot"></span>runtime decided · state delta</span>`;
+    inner.appendChild(badge);
+
+    const snap=deltaSnapshot||{prevM:0.41, prevR:0.38};
+    const stillLocked=mastery<0.6;
+    const rows=document.createElement("div");
+    rows.className="delta-rows";
+    inner.appendChild(rows);
+    const note=document.createElement("div");
+    note.className="delta-note";
+    inner.appendChild(note);
+
+    const deltas=[
+      `<span class="dk">mastery · persistence</span><span class="dv"><span class="from">${snap.prevM.toFixed(2)}</span><span class="arr">→</span><span class="to">${mastery.toFixed(2)}</span><span class="note">partial credit — rollback present, error not wrapped</span></span>`,
+      `<span class="dk">misconception</span><span class="dv"><span class="to warn">forgot-tx-rollback</span><span class="note">still active — Rollback() error unhandled</span></span>`,
+      `<span class="dk">retention (FSRS)</span><span class="dv"><span class="from">${snap.prevR.toFixed(2)}</span><span class="arr">→</span><span class="to">${retention.toFixed(2)}</span><span class="note">review rescheduled +1d (was overdue 2d)</span></span>`,
+      `<span class="dk">load state</span><span class="dv"><span class="to">overload recovery</span><span class="note">held — one clean attempt before lifting</span></span>`,
+      `<span class="dk">gate · transactions</span><span class="dv"><span class="to ${stillLocked?'bad':''}">${stillLocked?'still locked':'unlocking'}</span><span class="note">unlocks at persistence ≥ 0.6</span></span>`,
+    ];
+
+    if(instant){
+      deltas.forEach(d=>{ const r=document.createElement("div"); r.className="drow"; r.innerHTML=d; rows.appendChild(r); });
+      note.textContent="Evidence absorbed. The void resets to the runtime’s next chosen move.";
+      resolveKicker(k,"committed · runtime decided");
+      setNav({next:"breathe out · next intent",back:true}); revealNav(); return;
+    }
+
+    await wait(reduceMotion?0:560);
+    resolveKicker(k,"committed · runtime decided");
+    for(let i=0;i<deltas.length;i++){
+      const r=document.createElement("div");
+      r.className="drow"; r.innerHTML=deltas[i];
+      r.style.opacity="0"; r.style.transform="translateX(-8px)"; r.style.transition="opacity .36s, transform .36s";
+      rows.appendChild(r);
+      await wait(reduceMotion?0:150);
+      r.style.opacity="1"; r.style.transform="none";
+    }
+    await streamWords(note, "Evidence absorbed. Breathe out — the void resets to the runtime’s next chosen move.", {speed:80});
+    setNav({next:"breathe out · next intent",back:true});
+    revealNav();
+  }
+
+  function beatIndexOf(kind){ return beats.findIndex(b=>b.kind===kind); }
+
+  /* ---------- nav reveal ---------- */
+  function revealNav(){
+    setNavBusy(false);
+    beatNav.classList.add("show");
+  }
+
+  /* ---------- advancing / retreating between beats ---------- */
+  async function nextBeat(){
+    if(busy) return;
+    const beat=beats[idx];
+    if(beat.kind==="evidence"){ advanceToDelta(); return; }
+    if(beat.kind==="delta"){ collapseToNextIntent(); return; }
+    if(idx<beats.length-1){ await gotoBeat(idx+1); }
+  }
+  async function prevBeat(){
+    if(busy) return;
+    if(idx>0){ await reBeat(idx-1); }
+  }
+
+  /* ============================================================
+     sanctioned moves from within a beat -> insert an EXTRA beat
+     ============================================================ */
+  async function insertAside(kind, builder){
+    if(busy) return;
+    closeTray();
+    // insert an extra beat right after the current one
+    const insertAt=idx+1;
+    beats.splice(insertAt, 0, { kind:kind, extra:true, build:builder });
+    await gotoBeat(insertAt);
+  }
+
+  function asideBuilder(key){
+    return async function(inner, instant){
+      const isRuntime = key==="/why";
+      const klabel = isRuntime
+        ? (instant?"runtime rationale · /why":"runtime · /why · authoritative")
+        : (mode==="fallback"
+            ? (instant?"instruction-only · "+key:"runtime authoring · "+key)
+            : (instant?"resolved · "+key:"generating · "+key+" · claude"));
+      const k=kicker(inner, klabel, !instant);
+      const badge=document.createElement("div");
+      badge.className="aside-tag";
+      badge.innerHTML = isRuntime
+        ? `<span class="badge runtime"><span class="dot"></span>runtime decided · ${key}</span>`
+        : (mode==="fallback"
+            ? `<span class="badge fallbk"><span class="dot"></span>instruction-only · ${key}</span>`
+            : `<span class="badge llm"><span class="dot"></span>LLM generated · ${key}</span>`);
+      inner.appendChild(badge);
+      const idea=document.createElement("div");
+      idea.className="idea measure";
+      const p=document.createElement("p");
+      idea.appendChild(p);
+      inner.appendChild(idea);
+      const txt = isRuntime ? WHY_TEXT : GESTURE_TEXT[key];
+      if(instant){ p.textContent=txt; resolveKicker(k,"resolved"); setNav({next:"back to the practice",back:true}); revealNav(); return; }
+      await wait(reduceMotion?0:380);
+      await streamWords(p, txt, {speed:80});
+      resolveKicker(k, isRuntime?"runtime rationale · authoritative":"resolved");
+      setNav({next:"back to the practice",back:true});
+      revealNav();
+    };
+  }
+
+  // /why summoned from the VOID (before /start) -> a calm aside in the stepper, then back to the line
+  async function whyFromVoid(){
+    if(busy) return;
+    inStepper=true;
+    beats=[ { kind:"why-void", extra:true, build:async function(inner,instant){
+      const k=kicker(inner, instant?"runtime rationale · /why":"runtime · /why · authoritative", !instant);
+      const badge=document.createElement("div");
+      badge.className="aside-tag";
+      badge.innerHTML=`<span class="badge runtime"><span class="dot"></span>runtime decided · /why</span>`;
+      inner.appendChild(badge);
+      const idea=document.createElement("div");
+      idea.className="idea measure";
+      const p=document.createElement("p");
+      idea.appendChild(p);
+      inner.appendChild(idea);
+      const txt=WHY_TEXT+" Summon /start when you are ready to breathe in.";
+      if(instant){ p.textContent=txt; }
+      else { await wait(reduceMotion?0:360); await streamWords(p, txt, {speed:80}); }
+      resolveKicker(k,"runtime rationale · authoritative");
+      setNav({next:false,back:false});
+      // a single quiet return affordance
+      const back=document.createElement("button");
+      back.className="nav-btn";
+      back.style.marginTop="34px";
+      back.innerHTML="&larr; back to the line";
+      back.addEventListener("click", returnToVoidFromWhy);
+      inner.appendChild(back);
+      revealNav();
+    }}];
+    field.blur();
+    body.classList.add("beating"); body.classList.add("breathing");
+    zen.classList.add("gone");
+    breathStage.classList.add("show"); breathStage.setAttribute("aria-hidden","false");
+    // no dots / no moves bar for a pure rationale breath
+    await wait(reduceMotion?0:120);
+    idx=-1;
+    await gotoBeat(0);
+  }
+  async function returnToVoidFromWhy(){
+    if(busy) return;
+    breathStage.classList.remove("show");
+    breathStage.setAttribute("aria-hidden","true");
+    beatNav.classList.remove("show");
+    await wait(reduceMotion?0:300);
+    beatHost.innerHTML=""; liveEl=null; idx=-1; beats=[]; inStepper=false;
+    body.classList.remove("beating"); body.classList.remove("breathing");
+    zen.classList.remove("gone");
+    await wait(reduceMotion?0:120);
+    field.focus();
+  }
+
+  /* ============================================================
+     the closing breath — collapse to next runtime intent
+     ============================================================ */
+  async function collapseToNextIntent(){
+    if(busy) return;
+    busy=true;
+    beatNav.classList.remove("show");
+    beatDots.classList.remove("show");
+    movesBar.classList.remove("show");
+    if(liveEl){ liveEl.classList.remove("live"); liveEl.classList.add("leaving"); }
+    await wait(reduceMotion?0:420);
+
+    breathStage.classList.remove("show");
+    breathStage.setAttribute("aria-hidden","true");
+
+    // the breath flash
+    breathFlash.textContent="void cleared · runtime selecting next move…";
+    breathFlash.classList.add("show");
+    await wait(reduceMotion?0:820);
+    breathFlash.classList.remove("show");
+
+    // reset stepper
+    beatHost.innerHTML=""; liveEl=null; idx=-1; beats=[]; inStepper=false; regen=0;
+    body.classList.remove("beating");
+
+    // rewrite the single intent line (next runtime move)
+    const il=document.getElementById("intentLine");
+    il.innerHTML=
+      `Now — <em>tighten the rollback</em> on persistence. `+
+      `<span class="neg">mastery ${mastery.toFixed(2)}</span> · misconception still active`;
+    const mM=document.getElementById("mMastery");
+    mM.textContent=mastery.toFixed(2)+" ↑";
+    mM.classList.remove("bad"); mM.classList.add("warn");
+    document.getElementById("recovery").innerHTML=
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/></svg>overload recovery — one clean attempt away from lifting`;
+
+    // breathe the void back in
+    body.classList.remove("breathing");
+    zen.classList.remove("gone");
+    field.value=""; autoGrow(field); updateCaret();
+    disarmMoves();
+    await wait(reduceMotion?0:220);
+    field.focus();
+    busy=false;
+  }
+
+  /* ============================================================
+     command dispatcher
+     ============================================================ */
+  async function runCommand(key){
+    if(busy && key!=="/start") { /* allow only when idle */ }
+    switch(key){
+      case "/start":
+        if(inStepper || busy) return;
+        disarmMoves();
+        field.value=""; autoGrow(field); updateCaret();
+        if(mode==="fallback"){ await startFallback(); }
+        else { await enterStepper(); }
+        break;
+
+      case "/fallback":
+        mode="fallback";
+        body.classList.add("fallback");
+        modeLabel.textContent="instruction_only";
+        const tf=document.getElementById("trayFallback");
+        if(tf) tf.disabled=true;
+        if(!inStepper){
+          disarmMoves(); field.value=""; autoGrow(field); updateCaret();
+          await startFallback();
+        } else {
+          // rebuild the whole sequence as a runtime scaffold, restart from beat 1
+          await rebuildAsFallback();
+        }
+        break;
+
+      case "/regenerate":
+        if(!inStepper || busy) return;
+        regen++;
+        // re-summon the current reading beat (situation or code) freshly
+        await regenerateCurrent();
+        break;
+
+      case "/explain-differently":
+        if(!inStepper) return;
+        await insertAside("aside", asideBuilder("/explain-differently"));
+        break;
+      case "/example":
+        if(!inStepper) return;
+        await insertAside("aside", asideBuilder("/example"));
+        break;
+      case "/stuck":
+        if(!inStepper) return;
+        await insertAside("aside", asideBuilder("/stuck"));
+        break;
+
+      case "/why":
+        if(inStepper){ await insertAside("aside", asideBuilder("/why")); }
+        else { await whyFromVoid(); }
+        break;
+    }
+  }
+
+  async function startFallback(){
+    inStepper=true;
+    buildFallbackSequence();
+    field.blur();
+    body.classList.add("beating"); body.classList.add("breathing");
+    zen.classList.add("gone");
+    breathStage.classList.add("show"); breathStage.setAttribute("aria-hidden","false");
+    beatDots.classList.add("show"); movesBar.classList.add("show");
+    await wait(reduceMotion?0:120);
+    idx=-1;
+    await gotoBeat(0);
+  }
+  async function rebuildAsFallback(){
+    buildFallbackSequence();
+    idx=-1;
+    await gotoBeat(0);
+  }
+  async function regenerateCurrent(){
+    const beat=beats[idx];
+    // rebuild the same beat freshly (re-streams)
+    const el=newBeat(beat.kind);
+    await showBeat(el);
+    await beat.build(el.querySelector(".beat-inner"), false);
+    renderDots();
+  }
+
+  /* ============================================================
+     moves bar (in-stepper) wiring
+     ============================================================ */
+  function openTray(){ movesBar.classList.add("open"); movesSummon.setAttribute("aria-expanded","true"); }
+  function closeTray(){ movesBar.classList.remove("open"); movesSummon.setAttribute("aria-expanded","false"); }
+  movesSummon.addEventListener("click", openTray);
+  movesClose.addEventListener("click", closeTray);
+  movesTray.querySelectorAll(".gesture").forEach(b=>{
+    b.addEventListener("click",()=>{ if(!b.disabled) runCommand(b.dataset.cmd); });
+  });
+
+  /* ---------- nav buttons ---------- */
+  navNext.addEventListener("click", nextBeat);
+  navBack.addEventListener("click", prevBeat);
+
+  /* ============================================================
+     keyboard — void field
+     ============================================================ */
+  function syncFromField(){
+    autoGrow(field); updateCaret();
+    const v=field.value;
+    if(v.startsWith("/")){ const items=renderMoves(v); if(items.length) armMoves(); else disarmMoves(); }
+    else if(v===""){ renderMoves(""); }
+    else { disarmMoves(); }
+  }
+  field.addEventListener("input", syncFromField);
+  field.addEventListener("click", updateCaret);
+  field.addEventListener("keyup", updateCaret);
+  field.addEventListener("focus",()=>{
+    if(inStepper) return;
+    summon.classList.add("focused");
+    renderMoves(field.value.startsWith("/")?field.value:"");
+    armMoves(); updateCaret();
+  });
+  field.addEventListener("blur",()=>{
+    summon.classList.remove("focused");
+    setTimeout(disarmMoves,140);
+  });
+  summonLine.addEventListener("mousedown",(e)=>{ if(e.target!==field){ e.preventDefault(); field.focus(); } });
+
+  field.addEventListener("keydown",(e)=>{
+    const open=moves.classList.contains("armed")&&summon.classList.contains("focused");
+    const items=[...moveList.querySelectorAll(".move")];
+    if(e.key==="/" && field.value===""){ setTimeout(()=>{ renderMoves("/"); armMoves(); },0); return; }
+    if(open && e.key==="ArrowDown"){ e.preventDefault(); selIdx=Math.min(items.length-1,selIdx+1); paintSel(); return; }
+    if(open && e.key==="ArrowUp"){ e.preventDefault(); selIdx=Math.max(0,selIdx-1); paintSel(); return; }
+    if(e.key==="Escape"){ disarmMoves(); field.blur(); return; }
+    if(e.key==="Enter" && !e.shiftKey){
+      e.preventDefault();
+      const v=field.value.trim();
+      if(open && v.startsWith("/") && items[selIdx]){
+        if(items[selIdx].dataset.disabled==="1") return;
+        runCommand(items[selIdx].dataset.key); return;
+      }
+      if(v.startsWith("/")){
+        const match=COMMANDS.find(c=>c.key===v)||COMMANDS.find(c=>c.key.startsWith(v));
+        if(match){ runCommand(match.key); return; }
+      }
+      if(v==="" && !inStepper){ runCommand("/start"); return; }
+    }
+  });
+
+  /* ============================================================
+     keyboard — inside the breathing stepper (global)
+     ============================================================ */
+  document.addEventListener("keydown",(e)=>{
+    if(!inStepper) return;
+    // don't hijack typing in the evidence field except the deliberate ⌘⏎ (handled locally)
+    const typing = e.target && (e.target.tagName==="TEXTAREA" || e.target.tagName==="INPUT");
+    // M toggles the moves tray
+    if(!typing && (e.key==="m"||e.key==="M")){
+      e.preventDefault();
+      if(movesBar.classList.contains("open")) closeTray(); else openTray();
+      return;
+    }
+    if(e.key==="Escape"){
+      if(movesBar.classList.contains("open")){ e.preventDefault(); closeTray(); return; }
+    }
+    if(typing) return;
+    if(busy) return;
+    if(e.key===" " || e.key==="Enter"){
+      // Space / Enter advance (the calm forward breath)
+      if(!navNext.hidden && !navNext.disabled){ e.preventDefault(); nextBeat(); }
+      return;
+    }
+    if(e.key==="ArrowRight"){
+      if(!navNext.hidden && !navNext.disabled){ e.preventDefault(); nextBeat(); }
+      return;
+    }
+    if(e.key==="ArrowLeft"){
+      if(!navBack.hidden && !navBack.disabled){ e.preventDefault(); prevBeat(); }
+      return;
+    }
+  });
+
+  /* ---------- helpers / boot ---------- */
+  function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+  window.addEventListener("resize", updateCaret);
+
+  renderMoves("");
+  setTimeout(()=>{ updateCaret(); }, 220);
+  setTimeout(()=>{ if(!reduceMotion) field.focus(); }, reduceMotion?0:1700);
+})();
+</script>
+</body>
+</html>

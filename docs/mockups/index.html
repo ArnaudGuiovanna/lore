@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LORE — Front Design Lab</title>
+<meta name="description" content="Cinq directions de design front pour LORE, un LMS headless orienté runtime.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d0f;
+    --bg-2:#101316;
+    --panel:#14181c;
+    --panel-2:#181d22;
+    --line:#232a30;
+    --line-2:#2f383f;
+    --ink:#f3efe6;
+    --muted:#9aa6ac;
+    --quiet:#67737a;
+    --gold:#e8b341;
+    --gold-2:#f6cf73;
+    --green:#5bd6a8;
+    --cyan:#5cc7e6;
+    --violet:#b69cff;
+    --red:#ff6b6b;
+    --amber:#ffaf52;
+    --display:"Fraunces", Georgia, serif;
+    --mono:"Spline Sans Mono", ui-monospace, monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(232,179,65,.10), transparent 60%),
+      radial-gradient(900px 600px at -5% 20%, rgba(92,199,230,.07), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:var(--mono);
+    -webkit-font-smoothing:antialiased;line-height:1.5;
+    background-attachment:fixed;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;
+    background-image:linear-gradient(var(--ink) 1px,transparent 1px),linear-gradient(90deg,var(--ink) 1px,transparent 1px);
+    background-size:46px 46px;
+  }
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 24px}
+  a{color:inherit;text-decoration:none}
+
+  header.top{display:flex;align-items:center;justify-content:space-between;
+    padding:22px 0 18px;border-bottom:1px solid var(--line);
+    animation:fade .7s ease both}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.28em;font-size:13px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}
+  .top .meta{font-size:11px;color:var(--quiet);letter-spacing:.16em}
+
+  .hero{padding:74px 0 30px;animation:fade .8s .05s ease both}
+  .kicker{font-size:12px;letter-spacing:.34em;color:var(--gold);text-transform:uppercase;margin:0 0 22px}
+  h1{font-family:var(--display);font-optical-sizing:auto;font-weight:340;
+    font-size:clamp(42px,7vw,86px);line-height:.98;letter-spacing:-.02em;margin:0;color:var(--ink)}
+  h1 em{font-style:italic;color:var(--gold-2)}
+  .lede{max-width:680px;margin:26px 0 0;color:var(--muted);font-size:15.5px;line-height:1.7}
+  .lede b{color:var(--ink);font-weight:600}
+  .runtime-line{margin-top:30px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11.5px;color:var(--quiet)}
+  .pill{border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;color:var(--muted);white-space:nowrap}
+  .pill.on{border-color:rgba(232,179,65,.45);color:var(--gold-2);background:rgba(232,179,65,.06)}
+  .arrow{color:var(--quiet)}
+
+  .seclabel{display:flex;align-items:baseline;gap:16px;margin:64px 0 22px;
+    border-top:1px solid var(--line);padding-top:24px}
+  .seclabel .n{font-size:11px;color:var(--quiet);letter-spacing:.2em}
+  .seclabel h2{font-family:var(--display);font-weight:400;font-size:24px;margin:0;letter-spacing:-.01em}
+  .seclabel .hint{margin-left:auto;font-size:11.5px;color:var(--quiet)}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{position:relative;display:flex;flex-direction:column;
+    background:linear-gradient(180deg,var(--panel),var(--bg-2));
+    border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    transition:transform .35s cubic-bezier(.2,.7,.2,1),border-color .35s,box-shadow .35s;
+    animation:rise .7s ease both}
+  .card:hover{transform:translateY(-5px);border-color:var(--accent,var(--line-2));
+    box-shadow:0 22px 50px rgba(0,0,0,.45)}
+  .card:focus-within{border-color:var(--accent,var(--gold))}
+  .card .preview{position:relative;height:168px;border-bottom:1px solid var(--line);overflow:hidden}
+  .card .preview .swatch{position:absolute;inset:0}
+  .card .preview .tag{position:absolute;left:16px;bottom:14px;font-size:10.5px;letter-spacing:.18em;
+    color:var(--ink);text-transform:uppercase;background:rgba(0,0,0,.4);
+    border:1px solid rgba(255,255,255,.16);padding:5px 10px;border-radius:999px;backdrop-filter:blur(4px)}
+  .card .preview .idx{position:absolute;right:14px;top:12px;font-size:11px;color:rgba(255,255,255,.65);letter-spacing:.1em}
+  .card .body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:12px;flex:1}
+  .card h3{font-family:var(--display);font-weight:430;font-size:23px;margin:0;letter-spacing:-.01em}
+  .card .persona{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,var(--gold))}
+  .card p.desc{margin:0;color:var(--muted);font-size:13px;line-height:1.65}
+  .screens{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+  .screens span{font-size:10.5px;color:var(--quiet);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+  .card .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;
+    padding-top:14px;border-top:1px solid var(--line)}
+  .card .fonts{font-size:10.5px;color:var(--quiet)}
+  .open{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.04em;
+    color:var(--ink)}
+  .open .ar{transition:transform .3s}
+  .card:hover .open .ar{transform:translateX(4px)}
+  .stretched{position:absolute;inset:0;z-index:2}
+
+  .sw-focus{background:
+    radial-gradient(120px 90px at 78% 30%, rgba(122,34,48,.5), transparent 60%),
+    linear-gradient(135deg,#efe7d6,#e6dcc6 55%,#cdbf9f)}
+  .sw-focus .ink{position:absolute;left:18px;top:16px;font-family:var(--display);font-style:italic;
+    font-size:30px;color:#1f4a3a}
+  .sw-signal{background:
+    repeating-linear-gradient(90deg,rgba(92,199,230,0) 0 22px,rgba(92,199,230,.08) 22px 23px),
+    linear-gradient(160deg,#0a0b0d,#11161b)}
+  .sw-signal .led{position:absolute;display:flex;gap:7px;left:18px;top:18px}
+  .sw-signal .led i{width:8px;height:8px;border-radius:50%}
+  .sw-atlas{background:
+    radial-gradient(circle at 50% 55%, rgba(79,209,197,.16), transparent 60%),
+    linear-gradient(180deg,#06121a,#08182099)}
+  .sw-orch{background:
+    radial-gradient(220px 120px at 30% 20%, rgba(255,176,32,.20), transparent 60%),
+    linear-gradient(160deg,#0e1116,#141a20)}
+  .sw-class{background:linear-gradient(160deg,#0f1714,#142019)}
+
+  /* Focus-family (warm paper) swatches for the void studies */
+  .sw-void{background:linear-gradient(135deg,#efe7d6,#e7ddc8 60%,#dcd0b6);color:#1f4a3a}
+  .sw-void .glyph{position:absolute;font-family:var(--mono);font-size:13px;color:#1f4a3a}
+  .sw-void .caret{display:inline-block;width:8px;height:15px;background:#1f4a3a;margin-left:3px;
+    vertical-align:-2px;animation:blink 1.1s steps(1) infinite}
+  .sw-command{align-items:center;justify-content:center;display:flex}
+  .sw-command .prompt{font-family:var(--mono);font-size:14px;color:#1f4a3a;opacity:.92}
+  .sw-command .prompt b{color:#7a2230;font-weight:600}
+  .sw-canvas .ccard{position:absolute;left:24px;right:24px;top:30px;bottom:30px;background:#fdfaf2;
+    border:1px solid #c9bfa4;border-radius:12px;box-shadow:0 14px 30px rgba(31,74,58,.14)}
+  .sw-canvas .ccard::before{content:"Repair persistence";position:absolute;left:16px;top:14px;
+    font-family:var(--display);font-style:italic;font-size:17px;color:#1f4a3a}
+  .sw-canvas .ccard::after{content:"› generate";position:absolute;left:16px;bottom:14px;
+    font-family:var(--mono);font-size:11px;color:#7a2230}
+  .sw-thread .row{position:absolute;left:26px;height:9px;border-radius:4px;background:#cdbf9f}
+  .sw-thread .row.a{top:34px;width:120px}
+  .sw-thread .row.b{top:54px;width:170px;background:#1f4a3a;opacity:.55}
+  .sw-thread .row.c{top:80px;width:96px;background:#7a2230;opacity:.45}
+  .sw-thread .row.d{top:100px;width:150px;background:#cdbf9f}
+  @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+
+  /* COMMAND iteration swatches */
+  .sw-tty{background:linear-gradient(160deg,#0e0b06,#16100a);overflow:hidden}
+  .sw-tty::before{content:"";position:absolute;inset:0;opacity:.5;
+    background:repeating-linear-gradient(0deg,rgba(255,176,32,.05) 0 2px,transparent 2px 4px)}
+  .sw-tty .ln{position:absolute;left:20px;font-family:var(--mono);font-size:11px}
+  .sw-tty .ln.r{top:26px;color:#e8b341}
+  .sw-tty .ln.o{top:48px;color:#9aa68f;opacity:.8}
+  .sw-tty .ln.p{bottom:24px;color:#e8b341}
+  .sw-tty .ln.p .ca{display:inline-block;width:7px;height:13px;background:#e8b341;vertical-align:-2px;
+    margin-left:2px;animation:blink 1.1s steps(1) infinite}
+  .sw-pal{background:linear-gradient(135deg,#efe7d6,#e3d8c2);display:flex;align-items:center;justify-content:center}
+  .sw-pal .k{font-family:var(--mono);font-size:12px;color:#1f4a3a;background:#fdfaf2;border:1px solid #c9bfa4;
+    border-radius:9px;padding:9px 16px;box-shadow:0 10px 24px rgba(31,74,58,.16)}
+  .sw-pal .k b{color:#7a2230}
+  .sw-comp{background:linear-gradient(160deg,#efe7d6,#e6dcc8)}
+  .sw-comp .up{position:absolute;left:22px;top:26px;font-family:var(--display);font-style:italic;
+    font-size:15px;color:#4a2e6b}
+  .sw-comp .bar{position:absolute;left:18px;right:18px;bottom:18px;height:30px;background:#fdfaf2;
+    border:1px solid #c4b79a;border-radius:9px;display:flex;align-items:center;padding:0 10px;gap:5px}
+  .sw-comp .bar i{display:block;height:8px;border-radius:4px;background:#e7ddc6}
+  .sw-comp .bar i.g{width:34px;background:#4a2e6b;opacity:.7}
+  .sw-zen{background:radial-gradient(120% 80% at 50% 45%,#f3ecdd,#e3d8c2);display:flex;
+    align-items:center;justify-content:center}
+  .sw-zen .one{font-family:var(--display);font-style:italic;font-size:19px;color:#1f4a3a}
+  .sw-zen .one .ca{display:inline-block;width:2px;height:18px;background:#7a2230;vertical-align:-3px;
+    margin-left:4px;animation:blink 1.1s steps(1) infinite}
+
+  /* ZEN reading-variant swatches */
+  .sw-zr{position:relative;overflow:hidden}
+  .sw-zr .col{position:absolute;left:50%;top:28px;transform:translateX(-50%);width:128px;
+    display:flex;flex-direction:column;gap:8px}
+  .sw-zr .col i{display:block;height:6px;border-radius:3px}
+  .sw-lecture{background:linear-gradient(135deg,#efe7d6,#e6dcc6)}
+  .sw-lecture .col i{background:#1f4a3a;opacity:.30}
+  .sw-lecture .col i:nth-child(1){height:11px;width:54px;opacity:.55;border-radius:3px}
+  .sw-lecture .col i:nth-child(5){width:78px}
+  .sw-spot{background:linear-gradient(160deg,#0c100e,#10160f)}
+  .sw-spot .col i{background:#586059;opacity:.30;filter:blur(.4px)}
+  .sw-spot .col i.lit{background:#f3efe6;opacity:1;filter:none;height:8px}
+  .sw-souffle{background:radial-gradient(120% 80% at 50% 42%,#f3ecdd,#e3d8c2);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+  .sw-souffle .idea{font-family:var(--display);font-style:italic;font-size:18px;color:#1f4a3a}
+  .sw-souffle .dots{display:flex;gap:7px}
+  .sw-souffle .dots b{width:7px;height:7px;border-radius:50%;background:#c0b596;display:block}
+  .sw-souffle .dots b.on{background:#7a2230}
+  .sw-nuit{background:linear-gradient(160deg,#241b14,#2c2018)}
+  .sw-nuit .col i{background:#caa87e;opacity:.28}
+  .sw-nuit .col i:nth-child(1){height:11px;width:48px;opacity:.5}
+  .sw-nuit::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(60% 50% at 50% 45%,rgba(255,196,128,.10),transparent 70%)}
+
+  /* Journey swatches — LECTURE warm paper + a stepper motif */
+  .sw-jour{background:linear-gradient(135deg,#f6f2ea,#ece2d0);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:16px}
+  .sw-jour .glyph{font-family:var(--display);font-style:italic;font-size:26px;color:#2a4f3e}
+  .sw-jour .step{display:flex;align-items:center;gap:0}
+  .sw-jour .step b{width:9px;height:9px;border-radius:50%;background:#c7bca3;display:block;flex:none}
+  .sw-jour .step b.on{background:#2a4f3e}
+  .sw-jour .step b.end{background:#7a2230}
+  .sw-jour .step s{width:26px;height:2px;background:#cdbf9f;display:block;text-decoration:none}
+  .sw-jour .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:#6f7a5f;text-transform:uppercase}
+
+  .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+  @media(max-width:760px){.strip{grid-template-columns:1fr}}
+  .strip .box{border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--panel)}
+  .strip .box h4{margin:0 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .strip .box p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.6}
+
+  footer{margin:70px 0 48px;padding-top:22px;border-top:1px solid var(--line);
+    display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;color:var(--quiet);font-size:11.5px}
+  footer code{color:var(--gold-2)}
+
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  .card:nth-child(1){animation-delay:.04s}
+  .card:nth-child(2){animation-delay:.10s}
+  .card:nth-child(3){animation-delay:.16s}
+  .card:nth-child(4){animation-delay:.22s}
+  .card:nth-child(5){animation-delay:.28s}
+  :focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:6px}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand"><span class="dot"></span>LORE</div>
+    <div class="meta">FRONT DESIGN LAB · 19 MAQUETTES</div>
+  </header>
+
+  <section class="hero">
+    <p class="kicker">Headless LMS · Runtime-first</p>
+    <h1>Donner un visage à un<br>moteur d'<em>orchestration</em>.</h1>
+    <p class="lede">
+      LORE n'est pas un catalogue de cours avec un chat greffé. Un <b>runtime pédagogique
+      déterministe</b> décide quoi faire ensuite, met à jour la maîtrise, planifie les révisions,
+      détecte les idées fausses et lève des alertes. Le LLM ne fait que <b>générer du contenu</b>
+      à partir d'une instruction du runtime — il ne possède jamais l'état d'apprentissage.
+      <br><br>Cinq agents product designer ont imaginé cinq fronts, chacun pour un usage réel.
+    </p>
+    <div class="runtime-line">
+      <span class="pill">Learner state</span><span class="arrow">→</span>
+      <span class="pill on">Décision runtime</span><span class="arrow">→</span>
+      <span class="pill">Activité + preuve</span><span class="arrow">→</span>
+      <span class="pill">Modèle mis à jour</span>
+    </div>
+  </section>
+
+  <div class="seclabel">
+    <span class="n">01</span>
+    <h2>Les directions</h2>
+    <span class="hint">cliquez une carte pour ouvrir le mockup</span>
+  </div>
+
+  <div class="grid">
+
+    <article class="card" style="--accent:#5bd6a8">
+      <div class="preview"><div class="swatch sw-focus"><span class="ink">Aa</span></div>
+        <span class="idx">01 · light · serif</span>
+        <span class="tag">Éditorial · quiet-luxury</span></div>
+      <div class="body">
+        <div class="persona">Learner — Amara Okafor</div>
+        <h3>FOCUS — Workbench apprenant</h3>
+        <p class="desc">Une surface calme façon app de lecture : la <b>carte de décision runtime</b>
+          est le héros — quoi faire, pourquoi, et le repli « instruction-only » comme état de
+          première classe. Après soumission, le delta d'état s'anime (maîtrise 0.41 → 0.47).</p>
+        <div class="screens"><span>Now</span><span>Reviews</span><span>Progress</span><span>History</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Newsreader · Spline Mono</span>
+          <a class="open" href="variants/focus-learner.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-learner.html" aria-label="Ouvrir FOCUS, workbench apprenant"></a>
+    </article>
+
+    <article class="card" style="--accent:#5cc7e6">
+      <div class="preview"><div class="swatch sw-signal">
+          <span class="led"><i style="background:#ff6b6b"></i><i style="background:#ffaf52"></i><i style="background:#5bd6a8"></i><i style="background:#b69cff"></i></span></div>
+        <span class="idx">02 · dark · mono</span>
+        <span class="tag">Cockpit industriel</span></div>
+      <div class="body">
+        <div class="persona">Trainer — cohorte Go-Spring-24</div>
+        <h3>SIGNAL — Console d'intervention</h3>
+        <p class="desc">Un poste de contrôle quasi-noir où les couleurs d'état sont du <b>signal,
+          pas de la déco</b>. Santé de cohorte, alertes groupées par action, tableau des idées
+          fausses, timeline d'apprenant — et un <b>ticker d'outbox</b> live en bas.</p>
+        <div class="screens"><span>Cohort</span><span>Alerts</span><span>Misconceptions</span><span>Timeline</span></div>
+        <div class="foot">
+          <span class="fonts">Archivo · JetBrains Mono</span>
+          <a class="open" href="variants/signal-trainer.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/signal-trainer.html" aria-label="Ouvrir SIGNAL, console formateur"></a>
+    </article>
+
+    <article class="card" style="--accent:#4fd1c5">
+      <div class="preview"><div class="swatch sw-atlas">
+          <svg width="100%" height="100%" viewBox="0 0 300 168" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <line x1="70" y1="60" x2="150" y2="84" stroke="#2c5a5a" stroke-width="1.5"/>
+            <line x1="150" y1="84" x2="232" y2="58" stroke="#2c5a5a" stroke-width="1.5"/>
+            <line x1="150" y1="84" x2="150" y2="132" stroke="#2c5a5a" stroke-width="1.5"/>
+            <line x1="70" y1="60" x2="120" y2="124" stroke="#2c5a5a" stroke-width="1.5"/>
+            <circle cx="70" cy="60" r="13" fill="#2fb4d9"/>
+            <circle cx="150" cy="84" r="17" fill="#ff8a5d"/>
+            <circle cx="150" cy="84" r="26" fill="none" stroke="#f2b134" stroke-width="1.2" stroke-dasharray="3 5"/>
+            <circle cx="232" cy="58" r="11" fill="#ff5d6c"/>
+            <circle cx="150" cy="132" r="10" fill="#3fa86f"/>
+            <circle cx="120" cy="124" r="10" fill="#6fc0d6"/>
+          </svg></div>
+        <span class="idx">03 · deep-space · SVG</span>
+        <span class="tag">Cartographique</span></div>
+      <div class="body">
+        <div class="persona">Trainer / analyste</div>
+        <h3>ATLAS — Explorateur de graphe</h3>
+        <p class="desc">Le <b>DAG de concepts</b> en SVG vivant : nœuds dimensionnés par difficulté,
+          colorés par la chaleur de maîtrise, concept sélectionné par le runtime qui pulse, anneau
+          ZPD de frontière. Survol = traçage des prérequis. Plus une matrice maîtrise × apprenants.</p>
+        <div class="screens"><span>Atlas</span><span>Matrix</span><span>Pathway</span><span>Snapshots</span></div>
+        <div class="foot">
+          <span class="fonts">B612 Mono · Familjen Grotesk</span>
+          <a class="open" href="variants/atlas-graph.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/atlas-graph.html" aria-label="Ouvrir ATLAS, explorateur de graphe"></a>
+    </article>
+
+    <article class="card" style="--accent:#ffb020">
+      <div class="preview"><div class="swatch sw-orch">
+          <svg width="100%" height="100%" viewBox="0 0 300 168" aria-hidden="true">
+            <g stroke="#3a4250" stroke-width="1">
+              <line x1="40" y1="40" x2="260" y2="40"/><line x1="60" y1="80" x2="260" y2="80"/>
+              <line x1="80" y1="120" x2="260" y2="120"/></g>
+            <g fill="#ffb020"><circle cx="40" cy="40" r="5"/><circle cx="60" cy="80" r="5"/><circle cx="80" cy="120" r="5"/></g>
+            <circle cx="260" cy="80" r="6" fill="#34d1d6"/>
+          </svg></div>
+        <span class="idx">04 · slate · amber</span>
+        <span class="tag">Control plane</span></div>
+      <div class="body">
+        <div class="persona">Admin — Acme Learning</div>
+        <h3>ORCHESTRATOR — Plan de contrôle</h3>
+        <p class="desc">La config comme un système : <b>matrice LLM</b> tenant › program › cohort ›
+          learner avec résolution « most-specific-first », identité &amp; rôles, arbre de structure,
+          et moniteur d'outbox. Tout changement risqué passe par un <b>état de revue</b> avant save.</p>
+        <div class="screens"><span>LLM Matrix</span><span>Identity</span><span>Structure</span><span>Outbox</span></div>
+        <div class="foot">
+          <span class="fonts">Archivo Expanded · JetBrains Mono</span>
+          <a class="open" href="variants/orchestrator-admin.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/orchestrator-admin.html" aria-label="Ouvrir ORCHESTRATOR, plan de contrôle admin"></a>
+    </article>
+
+    <article class="card" style="--accent:#5bd6a8">
+      <div class="preview"><div class="swatch sw-class"></div>
+        <span class="idx">05 · light · ops</span>
+        <span class="tag">Référence existante</span></div>
+      <div class="body">
+        <div class="persona">Multi-persona · baseline</div>
+        <h3>OPERATIONS — Mockup d'origine</h3>
+        <p class="desc">Le mockup d'opérations déjà présent dans le dépôt, conservé comme point de
+          comparaison : une page unique vert-papier couvrant le langage produit du runtime.</p>
+        <div class="screens"><span>Learning operations</span></div>
+        <div class="foot">
+          <span class="fonts">baseline</span>
+          <a class="open" href="variants/operations-classic.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/operations-classic.html" aria-label="Ouvrir le mockup d'opérations d'origine"></a>
+    </article>
+
+  </div>
+
+  <div class="seclabel">
+    <span class="n">02</span>
+    <h2>Focus Learner — études du vide génératif</h2>
+    <span class="hint">le texte est généré à la demande → on gère le vide</span>
+  </div>
+  <p class="lede" style="max-width:760px;margin:0 0 24px">
+    Suite de la direction <b>FOCUS</b>. Le différenciateur de LORE : aucun contenu apprenant
+    n'existe avant d'être <b>convoqué</b> depuis une <code style="color:var(--gold-2)">TutorInstruction</code>.
+    Pré-remplir des écrans devient un anti-pattern. Ces trois maquettes partent donc du <b>vide</b> —
+    amorcé par <i>une</i> intention du runtime — et font surgir le texte en streaming à la demande.
+    Trois positions du curseur <span style="color:var(--ink)">vide ↔ structure</span>. Ce n'est pas un
+    chat : les gestes (explique autrement, autre exemple, je bloque, pourquoi) sont un jeu de coups
+    <b>sanctionnés par le runtime</b>.
+  </p>
+
+  <div class="grid">
+
+    <article class="card" style="--accent:#1f4a3a">
+      <div class="preview"><div class="swatch sw-void sw-command">
+          <span class="prompt">› repair <b>persistence</b><span class="caret"></span></span></div>
+        <span class="idx" style="color:#1f4a3a99">A · vide maximal</span>
+        <span class="tag" style="color:#1f4a3a;background:rgba(255,255,255,.5);border-color:#c9bfa4">Terminal-like</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Learner — Amara · curseur ◀ vide</div>
+        <h3>COMMAND — le prompt est le runtime</h3>
+        <p class="desc">Une toile quasi nulle : une ligne d'intention du runtime, un <b>composer
+          façon prompt</b> (caret clignotant) et une <b>palette de coups</b> (<code>/start /exemple
+          /bloqué /why /fallback</code>). <code>/start</code> fait <b>streamer</b> la pratice mot à
+          mot ; <code>/fallback</code> bascule en instruction-only (scaffold numéroté, LLM éteint).</p>
+        <div class="screens"><span>Void hero</span><span>Slash palette</span><span>Streaming</span><span>Fallback</span><span>State delta</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Spline Mono · Newsreader</span>
+          <a class="open" href="variants/focus-command.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-command.html" aria-label="Ouvrir COMMAND, vide maximal"></a>
+    </article>
+
+    <article class="card" style="--accent:#1f4a3a">
+      <div class="preview"><div class="swatch sw-void sw-canvas"><div class="ccard"></div></div>
+        <span class="idx" style="color:#1f4a3a99">B · point d'équilibre</span>
+        <span class="tag" style="color:#1f4a3a;background:rgba(255,255,255,.5);border-color:#c9bfa4">Objet qui se déplie</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Learner — Amara · curseur ● milieu</div>
+        <h3>CANVAS — une carte qui respire</h3>
+        <p class="desc">Un <b>objet focal unique</b> au centre, vide par défaut (juste l'intention
+          runtime + « Générer l'activité »). Le déclenchement le fait <b>respirer</b> : la carte
+          s'étend en streamant le contenu, puis déplie en place les gestes → le composer de preuve →
+          le <b>delta d'état</b> animé, avant de se réinitialiser sur l'intention suivante.</p>
+        <div class="screens"><span>Vide amorcé</span><span>Unfold</span><span>Gestes</span><span>Evidence</span><span>Delta</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Newsreader · Spline Mono</span>
+          <a class="open" href="variants/focus-canvas.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-canvas.html" aria-label="Ouvrir CANVAS, carte qui respire"></a>
+    </article>
+
+    <article class="card" style="--accent:#1f4a3a">
+      <div class="preview"><div class="swatch sw-void sw-thread">
+          <i class="row a"></i><i class="row b"></i><i class="row c"></i><i class="row d"></i></div>
+        <span class="idx" style="color:#1f4a3a99">C · plus de structure</span>
+        <span class="tag" style="color:#1f4a3a;background:rgba(255,255,255,.5);border-color:#c9bfa4">Boucle dialoguée</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Learner — Amara · structure ▶</div>
+        <h3>THREAD — boucle menée par le runtime</h3>
+        <p class="desc">Un fil vertical qui se lit comme un tutorat, mais <b>chaque tour est décidé
+          par le runtime</b> + généré — pas de saisie libre. Le vide de départ : un seul tour
+          d'ouverture runtime + « Commencer ». Les <b>chips de gestes</b> ajoutent des tours streamés ;
+          la preuve se soumet en bas ; un tour de delta puis l'intention suivante poursuivent la boucle.</p>
+        <div class="screens"><span>Fil vide</span><span>Tour généré</span><span>Chips</span><span>Fallback</span><span>Delta turn</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Newsreader · Spline Mono</span>
+          <a class="open" href="variants/focus-thread.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-thread.html" aria-label="Ouvrir THREAD, boucle menée par le runtime"></a>
+    </article>
+
+  </div>
+
+  <div class="seclabel">
+    <span class="n">03</span>
+    <h2>Itérations COMMAND — « le prompt <em>est</em> le runtime »</h2>
+    <span class="hint">4 grammaires d'interaction, même cœur void-maximal</span>
+  </div>
+  <p class="lede" style="max-width:780px;margin:0 0 24px">
+    Direction retenue : <b>COMMAND</b>. Quatre traitements UX/UI du même principe — partir du vide,
+    convoquer le texte à la demande via un jeu de <b>coups sanctionnés par le runtime</b> (jamais un
+    chat libre). Même fixture (Amara · réparer <code style="color:var(--gold-2)">persistence</code>),
+    même boucle <i>génération streamée → preuve → delta → intention suivante</i>, même fallback
+    instruction-only. Ce qui change : la <b>grammaire d'interaction</b>.
+  </p>
+
+  <div class="grid">
+
+    <article class="card" style="--accent:#e8b341">
+      <div class="preview"><div class="swatch sw-tty">
+          <span class="ln r">⟁ repair persistence — retention 0.38</span>
+          <span class="ln o">› _ awaiting move · /start /why /fallback</span>
+          <span class="ln p">› <span class="ca"></span></span></div>
+        <span class="idx">A·1 · CRT · clavier</span>
+        <span class="tag">Terminal scrollback</span></div>
+      <div class="body">
+        <div class="persona" style="color:#c79a3a">Learner — Amara · keyboard-first</div>
+        <h3>TTY — console opérateur</h3>
+        <p class="desc">Un vrai terminal : <b>scrollback</b> comme mémoire, prompt en bas comme
+          présent. <code>Tab</code> complète, <code>↑/↓</code> rappelle l'historique, <code>Enter</code>
+          exécute. Chaque tour runtime/commande est un log horodaté à glyphes. Saisie hors-jeu →
+          <b>rejetée</b> (« not a sanctioned move »). Palette amber-on-ink, scanline.</p>
+        <div class="screens"><span>Void</span><span>Stream</span><span>Evidence</span><span>Delta</span><span>Fallback</span></div>
+        <div class="foot">
+          <span class="fonts">JetBrains Mono · Fraunces</span>
+          <a class="open" href="variants/focus-cmd-tty.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-cmd-tty.html" aria-label="Ouvrir TTY, console opérateur"></a>
+    </article>
+
+    <article class="card" style="--accent:#1f4a3a">
+      <div class="preview"><div class="swatch sw-void sw-pal">
+          <span class="k">⌘K  <b>act on this intent</b></span></div>
+        <span class="idx" style="color:#1f4a3a99">A·2 · launcher</span>
+        <span class="tag" style="color:#1f4a3a;background:rgba(255,255,255,.5);border-color:#c9bfa4">Spotlight ⌘K</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Learner — Amara · ⌘K + souris</div>
+        <h3>PALETTE — launcher sur scène</h3>
+        <p class="desc">Une <b>scène sereine</b> avec l'intention runtime centrée ; <code>⌘K</code> ouvre
+          une <b>palette flottante</b> fuzzy des coups sanctionnés. Choisir « start » convoque le contenu
+          comme une <b>carte de lecture</b> focalisée sur la scène (pas de transcript qui s'accumule).
+          Filtrage fuzzy surligné, accélérateurs clavier, la preuve vit dans la carte.</p>
+        <div class="screens"><span>Stage</span><span>Palette</span><span>Card stream</span><span>Delta</span><span>Fallback</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Spline Mono</span>
+          <a class="open" href="variants/focus-cmd-palette.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-cmd-palette.html" aria-label="Ouvrir PALETTE, launcher ⌘K"></a>
+    </article>
+
+    <article class="card" style="--accent:#4a2e6b">
+      <div class="preview"><div class="swatch sw-void sw-comp">
+          <span class="up">Repair persistence</span>
+          <div class="bar"><i class="g"></i><i style="width:46px"></i><i style="width:30px"></i></div></div>
+        <span class="idx" style="color:#4a2e6b99">A·3 · docked</span>
+        <span class="tag" style="color:#4a2e6b;background:rgba(255,255,255,.55);border-color:#c4b79a">Composer ancré</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a6a8c">Learner — Amara · modes Command/Answer</div>
+        <h3>COMPOSER — prompt ancré</h3>
+        <p class="desc">Composer <b>ancré en bas</b>, le contenu streame vers le <b>haut</b> au-dessus
+          de lui. Le garde-fou anti-chat : deux modes explicites — <b>Command</b> (coups bornés via
+          chips + « / ») et <b>Answer</b> (le runtime invite la preuve). La prose libre n'a de sens
+          qu'en mode Answer. Accent prune profond.</p>
+        <div class="screens"><span>Void</span><span>Stream up</span><span>Command/Answer</span><span>Delta</span><span>Fallback</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Spline Mono</span>
+          <a class="open" href="variants/focus-cmd-composer.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-cmd-composer.html" aria-label="Ouvrir COMPOSER, prompt ancré"></a>
+    </article>
+
+    <article class="card" style="--accent:#7a2230">
+      <div class="preview"><div class="swatch sw-void sw-zen">
+          <span class="one">repair persistence<span class="ca"></span></span></div>
+        <span class="idx" style="color:#7a223099">A·4 · zen</span>
+        <span class="tag" style="color:#7a2230;background:rgba(255,255,255,.55);border-color:#c9bfa4">Plein-écran</span></div>
+      <div class="body">
+        <div class="persona" style="color:#9a6a72">Learner — Amara · one-thing-at-a-time</div>
+        <h3>ZEN — focus mono-ligne</h3>
+        <p class="desc">Minimalisme cinématique : une seule ligne d'intention et un caret. Agir
+          <b>assombrit le monde</b> (focus mode) ; la génération fait une <b>révélation plein-écran</b>
+          qui se <b>replie</b> ensuite sur une nouvelle ligne. La boucle comme une respiration.
+          Les coups n'apparaissent qu'au moment d'agir — jamais un prompt ouvert.</p>
+        <div class="screens"><span>Single line</span><span>Dim</span><span>Full-bleed</span><span>Collapse</span><span>Fallback</span></div>
+        <div class="foot">
+          <span class="fonts">Fraunces · Newsreader · Spline Mono</span>
+          <a class="open" href="variants/focus-cmd-zen.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-cmd-zen.html" aria-label="Ouvrir ZEN, focus mono-ligne"></a>
+    </article>
+
+  </div>
+
+  <div class="seclabel">
+    <span class="n">04</span>
+    <h2>Itérations ZEN — lecture &amp; charge cognitive</h2>
+    <span class="hint">app d'apprentissage → faciliter la lecture, alléger l'esprit</span>
+  </div>
+  <p class="lede" style="max-width:790px;margin:0 0 24px">
+    Direction retenue : <b>ZEN</b> (la réponse se génère plein-écran). Quatre variantes, chacune
+    poussant un <b>levier de charge cognitive</b> différent, toutes au service d'une chose : que le
+    texte se lise sans effort. Mesure ~62 caractères, grand serif, interlignage généreux, espace
+    aéré, déroulé au rythme de la lecture. Même cœur ZEN/COMMAND : vide amorcé, coups sanctionnés
+    (pas de chat), génération streamée, fallback instruction-only, boucle qui respire.
+  </p>
+
+  <div class="grid">
+
+    <article class="card" style="--accent:#1f4a3a">
+      <div class="preview"><div class="swatch sw-void sw-zr sw-lecture">
+          <div class="col"><i></i><i></i><i></i><i></i><i></i></div></div>
+        <span class="idx" style="color:#1f4a3a99">B·1 · flux</span>
+        <span class="tag" style="color:#1f4a3a;background:rgba(255,255,255,.55);border-color:#c9bfa4">Long-form</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Levier — flux de lecture</div>
+        <h3>LECTURE — essai typographié</h3>
+        <p class="desc">La révélation plein-écran devient un <b>essai magnifiquement composé</b> : une
+          colonne centrée ~62ch, Newsreader 21px, interligne 1.72, lettrine, streaming paragraphe par
+          paragraphe au rythme de la lecture. Preuve et delta <b>restent dans la colonne</b> — le
+          regard ne décroche jamais. Zéro chrome qui rivalise avec la prose.</p>
+        <div class="screens"><span>Standfirst</span><span>Takeover</span><span>Reading flow</span><span>Delta in-column</span><span>Fallback</span></div>
+        <div class="foot">
+          <span class="fonts">Newsreader · Fraunces · Spline Mono</span>
+          <a class="open" href="variants/focus-zen-lecture.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-zen-lecture.html" aria-label="Ouvrir LECTURE, essai typographié"></a>
+    </article>
+
+    <article class="card" style="--accent:#e8b341">
+      <div class="preview"><div class="swatch sw-zr sw-spot">
+          <div class="col"><i></i><i></i><i class="lit"></i><i style="opacity:0"></i><i style="opacity:0"></i></div></div>
+        <span class="idx">B·2 · attention</span>
+        <span class="tag" style="background:rgba(255,255,255,.10);border-color:#3a4038;color:#f3efe6">Spotlight</span></div>
+      <div class="body">
+        <div class="persona" style="color:#c79a3a">Levier — attention focalisée</div>
+        <h3>PROJECTEUR — lecture guidée</h3>
+        <p class="desc">Charge cognitive minimisée à l'extrême : <b>une seule phrase éclairée</b> à la
+          fois. Le déjà-lu s'estompe (présent mais en retrait), le non-révélé est absent. Le spotlight
+          avance au rythme de lecture, et <b>l'apprenant peut le piloter</b> (Espace / ↑) — rendre le
+          tempo à la personne allège encore l'esprit.</p>
+        <div class="screens"><span>Void sombre</span><span>Spotlight</span><span>Code lit-par-ligne</span><span>Question</span><span>Delta</span></div>
+        <div class="foot">
+          <span class="fonts">Spectral · Spline Mono</span>
+          <a class="open" href="variants/focus-zen-spotlight.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-zen-spotlight.html" aria-label="Ouvrir PROJECTEUR, lecture guidée"></a>
+    </article>
+
+    <article class="card" style="--accent:#1f4a3a">
+      <div class="preview"><div class="swatch sw-void sw-souffle">
+          <span class="idea">where must the rollback go?</span>
+          <span class="dots"><b></b><b class="on"></b><b></b><b></b></span></div>
+        <span class="idx" style="color:#1f4a3a99">B·3 · segmentation</span>
+        <span class="tag" style="color:#1f4a3a;background:rgba(255,255,255,.55);border-color:#c9bfa4">Une idée / écran</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Levier — segmentation (chunking)</div>
+        <h3>SOUFFLE — un battement par écran</h3>
+        <p class="desc">L'activité éclatée en <b>battements plein-écran</b>, une idée par écran :
+          situation → le code seul → la question → la preuve → le delta. On avance d'un geste
+          (Espace / →), transitions en fondu doux — <b>la boucle comme une respiration</b>. Repère
+          discret (2/4), jamais deux idées à l'écran.</p>
+        <div class="screens"><span>Beat 1 situation</span><span>Beat 2 code</span><span>Beat 3 question</span><span>Beat 4 preuve</span><span>Delta</span></div>
+        <div class="foot">
+          <span class="fonts">Source Serif · Spline Mono</span>
+          <a class="open" href="variants/focus-zen-souffle.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-zen-souffle.html" aria-label="Ouvrir SOUFFLE, un battement par écran"></a>
+    </article>
+
+    <article class="card" style="--accent:#caa87e">
+      <div class="preview"><div class="swatch sw-zr sw-nuit">
+          <div class="col"><i></i><i></i><i></i><i></i><i></i></div></div>
+        <span class="idx" style="color:#caa87e">B·4 · environnement</span>
+        <span class="tag" style="background:rgba(255,255,255,.08);border-color:#4a3a2c;color:#e9d9c4">Veilleuse</span></div>
+      <div class="body">
+        <div class="persona" style="color:#b79a78">Levier — charge sensorielle</div>
+        <h3>VEILLEUSE — lecture apaisée</h3>
+        <p class="desc">Même lecture plein-écran, mais réglée comme un <b>environnement de lecture
+          nocturne</b> : sépia/charbon doux, faible contraste (sans nuire à la lisibilité), l'espace le
+          plus aéré, un voile chaud ambiant. Contrôles de confort réels — <b>taille, largeur, thème</b>
+          — pour un apprenant fatigué en récupération de surcharge.</p>
+        <div class="screens"><span>Void nocturne</span><span>Reading apaisé</span><span>A− / A+</span><span>Largeur</span><span>Thème</span></div>
+        <div class="foot">
+          <span class="fonts">Lora · Spline Mono</span>
+          <a class="open" href="variants/focus-zen-nuit.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/focus-zen-nuit.html" aria-label="Ouvrir VEILLEUSE, lecture apaisée"></a>
+    </article>
+
+  </div>
+
+  <div class="seclabel">
+    <span class="n">05</span>
+    <h2>Parcours — du login à la fin (langage LECTURE)</h2>
+    <span class="hint">un parcours complet par rôle · direction retenue : LECTURE</span>
+  </div>
+  <p class="lede" style="max-width:790px;margin:0 0 24px">
+    Direction retenue : <b>LECTURE</b>, étendue à tout le produit. Trois parcours complets, de la
+    <b>page de connexion</b> (auth LORE, rôle <b>dérivé de la membership</b>, jamais demandé par le
+    client) jusqu'à la fin. L'apprenant garde le modèle de lecture génératif intégral ; le formateur
+    devient une <b>console d'intervention</b> calme, l'admin un <b>plan de contrôle</b> — même langage
+    (papier chaud, Newsreader/Fraunces, runtime-first), densité adaptée au métier.
+  </p>
+
+  <div class="grid">
+
+    <article class="card" style="--accent:#2a4f3e">
+      <div class="preview"><div class="swatch sw-void sw-jour">
+          <span class="glyph">Apprendre</span>
+          <span class="step"><b class="on"></b><s></s><b class="on"></b><s></s><b></b><s></s><b class="end"></b></span>
+          <span class="lbl">login → fin de session</span></div>
+        <span class="idx" style="color:#2a4f3e99">Rôle · LEARNER</span>
+        <span class="tag" style="color:#2a4f3e;background:rgba(255,255,255,.55);border-color:#c9bfa4">Lecture générative</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">Amara Okafor · dérivé de la membership</div>
+        <h3>Parcours APPRENANT</h3>
+        <p class="desc">Login → résolution de session → <b>Now</b> (lecture plein-écran, ici en
+          <b>fallback instruction-only</b> car learner-1 est en instruction_only) → delta dans la
+          colonne (0.41→0.47) → Reviews → Progress → History → <b>fin sereine</b> (« all quiet · next
+          review ~22h »). <b>Provenance en lecture seule</b> : « why this path? » montre que le parcours
+          vient du syllabus de sa cohorte (Go-Spring-24 → « Production-grade Go persistence » par Köhler →
+          objectif/acquis), modifiable par le seul formateur.</p>
+        <div class="screens"><span>Login</span><span>Now</span><span>Why this path?</span><span>Delta</span><span>Progress</span><span>History</span></div>
+        <div class="foot">
+          <span class="fonts">Newsreader · Fraunces · Spline Mono</span>
+          <a class="open" href="variants/journey-apprenant.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/journey-apprenant.html" aria-label="Ouvrir le parcours apprenant"></a>
+    </article>
+
+    <article class="card" style="--accent:#2a4f3e">
+      <div class="preview"><div class="swatch sw-void sw-jour">
+          <span class="glyph">Intervenir</span>
+          <span class="step"><b class="on"></b><s></s><b class="on"></b><s></s><b class="on"></b><s></s><b class="end"></b></span>
+          <span class="lbl">login → alerte résolue</span></div>
+        <span class="idx" style="color:#2a4f3e99">Rôle · TRAINER</span>
+        <span class="tag" style="color:#2a4f3e;background:rgba(255,255,255,.55);border-color:#c9bfa4">Console d'intervention</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">R. Köhler · cohort lead Go-Spring-24</div>
+        <h3>Parcours FORMATEUR</h3>
+        <p class="desc">Login → <b>rédige un syllabus</b> (intention + acquis, <i>sans cours ni
+          ressources</i>) → <b>attache la cohorte</b> Go-Spring-24 (<code>GUIDED</code>) → <b>le runtime
+          + LLM génèrent le parcours</b> (runtime ordonne le DAG, LLM remplit) → puis la console
+          d'intervention : Alertes → <b>Diego (à risque)</b> → action sanctionnée → résolution (at-risk 2→1).
+          Authoring approfondi : <b>éditer = forker une v2</b> (append-only, v1 intacte) → diff → <b>rebind
+          de la cohorte v1→v2</b> avec review d'impact (18 apprenants, état préservé) + confirmation →
+          événements <code>SyllabusCreated</code>/<code>SyllabusBound</code> → parcours re-planifié.</p>
+        <div class="screens"><span>Author syllabus</span><span>Attach cohort</span><span>Generate parcours</span><span>Edit → fork v2</span><span>Rebind + review</span><span>Alertes</span><span>Intervention</span></div>
+        <div class="foot">
+          <span class="fonts">Newsreader · Fraunces · Spline Mono</span>
+          <a class="open" href="variants/journey-formateur.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/journey-formateur.html" aria-label="Ouvrir le parcours formateur"></a>
+    </article>
+
+    <article class="card" style="--accent:#2a4f3e">
+      <div class="preview"><div class="swatch sw-void sw-jour">
+          <span class="glyph">Configurer</span>
+          <span class="step"><b class="on"></b><s></s><b class="on"></b><s></s><b class="on"></b><s></s><b class="end"></b></span>
+          <span class="lbl">login → config + événement</span></div>
+        <span class="idx" style="color:#2a4f3e99">Rôle · TENANT_ADMIN</span>
+        <span class="tag" style="color:#2a4f3e;background:rgba(255,255,255,.55);border-color:#c9bfa4">Plan de contrôle</span></div>
+      <div class="body">
+        <div class="persona" style="color:#7a8c5f">S. Aalto · tenant Acme Learning</div>
+        <h3>Parcours ADMINISTRATEUR</h3>
+        <p class="desc">Login → Tenant → Identité &amp; rôles (frontière OIDC verify-only) → Structure →
+          Graphe de domaine → <b>Matrice LLM</b> (tenant›program›cohort›learner, résolution
+          most-specific-first) → <b>édition avec review-state</b> (diff + impact + confirmation) →
+          <b>Outbox</b> (événement émis). Scope tenant toujours visible.</p>
+        <div class="screens"><span>Login</span><span>Tenant</span><span>Identité</span><span>Structure</span><span>Graphe</span><span>LLM matrix</span><span>Review</span><span>Outbox</span></div>
+        <div class="foot">
+          <span class="fonts">Newsreader · Fraunces · Spline Mono</span>
+          <a class="open" href="variants/journey-admin.html">Ouvrir <span class="ar">→</span></a>
+        </div>
+      </div>
+      <a class="stretched" href="variants/journey-admin.html" aria-label="Ouvrir le parcours administrateur"></a>
+    </article>
+
+  </div>
+
+  <div class="seclabel">
+    <span class="n">06</span>
+    <h2>Le parti-pris commun</h2>
+    <span class="hint">les règles que chaque front respecte</span>
+  </div>
+  <div class="strip">
+    <div class="box"><h4>Runtime-first</h4><p>Chaque action primaire part d'une décision de LORE,
+      jamais d'une liste de contenus. La raison du « prochain pas » est expliquée en langage humain.</p></div>
+    <div class="box"><h4>Preuve &gt; vanité</h4><p>Maîtrise, rétention, calibration, idées fausses, révisions
+      et snapshots — pas de barres de progression décoratives.</p></div>
+    <div class="box"><h4>Runtime vs LLM</h4><p>L'UI distingue toujours « décidé par le runtime » de
+      « généré par le LLM », et reste utilisable quand la génération retombe en instruction-only.</p></div>
+  </div>
+
+  <footer>
+    <span>LORE · Learning Orchestration Runtime Engine — mockups statiques, données fictives.</span>
+    <span>servi via Tailscale Funnel → <code>/mockups</code></span>
+  </footer>
+
+</div>
+</body>
+</html>

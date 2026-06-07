@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Canvas — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Spline+Sans+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#efe8dc;
+    --card:#fbf8f2;
+    --card-2:#f7f2e9;
+    --ink:#23211c;
+    --ink-soft:#4a463d;
+    --ink-faint:#7d776a;
+    --line:#ddd4c3;
+    --line-soft:#e7dfd1;
+    --accent:#1f4a3a;        /* deep ink-green */
+    --accent-deep:#143229;
+    --accent-soft:#e3ece5;
+    --accent-line:#cadbcf;
+    --oxblood:#7a2230;
+    --oxblood-soft:#f1e0df;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,28,.05), 0 22px 60px -30px rgba(35,33,28,.4);
+    --shadow-lift:0 2px 4px rgba(35,33,28,.06), 0 38px 90px -34px rgba(35,33,28,.46);
+    --r:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible,[role="radio"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:9px;
+  }
+  input[type=range]:focus-visible{outline-offset:6px}
+  body{
+    margin:0;
+    background:
+      radial-gradient(140% 90% at 82% -12%, #f9f4eb 0%, rgba(249,244,235,0) 55%),
+      radial-gradient(120% 80% at 12% 110%, #efe9dd 0%, rgba(239,233,221,0) 50%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:17px;
+    line-height:1.58;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    min-height:100vh;
+  }
+  ::selection{background:var(--accent);color:#f4efe6}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono", ui-monospace, monospace}
+  .ser{font-family:"Fraunces", serif}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* gallery link */
+  .gallery-badge{
+    position:fixed;top:16px;left:16px;z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.82);backdrop-filter:blur(7px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+
+  /* ---------- ambient frame chrome ---------- */
+  .frame{
+    position:fixed;top:18px;right:18px;z-index:160;display:flex;align-items:center;gap:14px;
+    font-family:"Spline Sans Mono",monospace;
+  }
+  .brand{display:flex;align-items:baseline;gap:9px}
+  .brand .logo{
+    font-family:"Fraunces",serif;font-weight:600;font-size:19px;letter-spacing:-.01em;
+    font-variation-settings:"opsz" 40;color:var(--accent);
+  }
+  .brand .logo b{font-style:italic;font-weight:500}
+  .brand .tag{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+    border-left:1px solid var(--line);padding-left:9px}
+  .who-chip{display:flex;align-items:center;gap:9px;background:rgba(251,248,242,.8);
+    backdrop-filter:blur(7px);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 6px}
+  .avatar{
+    width:28px;height:28px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #356c54, #1f4a3a);
+    color:#f4efe6;display:grid;place-items:center;font-family:"Fraunces",serif;font-weight:600;font-size:12px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+  }
+  .who-chip .n{font-size:11.5px;font-weight:500;color:var(--ink);line-height:1.1}
+  .who-chip .r{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);line-height:1.3}
+
+  /* ---------- stage ---------- */
+  .stage{
+    min-height:100vh;display:grid;place-items:center;
+    padding:96px 24px 64px;
+  }
+  .stage-inner{width:100%;max-width:720px}
+
+  /* breadcrumb context — faint, runtime-seeded orientation */
+  .context-line{
+    text-align:center;font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-faint);margin:0 0 26px;
+    display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  }
+  .context-line .sep{opacity:.45}
+  .context-line b{color:var(--ink-soft);font-weight:500}
+
+  /* ---------- THE CANVAS ---------- */
+  .canvas{
+    position:relative;background:var(--card);
+    border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);
+    transition:box-shadow .6s ease, border-color .6s ease;
+    overflow:hidden;
+  }
+  .canvas.lifted{box-shadow:var(--shadow-lift)}
+  /* the running ink-green spine */
+  .canvas::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+    background:linear-gradient(180deg,var(--accent),var(--accent-deep));
+    transition:background .6s ease;
+  }
+  .canvas.alarm::before{background:linear-gradient(180deg,var(--oxblood),#5a1923)}
+  /* instruction-only: LLM off — spine shifts to a neutral hatched amber, body warms slightly */
+  .canvas.instr-mode::before{background:repeating-linear-gradient(180deg,var(--amber)0 7px,#7c5512 7px 14px)}
+  .canvas.instr-mode .canvas-body{background:linear-gradient(180deg,rgba(243,232,207,.32),rgba(243,232,207,0) 180px)}
+
+  /* canvas top strip — mode + state */
+  .canvas-strip{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:14px 22px 14px 26px;border-bottom:1px solid var(--line-soft);
+    font-family:"Spline Sans Mono",monospace;
+  }
+  .strip-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .strip-right{display:flex;align-items:center;gap:12px}
+
+  .badge{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    border-radius:999px;padding:5px 10px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  }
+  .badge-runtime{color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line)}
+  .badge-runtime .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 0 rgba(31,74,58,.5);animation:pulse 2.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,74,58,.45)}70%{box-shadow:0 0 0 8px rgba(31,74,58,0)}100%{box-shadow:0 0 0 0 rgba(31,74,58,0)}}
+  .badge-llm{color:#6a4a0f;background:var(--amber-soft);border:1px solid #e3d2a8}
+  .badge-llm .dot{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+  .badge-instr{color:var(--ink-soft);background:var(--paper-2);border:1px solid var(--line)}
+  .badge-alarm{color:var(--oxblood);background:var(--oxblood-soft);border:1px solid #e2c4c4}
+
+  /* instruction-only toggle */
+  .mode-toggle{display:inline-flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-faint)}
+  .switch{position:relative;width:42px;height:22px;border-radius:999px;border:1px solid var(--line);
+    background:var(--paper-2);cursor:pointer;transition:.3s ease;padding:0;flex:0 0 auto}
+  .switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+    background:var(--ink-faint);transition:.32s cubic-bezier(.2,.7,.2,1)}
+  .switch[aria-checked="true"]{background:var(--accent-soft);border-color:var(--accent-line)}
+  .switch[aria-checked="true"] .knob{left:22px;background:var(--accent)}
+  .switch:hover{border-color:var(--ink-faint)}
+
+  .canvas-body{padding:32px 38px 34px;position:relative}
+
+  /* ---- seeded intent (always present in the void) ---- */
+  .intent{transition:opacity .45s ease}
+  .intent .why-eyebrow{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-faint);display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .intent .why-eyebrow::before{content:"";width:18px;height:1px;background:var(--accent)}
+  .intent h1{
+    font-family:"Fraunces",serif;font-weight:400;font-size:clamp(30px,5vw,44px);line-height:1.06;
+    letter-spacing:-.018em;margin:0 0 14px;font-variation-settings:"opsz" 60;
+  }
+  .intent h1 i{font-weight:500;color:var(--accent);font-style:italic}
+  .intent .why{color:var(--ink-soft);font-size:18px;max-width:54ch;margin:0 0 22px}
+  .intent .why .hl{color:var(--oxblood);font-style:italic}
+
+  /* evidence chips: the runtime's reasons, evidence not vanity */
+  .signals{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px}
+  .sig{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line-soft);border-radius:11px;
+    padding:9px 13px;background:var(--card-2);min-width:104px}
+  .sig .k{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-faint)}
+  .sig .v{font-family:"Fraunces",serif;font-size:21px;line-height:1.1;color:var(--ink)}
+  .sig .v small{font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--ink-faint);letter-spacing:.04em}
+  .sig.warn .v{color:var(--oxblood)}
+  .sig .trend{font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--ink-faint)}
+  .sig.warn .trend{color:var(--oxblood)}
+
+  /* primary affordance */
+  .primary{
+    appearance:none;border:none;cursor:pointer;
+    font-family:"Spline Sans Mono",monospace;font-size:13px;letter-spacing:.05em;
+    background:linear-gradient(180deg,#27563f,var(--accent-deep));color:#f4efe6;
+    border-radius:12px;padding:15px 26px;display:inline-flex;align-items:center;gap:12px;
+    box-shadow:0 1px 0 rgba(255,255,255,.08) inset, 0 14px 28px -14px rgba(20,50,41,.7);
+    transition:transform .22s cubic-bezier(.2,.7,.2,1), box-shadow .22s, opacity .3s;
+  }
+  .primary:hover{transform:translateY(-2px);box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 20px 34px -14px rgba(20,50,41,.75)}
+  .primary:active{transform:translateY(0)}
+  .primary .arrow{transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+  .primary:hover .arrow{transform:translateX(4px)}
+  .primary[disabled]{opacity:.55;cursor:default;transform:none;box-shadow:none}
+  .primary .kbd{font-size:10px;border:1px solid rgba(244,239,230,.32);border-radius:6px;
+    padding:2px 6px;color:rgba(244,239,230,.78)}
+
+  .affordance-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .hint{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);letter-spacing:.02em}
+
+  /* ---- the unfolding zones (animated open/close) ---- */
+  .zone{
+    display:grid;grid-template-rows:0fr;opacity:0;
+    transition:grid-template-rows .62s cubic-bezier(.2,.72,.18,1), opacity .5s ease, margin .5s ease;
+    margin-top:0;
+  }
+  .zone>.zone-inner{overflow:hidden;min-height:0}
+  .zone.open{grid-template-rows:1fr;opacity:1;margin-top:26px}
+  /* keyboard/reduced-motion fallback handled separately */
+
+  .zone-rule{height:1px;background:var(--line-soft);margin:0 0 24px;
+    position:relative}
+  .zone-rule span{position:absolute;left:0;top:-8px;background:var(--card);padding-right:12px;
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-faint)}
+
+  /* generating indicator */
+  .gen-status{display:flex;align-items:center;gap:11px;font-family:"Spline Sans Mono",monospace;
+    font-size:11.5px;letter-spacing:.08em;color:var(--accent);margin-bottom:16px;text-transform:uppercase}
+  .gen-status.hidden{display:none}
+  .gen-status .spark{display:inline-flex;gap:4px}
+  .gen-status .spark i{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;
+    animation:spark 1s infinite ease-in-out}
+  .gen-status .spark i:nth-child(2){animation-delay:.16s}
+  .gen-status .spark i:nth-child(3){animation-delay:.32s}
+  @keyframes spark{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
+  .gen-status .prov{color:var(--ink-faint);text-transform:none;letter-spacing:.02em}
+
+  /* generated task surface */
+  .task{font-size:18px;color:var(--ink-soft)}
+  .task .lede{font-family:"Fraunces",serif;font-weight:400;font-size:23px;line-height:1.28;color:var(--ink);
+    letter-spacing:-.01em;margin:0 0 16px;font-variation-settings:"opsz" 36}
+  .task p{margin:0 0 14px;max-width:60ch}
+  .task .blink{display:inline-block;width:9px;height:1.05em;background:var(--accent);
+    vertical-align:-2px;margin-left:2px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{0%,50%{opacity:1}50.01%,100%{opacity:0}}
+  .task code{font-family:"Spline Sans Mono",monospace;font-size:.9em;background:var(--paper-2);
+    border:1px solid var(--line-soft);border-radius:5px;padding:1px 5px;color:var(--accent-deep)}
+
+  /* code block (the buggy Go fn) */
+  .codeblock{
+    background:#1c241f;border-radius:12px;border:1px solid #2c382f;overflow:hidden;margin:18px 0 6px;
+    box-shadow:0 14px 30px -20px rgba(20,30,24,.8);
+  }
+  .codeblock .cb-bar{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#222b25;
+    border-bottom:1px solid #2c382f;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.08em;color:#9db5a4}
+  .codeblock .cb-bar .fn{color:#e8ddc6}
+  .codeblock .cb-bar .lang{margin-left:auto;color:#6f8a78;text-transform:uppercase;letter-spacing:.14em}
+  .codeblock pre{margin:0;padding:16px 18px;overflow-x:auto;font-family:"Spline Sans Mono",monospace;
+    font-size:13px;line-height:1.72;color:#d7e2da;tab-size:2}
+  .codeblock .kw{color:#9cc3a8}
+  .codeblock .fnname{color:#e6c98a}
+  .codeblock .str{color:#c8a98a}
+  .codeblock .cm{color:#6f8a78;font-style:italic}
+  .codeblock .err-mark{background:rgba(122,34,48,.34);border-radius:3px;
+    box-shadow:0 0 0 1px rgba(176,80,94,.5);padding:0 2px}
+  .numbered{counter-reset:step;list-style:none;padding:0;margin:6px 0 4px}
+  .numbered li{position:relative;padding:11px 0 11px 46px;border-top:1px dashed var(--line-soft);
+    font-family:"Newsreader",serif;font-size:17px;color:var(--ink-soft)}
+  .numbered li:first-child{border-top:none}
+  .numbered li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:10px;
+    width:28px;height:28px;border-radius:8px;background:var(--accent-soft);border:1px solid var(--accent-line);
+    color:var(--accent);font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    display:grid;place-items:center}
+  .numbered li code{font-family:"Spline Sans Mono",monospace;font-size:.86em;background:var(--paper-2);
+    border:1px solid var(--line-soft);border-radius:5px;padding:1px 5px;color:var(--accent-deep)}
+
+  /* ---- sanctioned gesture row ---- */
+  .gestures{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+  .gestures .glabel{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-faint);margin-right:2px;width:100%}
+  .gesture{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.01em;
+    background:var(--card-2);border:1px solid var(--line);color:var(--ink-soft);border-radius:10px;
+    padding:9px 13px;display:inline-flex;align-items:center;gap:7px;transition:.2s ease;
+  }
+  .gesture .g-ico{font-size:13px;line-height:1;opacity:.8}
+  .gesture:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);transform:translateY(-1px)}
+  .gesture:active{transform:translateY(0)}
+  .gesture.stuck:hover{border-color:var(--oxblood);color:var(--oxblood);background:var(--oxblood-soft)}
+  .gesture[disabled]{opacity:.45;cursor:default;transform:none}
+
+  /* ---- evidence composer ---- */
+  .composer .clabel{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-faint);margin-bottom:9px;display:block}
+  .answer{
+    width:100%;min-height:128px;resize:vertical;background:var(--card-2);border:1px solid var(--line);
+    border-radius:12px;padding:15px 17px;font-family:"Spline Sans Mono",monospace;font-size:13px;
+    line-height:1.7;color:var(--ink);transition:border-color .2s, box-shadow .2s;tab-size:2;
+  }
+  .answer::placeholder{color:var(--ink-faint);opacity:.7}
+  .answer:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+  .confidence{margin:20px 0 24px}
+  .confidence .crow{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .confidence .cval{font-family:"Fraunces",serif;font-size:20px;color:var(--accent)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent) var(--p,50%),var(--line) var(--p,50%));outline:none;margin:6px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;
+    border-radius:50%;background:var(--card);border:2px solid var(--accent);cursor:pointer;
+    box-shadow:0 2px 6px -1px rgba(20,50,41,.45);transition:transform .15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.12)}
+  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--card);
+    border:2px solid var(--accent);cursor:pointer}
+  .confidence .scale{display:flex;justify-content:space-between;font-family:"Spline Sans Mono",monospace;
+    font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+
+  .submit-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .submit-note{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-faint);max-width:34ch}
+
+  /* ---- state delta panel ---- */
+  .delta .delta-eyebrow{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:9px;margin-bottom:6px}
+  .delta .delta-eyebrow::before{content:"";width:18px;height:1px;background:var(--accent)}
+  .delta h2{font-family:"Fraunces",serif;font-weight:400;font-size:28px;letter-spacing:-.01em;margin:0 0 20px;
+    line-height:1.1}
+  .delta h2 i{color:var(--accent);font-weight:500}
+  .delta-grid{display:grid;gap:11px}
+  .drow{display:flex;align-items:center;gap:14px;border:1px solid var(--line-soft);border-radius:12px;
+    padding:13px 16px;background:var(--card-2);opacity:0;transform:translateY(10px)}
+  .drow.in{animation:drowIn .5s cubic-bezier(.2,.7,.2,1) forwards}
+  @keyframes drowIn{to{opacity:1;transform:none}}
+  .drow .d-ico{width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:14px}
+  .drow .d-ico.up{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line)}
+  .drow .d-ico.sched{background:#e7eef3;color:#2c5871;border:1px solid #cbdbe6}
+  .drow .d-ico.hold{background:var(--oxblood-soft);color:var(--oxblood);border:1px solid #e2c4c4}
+  .drow .d-ico.lock{background:var(--paper-2);color:var(--ink-faint);border:1px solid var(--line)}
+  .drow .d-main{flex:1 1 auto;min-width:0}
+  .drow .d-k{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-faint)}
+  .drow .d-v{font-family:"Newsreader",serif;font-size:16.5px;color:var(--ink)}
+  .drow .d-v .num{font-family:"Spline Sans Mono",monospace;font-size:14px;color:var(--ink-soft)}
+  .drow .d-v .num.gain{color:var(--accent);font-weight:600}
+  .drow .d-meter{flex:0 0 92px;height:6px;border-radius:999px;background:var(--line);overflow:hidden;position:relative}
+  .drow .d-meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);
+    transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+  .drow .d-meter i.ghost{background:repeating-linear-gradient(90deg,rgba(31,74,58,.25)0 4px,transparent 4px 8px)}
+  .delta-foot{margin-top:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+
+  /* footer micro-meta inside canvas */
+  .canvas-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 22px 12px 26px;border-top:1px solid var(--line-soft);
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.06em;color:var(--ink-faint)}
+  .canvas-foot .dag{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .canvas-foot .node{padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--card-2)}
+  .canvas-foot .node.cur{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .canvas-foot .node.lock{color:var(--ink-faint)}
+  .canvas-foot .node.done{color:var(--accent)}
+  .canvas-foot .arr{opacity:.4}
+
+  /* page-load reveal */
+  .gallery-badge,.frame{opacity:0;animation:chromeIn .7s ease both}
+  .frame{animation-delay:.1s}
+  .context-line{opacity:0;animation:fadeUp .7s .2s cubic-bezier(.2,.7,.2,1) both}
+  .canvas{opacity:0;animation:canvasIn .9s .28s cubic-bezier(.2,.72,.18,1) both}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes canvasIn{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}
+
+  .resetting{animation:foldOut .5s cubic-bezier(.4,0,.6,1) forwards}
+  @keyframes foldOut{to{opacity:0;transform:translateY(12px) scale(.99)}}
+  .arriving{animation:foldIn .7s cubic-bezier(.2,.72,.18,1) both}
+  @keyframes foldIn{from{opacity:0;transform:translateY(16px) scale(.99)}to{opacity:1;transform:none}}
+
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+      transition-duration:.001ms!important}
+    html{scroll-behavior:auto}
+    .zone{transition:none}
+  }
+
+  @media(max-width:560px){
+    .canvas-body{padding:24px 22px 26px}
+    .frame .brand{display:none}
+    .stage{padding:84px 14px 48px}
+    .intent h1{font-size:30px}
+  }
+</style>
+</head>
+<body>
+<a class="gallery-badge" href="../">← gallery index</a>
+
+<div class="frame">
+  <div class="brand">
+    <span class="logo">L<b>O</b>RE</span>
+    <span class="tag">Canvas</span>
+  </div>
+  <div class="who-chip">
+    <span class="avatar">AO</span>
+    <span>
+      <span class="n">Amara Okafor</span><br/>
+      <span class="r">learner-1 · Go-Spring-24</span>
+    </span>
+  </div>
+</div>
+
+<main class="stage">
+  <div class="stage-inner">
+
+    <p class="context-line">
+      <span>Acme Learning</span><span class="sep">/</span>
+      <span>Backend Engineering 2026</span><span class="sep">/</span>
+      <span>domain <b>Go Backend</b></span><span class="sep">/</span>
+      <span class="mono">runtime: deterministic</span>
+    </p>
+
+    <section class="canvas alarm" id="canvas" aria-label="Learning canvas">
+
+      <!-- top strip: mode + state -->
+      <div class="canvas-strip">
+        <div class="strip-left">
+          <span class="badge badge-runtime"><span class="dot"></span>Runtime decided</span>
+          <span class="badge badge-alarm" id="loadBadge">Overload recovery</span>
+        </div>
+        <div class="strip-right">
+          <span class="mode-toggle">
+            <span id="modeText">LLM · Anthropic</span>
+            <button class="switch" id="modeSwitch" role="switch" aria-checked="false"
+              aria-label="Toggle instruction-only mode (LLM off)">
+              <span class="knob"></span>
+            </button>
+          </span>
+        </div>
+      </div>
+
+      <!-- narrowly-scoped polite announcer: summaries only, never streamed word-by-word -->
+      <p class="sr-only" id="srStatus" aria-live="polite" role="status"></p>
+
+      <div class="canvas-body" id="body">
+
+        <!-- ===== ZONE 0: seeded intent (the calm void) ===== -->
+        <div class="intent" id="intent">
+          <p class="why-eyebrow">Runtime intention · move 1 of session</p>
+          <h1>Repair <i>persistence</i><br/>before advancing.</h1>
+          <p class="why">
+            Mastery has slipped to <span class="hl">0.41 and declining</span>, retention is down to
+            <span class="hl">0.38</span>, and a spaced review is <span class="hl">2 days overdue</span>.
+            One misconception is still active — you skip the rollback when a transaction errors.
+            The runtime is holding <code>transactions</code> locked until this is repaired.
+          </p>
+
+          <div class="signals" id="signals">
+            <div class="sig warn">
+              <span class="k">Mastery · BKT</span>
+              <span class="v">0.41 <small>p(L)</small></span>
+              <span class="trend">▼ declining</span>
+            </div>
+            <div class="sig warn">
+              <span class="k">Retention · FSRS</span>
+              <span class="v">0.38</span>
+              <span class="trend">review +2d overdue</span>
+            </div>
+            <div class="sig warn">
+              <span class="k">Misconception</span>
+              <span class="v">1 <small>active</small></span>
+              <span class="trend">forgot-tx-rollback</span>
+            </div>
+            <div class="sig">
+              <span class="k">Load policy</span>
+              <span class="v">low</span>
+              <span class="trend">after 2 fails</span>
+            </div>
+          </div>
+
+          <div class="affordance-row">
+            <button class="primary" id="generateBtn">
+              <span id="genLabel">Generate the activity</span>
+              <span class="arrow">→</span>
+              <span class="kbd">↵</span>
+            </button>
+            <span class="hint">No content exists until summoned · runtime authors the instruction</span>
+          </div>
+        </div>
+
+        <!-- ===== ZONE 1: generated task ===== -->
+        <div class="zone" id="zoneTask" aria-hidden="true">
+          <div class="zone-inner">
+            <div class="zone-rule"><span>Activity</span></div>
+
+            <div class="gen-status hidden" id="genStatus">
+              <span class="spark"><i></i><i></i><i></i></span>
+              <span id="genStatusText">Generating from TutorInstruction</span>
+              <span class="prov" id="genProv">· anthropic/claude · temp 0.2</span>
+            </div>
+
+            <div class="strip-left" style="margin-bottom:14px;gap:8px">
+              <span class="badge badge-llm" id="taskOriginBadge"><span class="dot"></span>LLM generated</span>
+              <span class="badge badge-instr" style="display:none" id="taskInstrBadge">Instruction-authored scaffold</span>
+              <span class="mono" style="font-size:10px;color:var(--ink-faint);letter-spacing:.06em">
+                instr-id <span id="instrId">ti_9f2a</span> · repair / forgot-tx-rollback
+              </span>
+            </div>
+
+            <div class="task" id="taskContent"><!-- streamed in --></div>
+
+            <div class="gestures" id="gestures" style="margin-top:22px" aria-label="Sanctioned generative gestures">
+              <span class="glabel">Runtime-sanctioned moves</span>
+              <button class="gesture" data-g="explain"><span class="g-ico">↻</span> explain differently</button>
+              <button class="gesture" data-g="example"><span class="g-ico">+</span> another example</button>
+              <button class="gesture stuck" data-g="stuck"><span class="g-ico">⚐</span> I'm stuck</button>
+              <button class="gesture" data-g="why"><span class="g-ico">?</span> why this?</button>
+              <button class="gesture" data-g="regen"><span class="g-ico">⟳</span> regenerate</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== ZONE 2: evidence composer ===== -->
+        <div class="zone" id="zoneComposer" aria-hidden="true">
+          <div class="zone-inner">
+            <div class="zone-rule"><span>Your evidence</span></div>
+            <div class="composer">
+              <label class="clabel" for="answer">Your fix · the rollback path</label>
+              <textarea class="answer" id="answer" spellcheck="false"
+                placeholder="// add the missing rollback path…&#10;if err != nil {&#10;    tx.Rollback()&#10;    return err&#10;}"></textarea>
+
+              <div class="confidence">
+                <div class="crow">
+                  <label class="clabel" for="conf" style="margin:0">How confident are you?</label>
+                  <span class="cval" id="confVal">moderate · 55%</span>
+                </div>
+                <input type="range" id="conf" min="0" max="100" value="55" aria-label="Confidence" />
+                <div class="scale"><span>guessing</span><span>certain</span></div>
+              </div>
+
+              <div class="submit-row">
+                <button class="primary" id="submitBtn">
+                  <span>Submit evidence</span><span class="arrow">→</span>
+                </button>
+                <span class="submit-note">Runtime scores against BKT, updates FSRS, re-checks the misconception.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== ZONE 3: state delta ===== -->
+        <div class="zone" id="zoneDelta" aria-hidden="true">
+          <div class="zone-inner">
+            <div class="delta">
+              <p class="delta-eyebrow">Runtime state delta · what the model learned</p>
+              <h2 id="deltaHead">Partial repair — <i>keep going.</i></h2>
+              <div class="delta-grid" id="deltaGrid">
+                <div class="drow">
+                  <span class="d-ico up">▲</span>
+                  <span class="d-main">
+                    <span class="d-k">Mastery · persistence</span>
+                    <span class="d-v"><span class="num">0.41</span> → <span class="num gain">0.47</span> &nbsp;evidence accepted</span>
+                  </span>
+                  <span class="d-meter"><i data-w="47"></i></span>
+                </div>
+                <div class="drow">
+                  <span class="d-ico sched">◷</span>
+                  <span class="d-main">
+                    <span class="d-k">Retention · FSRS</span>
+                    <span class="d-v">review rescheduled — next in <span class="num">3 days</span>, overdue cleared</span>
+                  </span>
+                  <span class="d-meter"><i data-w="58"></i></span>
+                </div>
+                <div class="drow">
+                  <span class="d-ico hold">!</span>
+                  <span class="d-main">
+                    <span class="d-k">Misconception · forgot-tx-rollback</span>
+                    <span class="d-v">still <b>active</b> — weakened, needs one more clean attempt</span>
+                  </span>
+                  <span class="d-meter"><i class="ghost" data-w="40"></i></span>
+                </div>
+                <div class="drow">
+                  <span class="d-ico lock">⊘</span>
+                  <span class="d-main">
+                    <span class="d-k">Concept · transactions</span>
+                    <span class="d-v">still <b>locked</b> — unlocks at mastery ≥ 0.60 on persistence</span>
+                  </span>
+                  <span class="d-meter"><i data-w="78"></i></span>
+                </div>
+              </div>
+              <div class="delta-foot">
+                <button class="primary" id="continueBtn">
+                  <span>Continue</span><span class="arrow">→</span>
+                </button>
+                <span class="submit-note">Next runtime intention: a second persistence repair at lower load.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /canvas-body -->
+
+      <div class="canvas-foot">
+        <div class="dag">
+          <span class="node done">http-handlers ·86</span>
+          <span class="arr">→</span>
+          <span class="node cur" id="dagCur">persistence ·41</span>
+          <span class="arr">→</span>
+          <span class="node lock">transactions 🔒</span>
+          <span class="arr">→</span>
+          <span class="node lock">migrations 🔒</span>
+        </div>
+        <span id="footState">state · audited snapshot</span>
+      </div>
+
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- elements ----
+  const canvas      = document.getElementById("canvas");
+  const intent      = document.getElementById("intent");
+  const generateBtn = document.getElementById("generateBtn");
+  const genLabel    = document.getElementById("genLabel");
+  const zoneTask    = document.getElementById("zoneTask");
+  const zoneComposer= document.getElementById("zoneComposer");
+  const zoneDelta   = document.getElementById("zoneDelta");
+  const genStatus   = document.getElementById("genStatus");
+  const genStatusText = document.getElementById("genStatusText");
+  const genProv     = document.getElementById("genProv");
+  const taskContent = document.getElementById("taskContent");
+  const taskOrigin  = document.getElementById("taskOriginBadge");
+  const taskInstr   = document.getElementById("taskInstrBadge");
+  const gestures    = document.getElementById("gestures");
+  const submitBtn   = document.getElementById("submitBtn");
+  const continueBtn = document.getElementById("continueBtn");
+  const conf        = document.getElementById("conf");
+  const confVal     = document.getElementById("confVal");
+  const modeSwitch  = document.getElementById("modeSwitch");
+  const modeText    = document.getElementById("modeText");
+  const srStatus    = document.getElementById("srStatus");
+
+  // narrowly-scoped polite announcer (summaries only — never the streamed text)
+  function srAnnounce(msg){ if(srStatus) srStatus.textContent = msg; }
+
+  // ---- state ----
+  let instructionOnly = false;   // learner-1 override default OFF visually; toggle proves fallback
+  let composerShown   = false;
+  let streaming       = false;
+  let streamToken     = 0;       // cancels stale streams
+
+  // ===== content fixtures =====
+  // LLM-generated prose variants (sanctioned regeneration targets)
+  const LLM = {
+    base: {
+      lede: "Amara, this Go handler opens a transaction, inserts a row, then hits an error — and returns without rolling back.",
+      paras: [
+        "Read <code>createOrder</code> below. When <code>repo.insert</code> fails, the function returns the error immediately. The open transaction is never rolled back, so the connection leaks a half-applied write and the pool slowly starves.",
+        "Your task: add the missing rollback path so that any error after <code>BeginTx</code> rolls the transaction back before returning. Keep the happy-path commit intact.",
+        "Write only the corrected error branch in the composer below."
+      ],
+      code: true
+    },
+    explain: {
+      lede: "Think of a transaction as a sealed envelope you've opened but not yet sent.",
+      paras: [
+        "Once you call <code>BeginTx</code>, every write lives inside that open envelope. <code>Commit</code> seals and sends it; <code>Rollback</code> tears it up. If you <code>return</code> on error without either, the envelope stays open forever — Postgres holds the locks and the connection never returns to the pool.",
+        "In <code>createOrder</code>, the error branch tears nothing up. Add <code>tx.Rollback()</code> before that <code>return err</code> so the envelope is destroyed when the insert fails.",
+        "Same task, said differently: close every transaction you open — one way or the other."
+      ],
+      code: true
+    },
+    example: {
+      lede: "Here's the shape on a different operation — a balance transfer — so the pattern is unmistakable.",
+      paras: [
+        "<code>tx, _ := db.BeginTx(ctx, nil)</code> then <code>tx.Exec(\"UPDATE accounts SET bal = bal - $1 …\")</code>. If the debit succeeds but the credit returns an error, you must <code>tx.Rollback()</code> — otherwise money leaves one account and never arrives at the other.",
+        "Notice the rule is identical to <code>createOrder</code>: the moment any step after <code>BeginTx</code> errors, roll back before returning.",
+        "Now apply exactly that to the order insert below."
+      ],
+      code: true
+    },
+    stuck: {
+      lede: "No problem — here's a smaller step. Just write the three lines that go inside the error check.",
+      paras: [
+        "You already have <code>if err != nil {</code>. Inside it you need to (a) undo the open transaction, then (b) surface the error to the caller.",
+        "Line one rolls back: <code>tx.Rollback()</code>. Line two returns: <code>return err</code>. That's the whole repair — the commit on the happy path stays as it is.",
+        "Type those two lines into the composer. The runtime is keeping load low on purpose right now."
+      ],
+      code: false
+    },
+    why: {
+      lede: "Why this, right now? Because the runtime is repairing a decaying skill before it blocks everything downstream.",
+      paras: [
+        "Persistence mastery fell to 0.41 and retention to 0.38, with a spaced review 2 days overdue — and the active misconception <code>forgot-tx-rollback</code> is the precise gap this scenario targets. Fixing it here is the cheapest place to fix it.",
+        "<code>transactions</code> and <code>migrations</code> sit downstream in the concept DAG and stay locked until persistence is repaired, so this single move unblocks the most future work.",
+        "It is one isolated rollback fix — small, by design — because you just missed two attempts and the runtime lowered the load."
+      ],
+      code: true
+    }
+  };
+
+  // Instruction-only fallback: numbered runtime-authored scaffold (no prose)
+  const INSTR = {
+    lede: "Runtime scaffold · persistence repair · forgot-tx-rollback (LLM disabled for learner-1)",
+    steps: [
+      "Open the function <code>createOrder(ctx, db, o)</code> shown below.",
+      "Locate the error check after <code>repo.insert(ctx, tx, o)</code>.",
+      "Inside <code>if err != nil { … }</code>, call <code>tx.Rollback()</code> before returning.",
+      "Return the original error: <code>return err</code>.",
+      "Leave the happy-path <code>tx.Commit()</code> unchanged.",
+      "Submit the corrected error branch as your evidence below."
+    ]
+  };
+
+  // The buggy Go function (rendered as static, syntax-tinted markup; the err-return is marked)
+  const CODE_HTML =
+'<div class="codeblock" role="img" aria-label="Go function createOrder missing a rollback on error">'+
+'<div class="cb-bar"><span class="fn">store/order.go</span> · <span class="fnname">func createOrder</span>'+
+'<span class="lang">go</span></div>'+
+'<pre><span class="kw">func</span> <span class="fnname">createOrder</span>(ctx context.Context, db *sql.DB, o Order) <span class="kw">error</span> {\n'+
+'  tx, err := db.<span class="fnname">BeginTx</span>(ctx, <span class="kw">nil</span>)\n'+
+'  <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }\n\n'+
+'  <span class="kw">if</span> err := repo.<span class="fnname">insert</span>(ctx, tx, o); err != <span class="kw">nil</span> {\n'+
+'    <span class="cm">// BUG: returns without rolling back the open tx</span>\n'+
+'    <span class="err-mark"><span class="kw">return</span> err</span>\n'+
+'  }\n\n'+
+'  <span class="kw">return</span> tx.<span class="fnname">Commit</span>()\n'+
+'}</pre></div>';
+
+  // ---- helpers: tokenize prose into word/markup chunks for streaming ----
+  function tokenize(html){
+    // split on spaces but keep tags intact-ish: we stream by word, html fragments allowed
+    return html.split(/(\s+)/).filter(s=>s.length);
+  }
+
+  // cancellable streamed reveal into a target element
+  function streamInto(el, htmlParts, opts){
+    opts = opts || {};
+    const myToken = ++streamToken;
+    streaming = true;
+    el.innerHTML = "";
+    const caret = document.createElement("span");
+    caret.className = "blink";
+
+    // Build a flat list of "render units": each unit is a chunk of HTML appended over time.
+    // Each part (lede paragraph, body paragraph, code) becomes a sub-stream of word tokens.
+    let unitIndex = 0;
+    const speed = reduce ? 0 : (opts.speed || 26);
+
+    function renderUnit(done){
+      if(myToken !== streamToken){ return; } // cancelled
+      if(unitIndex >= htmlParts.length){
+        if(caret.parentNode) caret.remove();
+        streaming = false;
+        if(done) done();
+        return;
+      }
+      const part = htmlParts[unitIndex++];
+      if(part.type === "raw"){
+        const div = document.createElement("div");
+        div.innerHTML = part.html;
+        while(div.firstChild){ el.appendChild(div.firstChild); }
+        el.appendChild(caret);
+        setTimeout(()=>renderUnit(done), reduce?0:140);
+        return;
+      }
+      // streamable text part (may contain inline tags) -> reveal word by word
+      const container = document.createElement(part.tag || "p");
+      if(part.cls) container.className = part.cls;
+      el.appendChild(container);
+      container.appendChild(caret);
+      const tokens = tokenize(part.html);
+      let i = 0;
+      function nextWord(){
+        if(myToken !== streamToken) return;
+        if(i >= tokens.length){
+          setTimeout(()=>renderUnit(done), reduce?0:90);
+          return;
+        }
+        // accumulate raw html so inline tags resolve; insert before caret
+        const span = document.createElement("span");
+        span.innerHTML = tokens[i];
+        // move children before caret
+        while(span.firstChild){ container.insertBefore(span.firstChild, caret); }
+        i++;
+        if(reduce){ // render all at once
+          while(i < tokens.length){
+            const s=document.createElement("span"); s.innerHTML=tokens[i];
+            while(s.firstChild){ container.insertBefore(s.firstChild, caret); } i++;
+          }
+          setTimeout(()=>renderUnit(done),0);
+          return;
+        }
+        const jitter = tokens[i-1].match(/[.,;:]$/) ? speed*4 : speed + Math.random()*22;
+        setTimeout(nextWord, jitter);
+      }
+      nextWord();
+    }
+    renderUnit(opts.done);
+  }
+
+  // build the html-parts list for a given LLM variant
+  function buildLLMParts(v){
+    const parts = [{type:"text", tag:"div", cls:"lede", html:v.lede}];
+    v.paras.forEach(p=>parts.push({type:"text", tag:"p", html:p}));
+    if(v.code) parts.push({type:"raw", html:CODE_HTML});
+    return parts;
+  }
+  function buildInstrParts(){
+    const parts = [{type:"text", tag:"div", cls:"lede", html:INSTR.lede}];
+    let lis = INSTR.steps.map(s=>"<li>"+s+"</li>").join("");
+    // stream the numbered list as one raw unit after a brief beat, plus the code
+    parts.push({type:"raw", html:'<ol class="numbered">'+lis+'</ol>'});
+    parts.push({type:"raw", html:CODE_HTML});
+    return parts;
+  }
+
+  // ---- open / close zones (animated, grid-rows trick) ----
+  function openZone(z){ z.classList.add("open"); z.setAttribute("aria-hidden","false"); }
+  function closeZone(z){ z.classList.remove("open"); z.setAttribute("aria-hidden","true"); }
+
+  // ===== primary generation flow =====
+  function runGeneration(opts){
+    opts = opts || {};
+    canvas.classList.add("lifted");
+    openZone(zoneTask);
+    // disable origin badges per mode
+    if(instructionOnly){
+      taskOrigin.style.display = "none";
+      taskInstr.style.display = "inline-flex";
+      genStatusText.textContent = "Composing runtime scaffold (LLM off)";
+      genProv.textContent = "· instruction_only · numbered authored steps";
+    } else {
+      taskOrigin.style.display = "inline-flex";
+      taskInstr.style.display = "none";
+      genStatusText.textContent = opts.statusText || "Generating from TutorInstruction";
+      genProv.textContent = "· anthropic/claude · temp 0.2";
+    }
+    genStatus.classList.remove("hidden");
+    taskContent.innerHTML = "";
+    setGesturesEnabled(false);
+    srAnnounce(instructionOnly ? "Composing runtime scaffold, LLM off." : "Generating activity from the runtime instruction.");
+
+    const parts = instructionOnly ? buildInstrParts() : buildLLMParts(opts.variant || LLM.base);
+
+    // brief "thinking" beat, then stream
+    const beat = reduce ? 0 : (opts.beat != null ? opts.beat : 620);
+    setTimeout(()=>{
+      genStatus.classList.add("hidden");
+      streamInto(taskContent, parts, {
+        speed: instructionOnly ? 0 : 24,
+        done: ()=>{
+          setGesturesEnabled(true);
+          srAnnounce(instructionOnly
+            ? "Runtime scaffold ready: a numbered persistence-repair sequence. Enter your fix in the evidence composer."
+            : "Activity generated: repair the missing transaction rollback. Enter your fix in the evidence composer.");
+          if(!composerShown && !opts.noComposer){
+            composerShown = true;
+            // reveal the composer after the task settles
+            setTimeout(()=>openZone(zoneComposer), reduce?0:260);
+          }
+        }
+      });
+    }, beat);
+  }
+
+  function setGesturesEnabled(on){
+    gestures.querySelectorAll(".gesture").forEach(b=>{ b.disabled = !on; });
+  }
+
+  // ===== events =====
+  generateBtn.addEventListener("click", ()=>{
+    generateBtn.disabled = true;
+    genLabel.textContent = "Summoning…";
+    intent.style.opacity = ".5";
+    setTimeout(()=>{ intent.style.opacity = "1"; genLabel.textContent="Re-generate activity"; generateBtn.disabled=false; }, 1400);
+    runGeneration({});
+    // scroll the new zone into comfortable view
+    setTimeout(()=>zoneTask.scrollIntoView({behavior: reduce?"auto":"smooth", block:"nearest"}), reduce?0:80);
+  });
+
+  // Enter on the page triggers generation if not yet open
+  document.addEventListener("keydown", e=>{
+    if(e.key === "Enter" && !e.shiftKey && document.activeElement === document.body && !zoneTask.classList.contains("open")){
+      generateBtn.click();
+    }
+  });
+
+  // sanctioned gestures
+  const GEST_LABEL = {
+    explain:"Re-generating · explain differently",
+    example:"Generating · another example",
+    stuck:"Lowering load · simpler step",
+    why:"Surfacing the runtime rationale",
+    regen:"Regenerating the same activity"
+  };
+  gestures.addEventListener("click", e=>{
+    const btn = e.target.closest(".gesture");
+    if(!btn || btn.disabled) return;
+    const g = btn.getAttribute("data-g");
+    if(instructionOnly){
+      // in instruction-only, gestures just re-stream the scaffold (no LLM prose)
+      runGeneration({ statusText:"Re-issuing runtime scaffold", noComposer:composerShown });
+      return;
+    }
+    let variant = LLM.base;
+    if(g==="explain") variant = LLM.explain;
+    else if(g==="example") variant = LLM.example;
+    else if(g==="stuck") variant = LLM.stuck;
+    else if(g==="why") variant = LLM.why;
+    else if(g==="regen") variant = LLM.base;
+    runGeneration({ variant, statusText: GEST_LABEL[g] || "Re-generating", noComposer:composerShown });
+  });
+
+  // confidence slider
+  function confLabel(v){
+    v = +v;
+    let word = v<25?"guessing":v<45?"unsure":v<65?"moderate":v<85?"confident":"certain";
+    return word+" · "+v+"%";
+  }
+  conf.style.setProperty("--p", "55%");
+  conf.addEventListener("input", ()=>{
+    confVal.textContent = confLabel(conf.value);
+    conf.style.setProperty("--p", conf.value+"%");
+  });
+
+  // ===== submit -> fold task away, reveal delta =====
+  submitBtn.addEventListener("click", ()=>{
+    submitBtn.disabled = true;
+    // fold the task + composer
+    closeZone(zoneTask);
+    closeZone(zoneComposer);
+    intent.style.opacity = ".45";
+    canvas.classList.remove("alarm");           // tension releases on accepted evidence
+    setTimeout(()=>{
+      openZone(zoneDelta);
+      animateDelta();
+      srAnnounce("Evidence accepted. Mastery rose from 0.41 to 0.47, review rescheduled, misconception weakened. Concept transactions stays locked until mastery 0.60.");
+      document.getElementById("footState").textContent = "state · snapshot written · event emitted";
+      setTimeout(()=>zoneDelta.scrollIntoView({behavior:reduce?"auto":"smooth",block:"nearest"}), reduce?0:120);
+    }, reduce?0:480);
+  });
+
+  function animateDelta(){
+    const rows = zoneDelta.querySelectorAll(".drow");
+    rows.forEach((r,i)=>{
+      setTimeout(()=>{
+        r.classList.add("in");
+        const meter = r.querySelector(".d-meter i");
+        if(meter){ setTimeout(()=>{ meter.style.width = meter.getAttribute("data-w")+"%"; }, 140); }
+      }, reduce?0:i*150);
+    });
+    // animate the dag node value
+    setTimeout(()=>{ document.getElementById("dagCur").textContent = "persistence ·47"; }, reduce?0:700);
+  }
+
+  // ===== continue -> reset canvas to NEXT runtime intent =====
+  let moveNo = 1;
+  continueBtn.addEventListener("click", ()=>{
+    if(reduce){ resetCanvas(); return; }
+    canvas.classList.add("resetting");
+    setTimeout(()=>{
+      resetCanvas();
+      canvas.classList.remove("resetting");
+      canvas.classList.add("arriving");
+      setTimeout(()=>canvas.classList.remove("arriving"), 800);
+    }, 480);
+  });
+
+  function resetCanvas(){
+    moveNo++;
+    closeZone(zoneTask); closeZone(zoneComposer); closeZone(zoneDelta);
+    composerShown = false;
+    submitBtn.disabled = false;
+    canvas.classList.remove("lifted");
+    intent.style.opacity = "1";
+    // next runtime intention (still persistence, lower load — overload recovery)
+    document.querySelector(".why-eyebrow").textContent = "Runtime intention · move "+moveNo+" of session";
+    intent.querySelector("h1").innerHTML = "Re-test <i>persistence</i><br/>at lower load.";
+    intent.querySelector(".why").innerHTML =
+      "Good — mastery moved to <span class=\"hl\">0.47</span>. The misconception "+
+      "<code>forgot-tx-rollback</code> is weakened but still active, so the runtime stays in "+
+      "<span class=\"hl\">overload recovery</span> and serves one more isolated rollback case before "+
+      "re-attempting <code>transactions</code>.";
+    // refresh signal chips to post-delta values
+    const sigs = document.getElementById("signals");
+    sigs.innerHTML =
+      '<div class="sig"><span class="k">Mastery · BKT</span><span class="v">0.47 <small>p(L)</small></span><span class="trend">▲ recovering</span></div>'+
+      '<div class="sig"><span class="k">Retention · FSRS</span><span class="v">0.52</span><span class="trend">review in 3d</span></div>'+
+      '<div class="sig warn"><span class="k">Misconception</span><span class="v">1 <small>active</small></span><span class="trend">weakened</span></div>'+
+      '<div class="sig"><span class="k">Unlock at</span><span class="v">0.60</span><span class="trend">transactions gate</span></div>';
+    genLabel.textContent = "Generate the activity";
+    generateBtn.disabled = false;
+    // reset gestures/composer surfaces
+    taskContent.innerHTML = "";
+    document.getElementById("answer").value = "";
+    canvas.classList.remove("alarm"); // stays calm at recovery
+    srAnnounce("Next runtime intention seeded: re-test persistence at lower load. The canvas is empty until you generate the activity.");
+    window.scrollTo({top:0, behavior:reduce?"auto":"smooth"});
+  }
+
+  // ===== instruction-only toggle (proves fallback) =====
+  modeSwitch.addEventListener("click", ()=>{
+    instructionOnly = !instructionOnly;
+    modeSwitch.setAttribute("aria-checked", String(instructionOnly));
+    modeText.textContent = instructionOnly ? "Instruction-only (LLM off)" : "LLM · Anthropic";
+    canvas.classList.toggle("instr-mode", instructionOnly);
+    srAnnounce(instructionOnly
+      ? "Instruction-only mode on. The language model is off; the runtime will author numbered scaffolds."
+      : "Language model mode on. Anthropic Claude will author the activity prose.");
+    // if a task is already open, immediately re-stream in the new mode to prove parity
+    if(zoneTask.classList.contains("open")){
+      runGeneration({ noComposer: composerShown });
+    }
+  });
+
+  // initial confidence label
+  confVal.textContent = confLabel(conf.value);
+})();
+</script>
+</body>
+</html>
