@@ -1,0 +1,16 @@
+# LORE reverse proxy.
+#
+# DOMAIN is injected by docker compose from deploy/.env:
+#   - Set DOMAIN=lore.example.org  -> Caddy serves HTTPS with an automatic
+#     Let's Encrypt certificate (ports 80/443) and redirects HTTP -> HTTPS.
+#   - Leave DOMAIN empty (default)  -> Caddy serves plain HTTP on :80, which is
+#     handy for local / no-domain testing. You can also hit the web app directly
+#     on http://localhost:3001 in that case.
+#
+# Caddy substitutes {$DOMAIN:...} with the env var (or the default after the colon
+# when the variable is empty). All proxying targets the internal `web` service.
+
+{$DOMAIN::80} {
+	encode zstd gzip
+	reverse_proxy web:3001
+}

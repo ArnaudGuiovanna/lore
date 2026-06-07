@@ -8,6 +8,12 @@
 #   make web-start       run the built web front on :3001
 #   make docker-up       build + run the full self-host stack with Docker Compose
 #   make docker-down     stop the stack
+#   make prod-up         turnkey production stack (Postgres + TLS): runs deploy/up.sh
+#   make prod-down       stop the production stack (volumes preserved)
+#   make prod-logs       follow production logs
+#   make prod-seed       run the first-run demo seeder (safe no-op if already seeded)
+#   make backup-db       pg_dump the production DB to ./backups/
+#   make restore-db      restore a dump: make restore-db FILE=backups/lore-<ts>.sql.gz
 #
 # Secrets default to dev values; OVERRIDE them for any real deployment, e.g.
 #   make run-backend JWT_SECRET=$(openssl rand -hex 32) LORE_BOOTSTRAP_TOKEN=$(openssl rand -hex 24)
@@ -19,9 +25,12 @@ LORE_BOOTSTRAP_TOKEN ?= boot-dev-secret
 SESSION_SECRET       ?= dev-session-secret-change-me-please-32bytes-minimum
 DEFAULT_SEED_PASSWORD?= lore123!
 
-COMPOSE = docker compose -f deploy/docker-compose.web.yml
+COMPOSE      = docker compose -f deploy/docker-compose.web.yml
+PROD_COMPOSE = docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env
+BACKUP_DIR  ?= backups
 
-.PHONY: build-backend run-backend seed web-dev web-build web-start docker-up docker-down
+.PHONY: build-backend run-backend seed web-dev web-build web-start docker-up docker-down \
+        prod-up prod-down prod-logs prod-seed backup-db restore-db
 
 build-backend:
 	go build -o bin/lore ./cmd/lore
@@ -54,3 +63,43 @@ docker-up:
 
 docker-down:
 	$(COMPOSE) down
+
+# --- Production (turnkey) ----------------------------------------------------
+# prod-up      one-command bootstrap: generates deploy/.env (if missing) + up -d --build
+# prod-down    stop the production stack (data volumes are preserved)
+# prod-logs    follow logs for all production services
+# prod-seed    run the one-shot demo seeder (first-run only; safe no-op otherwise)
+# backup-db    pg_dump the Postgres DB to ./backups/ with a timestamp
+# restore-db   restore a dump: make restore-db FILE=backups/lore-YYYYmmdd-HHMMSS.sql.gz
+
+prod-up:
+	./deploy/up.sh
+
+prod-down:
+	$(PROD_COMPOSE) down
+
+prod-logs:
+	$(PROD_COMPOSE) logs -f
+
+prod-seed:
+	$(PROD_COMPOSE) run --rm seed
+
+backup-db:
+	@mkdir -p $(BACKUP_DIR)
+	@set -e; \
+	. deploy/.env; \
+	TS=$$(date +%Y%m%d-%H%M%S); \
+	OUT=$(BACKUP_DIR)/lore-$$TS.sql.gz; \
+	echo "==> Dumping database to $$OUT"; \
+	$(PROD_COMPOSE) exec -T postgres pg_dump -U "$${POSTGRES_USER:-lore}" "$${POSTGRES_DB:-lore}" | gzip > $$OUT; \
+	echo "==> Done: $$OUT"
+
+restore-db:
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make restore-db FILE=backups/lore-YYYYmmdd-HHMMSS.sql.gz"; exit 1; \
+	fi
+	@set -e; \
+	. deploy/.env; \
+	echo "==> Restoring $(FILE) into database $${POSTGRES_DB:-lore} (existing data will be overwritten)"; \
+	gunzip -c "$(FILE)" | $(PROD_COMPOSE) exec -T postgres psql -U "$${POSTGRES_USER:-lore}" -d "$${POSTGRES_DB:-lore}"; \
+	echo "==> Restore complete"

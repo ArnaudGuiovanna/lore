@@ -1,0 +1,160 @@
+# LORE — turnkey production stack for a training organization (OF).
+#
+# One command brings up a durable, TLS-capable deployment:
+#   postgres  : durable store for the backend (named volume `pgdata`, healthchecked)
+#   lore      : the Go backend in POSTGRES mode (auto-migrates on boot)
+#   web       : the Next.js LECTURE front (standalone build)
+#   seed      : one-shot, first-run-only demo seeding (optional)
+#   caddy     : reverse proxy terminating TLS (automatic HTTPS via Let's Encrypt)
+#
+# Quick start (recommended — generates .env with strong secrets, then builds & runs):
+#   ./deploy/up.sh           # or:  make prod-up
+#
+# Manual start (after creating deploy/.env from deploy/.env.example):
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+#
+# Where data lives: the `pgdata` named volume (Postgres) and the `web-gen` volume
+# (frontend credential store + seed ids). Back up the DB with `make backup-db`.
+#
+# TLS: set DOMAIN=lore.example.org in deploy/.env and point that DNS A/AAAA record
+# at this host; Caddy will obtain a certificate automatically. With DOMAIN unset
+# (the default), Caddy serves plain HTTP on :80 for local/no-domain use, and you
+# can also reach the web app directly on http://localhost:3001.
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-lore}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lore} -d ${POSTGRES_DB:-lore}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Not published to the host: only reachable on the internal compose network.
+    expose:
+      - "5432"
+
+  lore:
+    build:
+      context: ..
+      dockerfile: deploy/lore.Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      # Durable Postgres store. Auto-migrates the schema on boot (idempotent).
+      STORE_DRIVER: postgres
+      LORE_AUTO_MIGRATE: "on"
+      LORE_MIGRATION_PATH: /db/migrations/000001_init.sql
+      DATABASE_URL: postgres://${POSTGRES_USER:-lore}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lore}?sslmode=disable
+      # JWT mode. JWT_SECRET signs per-user tokens; the bootstrap token gates
+      # membership creation and token minting. ROTATE BOTH for any real use.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env}
+      JWT_ALG: HS256
+      LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:?set LORE_BOOTSTRAP_TOKEN in deploy/.env}
+      # Runtime works without an LLM (instruction_only); set these to enable generation.
+      LORE_LLM_PROVIDER: ${LORE_LLM_PROVIDER:-instruction_only}
+      LORE_LLM_MODEL: ${LORE_LLM_MODEL:-tenant-runtime}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # The backend image is distroless (no shell/wget/curl), so an exec-based
+    # healthcheck isn't possible here. Readiness is enforced downstream: the `seed`
+    # job polls /health before seeding, and `web` waits for `seed` to complete.
+    expose:
+      - "8080"
+
+  # One-shot: seeds tenant, program, cohort, users+roles, domain, syllabus and
+  # runtime state via web/scripts/seed.sh once the backend is healthy, then writes
+  # seed.json into the shared `web-gen` volume so the web credential store can
+  # derive the demo logins on first boot. FIRST-RUN ONLY: a marker in the volume
+  # makes re-runs a no-op so it never clobbers real data. Disable entirely by
+  # commenting this service out and removing it from web's depends_on.
+  seed:
+    image: alpine:3.20
+    depends_on:
+      lore:
+        condition: service_started
+    environment:
+      LORE_BASE: http://lore:8080
+      LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:?set LORE_BOOTSTRAP_TOKEN}
+    volumes:
+      - ../web:/web:ro
+      - web-gen:/gen
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        if [ -f /gen/seed.json ]; then
+          echo 'seed.json already present — skipping (first-run-only seeding)'; exit 0;
+        fi &&
+        apk add --no-cache bash curl jq >/dev/null &&
+        cp -r /web /tmp/web &&
+        echo 'waiting for lore backend /health...' &&
+        until curl -sf http://lore:8080/health >/dev/null 2>&1; do sleep 2; done &&
+        bash /tmp/web/scripts/seed.sh &&
+        cp /tmp/web/.gen/seed.json /gen/seed.json &&
+        echo 'seed complete'
+    restart: "no"
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      lore:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      # Server-side base URL for the backend (Docker network DNS name).
+      LORE_BASE: http://lore:8080
+      # MUST match the backend's bootstrap token: the Next server mints per-user
+      # LORE tokens with it after verifying passwords.
+      LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:?set LORE_BOOTSTRAP_TOKEN}
+      # Signs the session cookie. >= 32 bytes. ROTATE for any real use.
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in deploy/.env}
+      # Default password for the seeded demo accounts. CHANGE for any real use.
+      DEFAULT_SEED_PASSWORD: ${DEFAULT_SEED_PASSWORD:-lore123!}
+      # Never expose seeded demo credentials on the login page in production.
+      LORE_SHOW_DEMO_LOGINS: ${LORE_SHOW_DEMO_LOGINS:-0}
+      # Forward-compatible: a durable Postgres-backed credential store can read this.
+      # Today the credential store is file-backed in the durable `web-gen` volume.
+      DATABASE_URL: postgres://${POSTGRES_USER:-lore}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lore}?sslmode=disable
+      PORT: "3001"
+    # Durable credential store + seed ids. Keep this volume to keep your logins.
+    volumes:
+      - web-gen:/app/.gen
+    # Direct access for local/no-domain use (Caddy proxies this in front for TLS).
+    ports:
+      - "3001:3001"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_started
+    environment:
+      # With a real DOMAIN, Caddy obtains a Let's Encrypt cert automatically.
+      # Unset/empty -> serves plain HTTP on :80 (local / no-domain fallback).
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  web-gen:
+  caddy_data:
+  caddy_config:

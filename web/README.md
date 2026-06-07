@@ -221,6 +221,21 @@ backend's own `STORE_DRIVER`; you may run a durable credential store regardless.
    - a strong `SESSION_SECRET`.
 3. Seed (once) against that backend: `make seed LORE_BASE=... LORE_BOOTSTRAP_TOKEN=...`.
 
+### Turnkey production stack (recommended for an OF)
+
+For a one-command, durable, TLS-capable deployment (Postgres + backend + this web
+front + Caddy), use [`deploy/docker-compose.prod.yml`](../deploy/docker-compose.prod.yml):
+
+```sh
+./deploy/up.sh        # or:  make prod-up
+```
+
+`up.sh` generates `deploy/.env` with strong random secrets on first run, then builds
+and starts everything. Set `DOMAIN` in `deploy/.env` for automatic HTTPS. Data lives
+in the `pgdata` (Postgres) and `web-gen` (credential store) volumes; back up with
+`make backup-db`. See the **Production deploy (turnkey)** section of the
+[root README](../README.md) for the full guide and security checklist.
+
 ---
 
 ## Security notes
