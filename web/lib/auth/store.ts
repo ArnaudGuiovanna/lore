@@ -3,7 +3,7 @@
 // and maps a login email -> the LORE user id. File-backed (.gen/users.json) for
 // single-node self-hosting; swap for Postgres in a larger deployment. Server-only.
 import "server-only";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import bcrypt from "bcryptjs";
 import type { Role } from "@/lib/types";
@@ -39,8 +39,17 @@ function load(): Credential[] {
 }
 
 function save(creds: Credential[]): void {
-  mkdirSync(dirname(FILE), { recursive: true });
-  writeFileSync(FILE, JSON.stringify(creds, null, 2));
+  writeUsersFileSecure(JSON.stringify(creds, null, 2));
+}
+
+// The credential file holds bcrypt password hashes, so it must be owner-only.
+// chmod is applied explicitly because writeFileSync's `mode` is ignored when the
+// file already exists (it does not downgrade an already-permissive file).
+export function writeUsersFileSecure(data: string): void {
+  mkdirSync(dirname(FILE), { recursive: true, mode: 0o700 });
+  try { chmodSync(dirname(FILE), 0o700); } catch { /* best-effort (e.g. non-POSIX FS) */ }
+  writeFileSync(FILE, data, { mode: 0o600 });
+  try { chmodSync(FILE, 0o600); } catch { /* best-effort */ }
 }
 
 // On first run, derive demo credentials from the seeded LORE users (friendly

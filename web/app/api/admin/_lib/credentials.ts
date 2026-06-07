@@ -5,10 +5,10 @@
 // be reflected here too — WITHOUT re-hashing / invalidating the password).
 // Server-only. File-backed, same .gen/users.json the foundation store uses.
 import "server-only";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Role } from "@/lib/types";
-import { listCredentials } from "@/lib/auth/store";
+import { listCredentials, writeUsersFileSecure } from "@/lib/auth/store";
 
 const FILE = join(process.cwd(), ".gen", "users.json");
 
@@ -28,6 +28,7 @@ export function setCredentialRole(userId: string, role: Role): boolean {
   const row = rows.find((r) => r.userId === userId);
   if (!row) return false;
   row.role = role;
-  writeFileSync(FILE, JSON.stringify(rows, null, 2));
+  // Owner-only write (the file holds bcrypt password hashes).
+  writeUsersFileSecure(JSON.stringify(rows, null, 2));
   return true;
 }
