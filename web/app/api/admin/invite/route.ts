@@ -78,8 +78,10 @@ export async function POST(req: Request) {
   // (c) "deliver" the temp password + login URL by email. SMTP if configured,
   // else logged to the server console (dev fallback). Email failure does NOT
   // block the invite — the admin still gets the temp password in the response.
-  const origin = new URL(req.url).origin;
-  const loginUrl = `${origin}/login`;
+  // Use a TRUSTED, configured public URL — never derive it from the request host
+  // (a poisoned Host header would inject an attacker link into the invite email).
+  const base = process.env.PUBLIC_APP_URL || "";
+  const loginUrl = base ? new URL("/login", base).toString() : "/login";
   const mail = await sendMail(
     inviteMessage({ name, email, tempPassword: password, loginUrl, orgName: seed().tenantName })
   );

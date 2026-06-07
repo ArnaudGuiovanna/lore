@@ -13,6 +13,7 @@ export function SetupWizard() {
   const [adminEmail, setAdminEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [bootstrapToken, setBootstrapToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +33,7 @@ export function SetupWizard() {
       const res = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgName, adminName, adminEmail, password, confirmPassword }),
+        body: JSON.stringify({ orgName, adminName, adminEmail, password, confirmPassword, bootstrapToken }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -110,6 +111,20 @@ export function SetupWizard() {
       <p className="mono quiet" style={{ fontSize: 11, margin: 0 }}>
         Au moins {MIN_PASSWORD} caractères.
       </p>
+      <label className="col" style={{ gap: 6 }}>
+        <span className="kicker">Jeton opérateur</span>
+        <input
+          type="password"
+          value={bootstrapToken}
+          onChange={(e) => setBootstrapToken(e.target.value)}
+          autoComplete="off"
+          required
+          style={inputStyle}
+        />
+        <span className="mono quiet" style={{ fontSize: 11 }}>
+          La valeur de <code>LORE_BOOTSTRAP_TOKEN</code> définie au déploiement (preuve d&apos;opérateur).
+        </span>
+      </label>
       {error && (
         <p className="mono" role="alert" style={{ fontSize: 12.5, color: "var(--alarm)", margin: 0 }}>
           {error}

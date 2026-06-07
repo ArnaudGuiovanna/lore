@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { BACKEND_BASE, writeConfig } from "@/lib/config";
 import { ensureUserAndMembership, mintToken } from "@/lib/auth/lore";
 import { listCredentials, upsertCredential } from "@/lib/auth/store";
@@ -14,6 +15,20 @@ interface Body {
   adminEmail?: string;
   password?: string;
   confirmPassword?: string;
+  bootstrapToken?: string;
+}
+
+// First-run setup CLAIMS the first admin — a privileged operation. It must prove
+// operator authority with the bootstrap secret, otherwise anyone who reaches the
+// app before initialization could take it over. Fails closed when
+// LORE_BOOTSTRAP_TOKEN is unset.
+function bootstrapOk(provided: string): boolean {
+  const expected = process.env.LORE_BOOTSTRAP_TOKEN || "";
+  if (!expected || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 // True once a TENANT_ADMIN credential exists — i.e. the system is initialized.
@@ -38,16 +53,24 @@ function slugify(name: string): string {
 // tenant id into .gen/seed.json, mints a token, opens a session, returns /admin.
 // Guarded against double-init: refuses if a TENANT_ADMIN already exists.
 export async function POST(req: Request) {
-  // Guard: never allow re-init once an admin exists.
-  if (await isInitialized()) {
-    return NextResponse.json({ error: "the system is already initialized" }, { status: 409 });
-  }
-
   let body: Body;
   try {
     body = (await req.json()) as Body;
   } catch {
     return NextResponse.json({ error: "invalid request" }, { status: 400 });
+  }
+
+  // Require the operator bootstrap secret before any privileged action.
+  if (!bootstrapOk(body.bootstrapToken || "")) {
+    return NextResponse.json(
+      { error: "a valid operator setup token is required" },
+      { status: 401 }
+    );
+  }
+
+  // Guard: never allow re-init once an admin exists.
+  if (await isInitialized()) {
+    return NextResponse.json({ error: "the system is already initialized" }, { status: 409 });
   }
 
   const orgName = (body.orgName || "").trim();
