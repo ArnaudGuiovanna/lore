@@ -217,6 +217,49 @@ never blocks an invite (the admin still gets the temp password in the response).
 
 ---
 
+## Completion attestation (attestation de fin de formation)
+
+A learner who has made real progress can download a French **attestation de fin de
+formation / d'assiduité** as an A4 PDF, generated server-side from durable runtime
+state (pure-JS via `pdf-lib` — no native build, Docker-friendly).
+
+**What the attestation contains** (all from real backend data, nothing fabricated):
+
+- the **organisation / OF name** (the tenant name) with a labelled logo + signature
+  space (no logo dependency — left blank for the OF to stamp);
+- the **learner's full name** and the **bound syllabus title** (the program);
+- the **period** (earliest → latest interaction the runtime recorded), or the issue
+  date when no interactions are timestamped;
+- a table of **notions travaillées** with the honest **niveau de maîtrise** and
+  **rétention** (mastery/retention as the runtime scored them, 0–100 %, plus a
+  qualitative band) — presented honestly, never inflated;
+- an honest statement that LORE's pedagogical runtime tracked the progression and
+  that this attestation covers assiduité/progression, not an external certification;
+- a footer with a **generation timestamp (UTC)** and a **verification id** (a
+  SHA-256 hash of `learnerId + tenantId + program + issue date`, truncated) so a
+  reader can cross-check it against the runtime's records.
+
+**Who can download it** (authorization enforced in `app/api/certificates/route.ts`
+*and* end-to-end by the backend, since the per-user LORE bearer token is attached on
+the tenant-scoped state read):
+
+- a **learner** may download **only their own** attestation (`learnerId` must equal
+  their session user id) — others are rejected with **403**;
+- a **trainer** or **tenant/super admin** may download any learner in their tenant
+  (the backend's RBAC further confines reads to learners they manage).
+
+**Where it surfaces:**
+
+- **Learner → Progress**: a calm "Télécharger mon attestation (PDF)" button, shown
+  only when the runtime has tracked **≥ 1 concept** (real progress).
+- **Trainer/Admin → Cohort health roster**: a per-learner "Attestation ↓" link
+  (shown only for learners with tracked state).
+
+Route: `GET /api/certificates?learnerId=<id>` → `application/pdf`, filename
+`attestation-<name>.pdf`. No new env vars or external services are required.
+
+---
+
 ## Credential store durability
 
 The front holds password hashes (bcrypt) + a login-email → LORE-user-id mapping in
