@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/auth/session";
 import { ensureUserAndMembership } from "@/lib/auth/lore";
-import { getByEmail, upsertCredential } from "@/lib/auth/store";
+import { getByEmail, upsertCredential, setMustChangePassword } from "@/lib/auth/store";
+import { sendMail, inviteMessage } from "@/lib/email";
+import { seed } from "@/lib/config";
 import type { Role } from "@/lib/types";
 
 interface Body {
@@ -60,7 +62,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: provisioned.error }, { status: 502 });
   }
 
-  // (b) issue a temporary password mapped to the new LORE user id.
+  // (b) issue a temporary password mapped to the new LORE user id, and force the
+  // invited user to set their own password on first login (epic C).
   const password = tempPassword();
   await upsertCredential({
     email,
@@ -70,10 +73,20 @@ export async function POST(req: Request) {
     tenantId: session.tenantId,
     password,
   });
+  await setMustChangePassword(email, true);
 
-  // (c) hand the temp password back exactly once.
+  // (c) "deliver" the temp password + login URL by email. SMTP if configured,
+  // else logged to the server console (dev fallback). Email failure does NOT
+  // block the invite — the admin still gets the temp password in the response.
+  const origin = new URL(req.url).origin;
+  const loginUrl = `${origin}/login`;
+  const mail = await sendMail(
+    inviteMessage({ name, email, tempPassword: password, loginUrl, orgName: seed().tenantName })
+  );
+
+  // (d) hand the temp password back exactly once (admin can also share manually).
   return NextResponse.json(
-    { userId: provisioned.userId, email, name, role, tempPassword: password },
+    { userId: provisioned.userId, email, name, role, tempPassword: password, emailed: mail.ok },
     { status: 201 }
   );
 }

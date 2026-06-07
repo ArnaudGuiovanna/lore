@@ -29,6 +29,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "could not establish a runtime session" }, { status: 502 });
   }
 
+  // Invited users (mustChangePassword) get a session, but it carries a mustChange
+  // claim that confines them to /account/password until they set a real password.
+  const mustChange = cred.mustChangePassword === true;
+
   await createSession({
     userId: cred.userId,
     tenantId: cred.tenantId,
@@ -36,7 +40,9 @@ export async function POST(req: Request) {
     name: cred.name,
     email: cred.email,
     loreToken: token,
+    mustChange,
   });
 
-  return NextResponse.json({ ok: true, role: cred.role, redirect: roleHome(cred.role) });
+  const redirect = mustChange ? "/account/password" : roleHome(cred.role);
+  return NextResponse.json({ ok: true, role: cred.role, mustChange, redirect });
 }

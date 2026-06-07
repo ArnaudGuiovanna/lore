@@ -16,6 +16,10 @@ export interface Session {
   name: string;
   email: string;
   loreToken: string; // bearer for the LORE backend (role/tenant scoped)
+  // Set when the credential is flagged mustChangePassword (e.g. invited users on
+  // first login). While true the middleware confines the user to /account/password
+  // until they set a real password; cleared by re-minting the session afterwards.
+  mustChange?: boolean;
 }
 
 export async function createSession(s: Session): Promise<void> {
@@ -46,6 +50,7 @@ export async function getSession(): Promise<Session | null> {
       name: String(payload.name || ""),
       email: String(payload.email || ""),
       loreToken: String(payload.loreToken),
+      mustChange: payload.mustChange === true,
     };
   } catch {
     return null;

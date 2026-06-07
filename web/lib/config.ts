@@ -1,8 +1,8 @@
 // Central runtime config for the LORE frontend.
 // Reads the seeded tenant/cohort/domain ids from web/.gen/seed.json (written by scripts/seed.sh),
 // falling back to env vars. Server-only.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
+import { join, dirname } from "node:path";
 
 import type { Role } from "./types";
 
@@ -55,3 +55,30 @@ export function seed(): Seed {
 }
 
 export const BACKEND_BASE = process.env.LORE_BASE || "http://127.0.0.1:8080";
+
+const SEED_FILE = join(process.cwd(), ".gen", "seed.json");
+
+// Merge a partial config (the new tenant identity, written by the first-run setup
+// wizard) into .gen/seed.json so seed()/lib/config picks it up on the next read.
+// The file may hold a bootstrap token-adjacent surface (tenant ids), so we keep it
+// owner-only. Resets the in-process cache so the running server reflects the change
+// without a restart. Server-only callers (the setup route).
+export function writeConfig(patch: { tenantId?: string; tenantSlug?: string; tenantName?: string }): void {
+  let current: Partial<Seed> = {};
+  try {
+    current = JSON.parse(readFileSync(SEED_FILE, "utf8"));
+  } catch {
+    // no existing seed file — start from an empty object
+  }
+  const merged: Partial<Seed> = { ...current };
+  if (patch.tenantId !== undefined) merged.tenantId = patch.tenantId;
+  if (patch.tenantSlug !== undefined) merged.tenantSlug = patch.tenantSlug;
+  if (patch.tenantName !== undefined) merged.tenantName = patch.tenantName;
+
+  mkdirSync(dirname(SEED_FILE), { recursive: true, mode: 0o700 });
+  try { chmodSync(dirname(SEED_FILE), 0o700); } catch { /* best-effort (non-POSIX FS) */ }
+  writeFileSync(SEED_FILE, JSON.stringify(merged, null, 2), { mode: 0o600 });
+  try { chmodSync(SEED_FILE, 0o600); } catch { /* best-effort */ }
+
+  cached = null; // invalidate so the next seed() reflects the new tenant id
+}

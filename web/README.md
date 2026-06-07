@@ -158,6 +158,7 @@ Password (all demo accounts): **`lore123!`** (or your `DEFAULT_SEED_PASSWORD`).
 | `SESSION_SECRET`        | yes      | `change-me-...`               | Signs session cookies. Use **>= 32 bytes**. |
 | `DEFAULT_SEED_PASSWORD` | no       | `lore123!`                    | Password for the seeded demo accounts (first boot only). |
 | `DATABASE_URL`          | no       | *(unset → file store)*        | When set, the credential store is **durable** (Postgres `lore_web_credentials` table, auto-created). When unset, passwords are file-backed at `web/.gen/users.json`. See "Credential store durability" below. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | no | *(unset → console)* | If **all five** are set, invitation emails are sent via SMTP. Otherwise the mailer logs the message (temp password + login link) to the server console (dev outbox). Port `465` uses implicit TLS; other ports negotiate STARTTLS. |
 
 Backend-side (the `lore` service): `JWT_SECRET` (signs per-user tokens),
 `JWT_ALG` (default `HS256`), `LORE_BOOTSTRAP_TOKEN` (must match the front),
@@ -178,6 +179,41 @@ Backend-side (the `lore` service): `JWT_SECRET` (signs per-user tokens),
    (`/learner` = LEARNER, `/trainer` = TRAINER, `/admin` = TENANT_ADMIN/SUPER_ADMIN).
 5. Every backend call on `/v1/tenants/...` carries that user's token, so the
    backend enforces **RBAC and tenant isolation** itself.
+
+---
+
+## First-run setup, forced reset & email
+
+**First-run setup wizard (`/setup`).** On a fresh, un-seeded deployment there is no
+admin yet. Opening the app routes the operator to **`/setup`**, a calm wizard that
+collects the organization name and the first admin's name/email/password. On submit,
+`POST /api/setup` creates the tenant (`POST /v1/tenants`), the admin user +
+`TENANT_ADMIN` membership, and the admin credential (a real password — **no** forced
+reset), persists the new tenant id into `web/.gen/seed.json` (via `writeConfig()` in
+`lib/config.ts`, owner-only), mints a token, opens a session and lands on `/admin`.
+Once a `TENANT_ADMIN` credential exists the wizard is **locked**: `/setup` redirects
+to `/login`, and `/login` redirects to `/setup` while the system is uninitialized.
+The bootstrap token never reaches the browser. The route is idempotent — it refuses
+to re-init if an admin already exists.
+
+**Forced password reset on first login.** Admin invites (`/api/admin/invite`) create
+the credential with `mustChangePassword = true` and deliver a temporary password by
+email (or console). On login, a flagged credential still gets a session, but it
+carries a `mustChange` claim and the user is redirected to **`/account/password`**.
+`middleware.ts` confines a `mustChange` session to `/account/password`,
+`/api/auth/change-password` and `/api/auth/logout` until a real password is set —
+`POST /api/auth/change-password` validates the new password (min 10), calls
+`setPassword` + `setMustChangePassword(false)`, re-mints the session (claim cleared)
+and redirects to the role home.
+
+**Self-service change password.** Any signed-in user can change their password from
+the **same `/account/password`** page; when it is *not* a forced reset, the current
+password is required and verified before the change is applied.
+
+**Email.** `web/lib/email/` is a tiny mailer: SMTP via nodemailer when the `SMTP_*`
+env vars are set, otherwise a dev fallback that logs the message to the console.
+Invitation emails carry the temp password + login URL, in French. Email failure
+never blocks an invite (the admin still gets the temp password in the response).
 
 ---
 

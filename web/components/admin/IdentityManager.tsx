@@ -239,7 +239,7 @@ export function IdentityManager({
                 </button>
               </span>
               <span className="mono quiet" style={{ display: "block", fontSize: 10.5, marginTop: 6 }}>
-                login {invited.email} · they should change it after first sign-in
+                login {invited.email} · an invitation email was sent (or logged) · they must set their own password on first sign-in
               </span>
             </span>
           </div>

@@ -9,11 +9,17 @@ export default async function LoginPage() {
   const session = await getSession();
   if (session) redirect(roleHome(session.role));
 
+  // If the system has never been initialized (no admin credential), send the
+  // operator to the first-run setup wizard instead of an unusable login.
+  const allCreds = await listCredentials();
+  const initialized = allCreds.some((c) => c.role === "TENANT_ADMIN" || c.role === "SUPER_ADMIN");
+  if (!initialized) redirect("/setup");
+
   // Demo logins are OFF by default. They are only surfaced when explicitly opted
   // in (LORE_SHOW_DEMO_LOGINS=1) — never expose seeded credentials in production.
   const showDemo = process.env.LORE_SHOW_DEMO_LOGINS === "1";
   const demo = showDemo
-    ? (await listCredentials()).slice(0, 6).map((c) => ({ email: c.email, role: c.role, name: c.name }))
+    ? allCreds.slice(0, 6).map((c) => ({ email: c.email, role: c.role, name: c.name }))
     : [];
   const demoPw = showDemo ? process.env.DEFAULT_SEED_PASSWORD || "lore123!" : "";
 
