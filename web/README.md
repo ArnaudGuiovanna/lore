@@ -289,6 +289,51 @@ backend's own `STORE_DRIVER`; you may run a durable credential store regardless.
 
 ---
 
+## Émargement (feuilles de présence) & RGPD
+
+The Go backend has **no attendance model**, so the web tier owns attendance and the
+RGPD workflow. Both reuse the same `DATABASE_URL` switch as the credential store:
+**Postgres when set** (durable, tenant-scoped, auto-created tables), **JSON-file
+fallback** otherwise (`web/.gen/attendance.json`, `web/.gen/rgpd-erasures.json`,
+owner-only `0600`). No extra configuration is required.
+
+**Émargement (trainer).** A trainer opens **`/trainer/emargement`** (linked from the
+trainer console), picks a session **date**, and marks each enrolled learner
+**Présent / Absent**. Each mark is persisted via `POST /api/attendance` and
+horodaté (the capture time is the digital émargement). The roster is the seeded
+learners joined with any live `LearnerEnrolled` events for the cohort.
+
+- **Feuille d'émargement (PDF):** `GET /api/attendance/sheet?cohort=&date=` renders a
+  French A4 attendance sheet (`web/lib/pdf/attendance.ts`, **pdf-lib**) with the org
+  name, cohort, date, a table of learners (présent/absent + capture time) and a
+  manuscrit **signature column** for on-site sessions. The footer is honest that
+  presence is captured digitally and the timestamp makes foi in distanciel.
+- **Store:** `web/lib/attendance/store.ts` — table `lore_attendance`
+  (`UNIQUE (tenant_id, cohort_id, learner_id, session_date)`, so re-marking is
+  idempotent). Functions: `listSessions`, `getAttendance`, `markPresence`,
+  `getLearnerAttendance`, `anonymizeLearnerAttendance`.
+
+**RGPD (admin).** An admin opens **`/admin/rgpd`** (linked from the admin console) to
+list tenant users and, per user:
+
+- **Exporter les données (RGPD):** `GET /api/admin/rgpd/export?userId=` returns a
+  portable JSON bundle aggregating the credential record (**without** the password
+  hash), the membership/role, the learner's runtime **state / due reviews /
+  snapshots / alerts** (read live from the backend, bearer-scoped), and the
+  **attendance** rows.
+- **Supprimer / anonymiser:** `POST /api/admin/rgpd/erase` anonymizes the credential
+  (email/name → redacted, password scrambled, **row kept** for integrity) and
+  re-keys the learner's attendance rows to a pseudonym, then records an **erasure
+  tombstone** (`lore_rgpd_erasures`). The UI is explicit that the backend's runtime
+  traces remain **pseudonymous by learner id** (no nominative data) and are kept.
+
+Authorization: `/api/attendance*` requires **TRAINER / TENANT_ADMIN / SUPER_ADMIN**
+(enforced in the route via the session role); `/api/admin/rgpd/*` requires
+**TENANT_ADMIN / SUPER_ADMIN** (the `/api/admin` middleware guard plus a per-route
+session check).
+
+---
+
 ## Point at a real / durable backend
 
 1. Stand up the full backend stack: `docker compose -f deploy/docker-compose.yml up`

@@ -190,3 +190,21 @@ export async function setCredentialRole(userId: string, role: Role): Promise<boo
   save(creds);
   return true;
 }
+
+// RGPD erasure (right to be forgotten): anonymize a credential by LORE user id.
+// The row is KEPT (referential integrity + a tombstone for audit), but personal
+// data (email/name) is redacted and the password hash is scrambled so the account
+// can no longer authenticate. Returns the redacted email, or null if no row matched.
+export async function anonymizeCredential(userId: string): Promise<string | null> {
+  if (usePg()) return pg.anonymizeCredential(userId);
+  const creds = load();
+  const c = creds.find((x) => x.userId === userId);
+  if (!c) return null;
+  const redactedEmail = `anonymized-${userId}@redacted.invalid`;
+  c.email = redactedEmail;
+  c.name = "Utilisateur supprimé (RGPD)";
+  c.passwordHash = bcrypt.hashSync(`erased-${userId}-${Date.now()}-${Math.random()}`, 10);
+  c.mustChangePassword = true;
+  save(creds);
+  return redactedEmail;
+}

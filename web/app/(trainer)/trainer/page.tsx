@@ -143,8 +143,13 @@ export default async function TrainerHome() {
           <Link href="/" className="mono quiet" style={{ fontSize: 12 }}>
             ← LORE
           </Link>
-          <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-            tenant {s.tenantSlug} · TRAINER · R. Köhler
+          <span className="row" style={{ gap: 16, alignItems: "center" }}>
+            <Link href="/trainer/emargement" className="mono" style={{ fontSize: 12, textDecoration: "underline" }}>
+              Émargement / Attendance →
+            </Link>
+            <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
+              tenant {s.tenantSlug} · TRAINER · R. Köhler
+            </span>
           </span>
         </div>
 
