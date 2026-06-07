@@ -16,6 +16,51 @@
 
 ---
 
+## Status (as of the v1 MVP)
+
+The core MUST-v1 loop is **DONE** and shipped — an OF can deploy in one command
+and run org-setup → invite → author → learn → attendance → attestation → RGPD
+end-to-end, durably, behind TLS, in French.
+
+**DONE (MUST-v1):**
+
+- **Persistence & durability** (EPIC A) — Postgres is the default durable store in
+  the turnkey deploy (auto-migrated, RLS); durable credential/attendance/RGPD
+  stores (`web-gen` volume or `DATABASE_URL` Postgres tables); `make backup-db` /
+  `restore-db`.
+- **Onboarding / first-run setup** (EPIC B) — `/setup` wizard creates org + first
+  admin (operator bootstrap token required); first-run-only demo seeding, gated.
+- **Auth hardening** (EPIC C) — bcrypt login, per-user JWT, forced password set on
+  first login (`mustChangePassword`), self-service change password, demo logins
+  hidden by default (`LORE_SHOW_DEMO_LOGINS=0`), secret hygiene in `up.sh`.
+- **Email** (EPIC D) — SMTP invitation delivery with console (dev outbox)
+  fallback; trusted `PUBLIC_APP_URL` links.
+- **Attendance / émargement** (EPIC E) — capture + persisted presence + feuille
+  d'émargement PDF.
+- **Attestations** (EPIC E) — completion attestation PDF from real runtime state.
+- **RGPD** (EPIC E) — per-learner export bundle + erasure (anonymization +
+  tombstone).
+- **i18n FR** (EPIC F) — OF-facing surfaces (setup, émargement, RGPD, learner
+  provenance, PDFs) in French.
+- **Turnkey deployment** (EPIC G) — one-command `./deploy/up.sh`: Postgres +
+  backend + web + Caddy TLS, healthchecks, `.env` generation, backups.
+- **QA / CI** (EPIC H) — Playwright e2e + CI (Go + web).
+
+**REMAINING (SHOULD / LATER):**
+
+- **Qualiopi traceability export** (T-COMPLY-6, SHOULD) — the event outbox +
+  snapshots exist; a packaged CSV/PDF traceability export is not yet exposed.
+- **Accessibility audit** (EPIC I, SHOULD) — RGAA/WCAG AA baseline pass + axe in
+  CI not yet done.
+- **In-UI assessment surfacing** (T-QA-4, SHOULD) — backend `assessments/plan` +
+  `submit` exist; surfacing them in the learner loop is thin.
+- Login rate-limiting/lockout (T-AUTH-5), forgot-password email reset (T-AUTH-3),
+  scheduled backups in deploy (T-DEPLOY-4) — partial / not yet wired.
+
+The detailed epics/tasks below are kept for traceability.
+
+---
+
 ## 1. Vision & v1 Definition of Done
 
 **Vision.** A French OF can `git clone`, set a handful of secrets, run **one command**,

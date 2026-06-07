@@ -8,6 +8,56 @@ backend** (the headless runtime + REST API) **and a Next.js frontend** (the
 `LECTURE` design language) with real authentication, role-based access, and the
 essential LMS management an organization needs — all self-hostable.
 
+> **Status: v1 (MVP for training organizations).** A French *organisme de
+> formation* (OF) can deploy LORE in one command and run the whole training loop
+> end-to-end: org + admin setup, invite people, author a syllabus + attach a
+> cohort, let the runtime generate each learner's parcours, capture attendance,
+> issue attestations, and handle RGPD export/erasure.
+
+## v1 at a glance
+
+- **Real auth & RBAC** — bcrypt login, per-user LORE JWT, roles
+  (`TENANT_ADMIN`/`TRAINER`/`LEARNER`) derived from membership, enforced by the
+  backend.
+- **First-run setup wizard** — creates the org (tenant) + first admin; requires
+  the operator bootstrap token; no demo data in production.
+- **AI-first: syllabus → parcours** — a trainer authors a *syllabus* (intent +
+  objectives + outcomes) and attaches a cohort; the runtime + LLM generate each
+  learner's path. No course/SCORM/quiz authoring.
+- **OF compliance** — completion **attestations (PDF)**, **émargement** /
+  attendance sheets (PDF), **RGPD** export + erasure.
+- **Durable persistence** — Postgres store (auto-migrated, RLS); durable
+  credential store; backups via `make backup-db`/`restore-db`.
+- **Turnkey deploy** — one-command `./deploy/up.sh` brings up Postgres + backend +
+  web + **Caddy TLS**.
+- **French UI** for the OF-facing surfaces; **e2e (Playwright) + CI**.
+
+> **Not implemented (AI-first by design):** SCORM packages, classic quiz banks,
+> discussion forums, gradebooks. The runtime replaces "content + quiz + forum".
+> See [`docs/BACKLOG.md`](docs/BACKLOG.md) for what remains (e.g. Qualiopi export,
+> accessibility audit, in-UI assessment surfacing).
+
+## Documentation
+
+OF-facing guides (French) and reference:
+
+- **[Guide administrateur](docs/guide-administrateur.md)** — deploy, first-run
+  setup wizard, invite trainers/learners, programs/cohorts, enrollment, LLM
+  scopes, event outbox, RGPD export/erasure, backups.
+- **[Guide formateur](docs/guide-formateur.md)** — the AI-first model
+  (syllabus → parcours), versions/rebind, cohort health + alerts, inspecting a
+  learner, émargement, attestations.
+- **[Guide apprenant](docs/guide-apprenant.md)** — signing in, the
+  runtime-decided parcours, evidence, reviews, progress, provenance, attestation.
+- **[Guide de déploiement](docs/deploiement.md)** — turnkey self-host:
+  prerequisites, one command, DOMAIN/TLS, env vars, volumes, backups, upgrades,
+  **security checklist**.
+- **[web/README.md](web/README.md)** — frontend (LECTURE) developer/self-host
+  guide.
+- **[docs/BACKLOG.md](docs/BACKLOG.md)** — v1 backlog and status.
+- **[docs/product-design/](docs/product-design/)** — design research and the
+  LECTURE design language realized by the frontend.
+
 > Not a content-first Moodle clone. Instead of authoring courses, resources, SCORM
 > and quizzes, a trainer **authors a syllabus** (intent + outcomes) and **attaches a
 > cohort**; the runtime and the LLM **generate each learner's path**. The runtime is
