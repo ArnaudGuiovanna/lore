@@ -42,8 +42,8 @@ export default async function NowScreen() {
   if (!statesRes.ok) {
     return (
       <LearnerError
-        kicker="The runtime didn't answer"
-        detail="We couldn't reach the runtime to plan your next step. We won't fabricate one — try again in a moment."
+        kicker="Le runtime n'a pas répondu"
+        detail="Nous n'avons pas pu joindre le runtime pour planifier votre prochaine étape. Nous n'en inventerons pas — réessayez dans un instant."
         message={statesRes.error}
       />
     );
@@ -53,9 +53,9 @@ export default async function NowScreen() {
 
   if (!focus) {
     return (
-      <LearnerEmpty kicker="Now">
-        No tracked concepts yet. Once the runtime plans your first step it will
-        appear here — progression is its call, never the content&rsquo;s.
+      <LearnerEmpty kicker="Maintenant">
+        Aucun concept suivi pour l&rsquo;instant. Dès que le runtime aura planifié votre première
+        étape, elle apparaîtra ici — la progression relève de lui, jamais du contenu.
       </LearnerEmpty>
     );
   }
@@ -64,17 +64,17 @@ export default async function NowScreen() {
   const misconception = latestMisconception(snapshots, focus.concept_id);
 
   const rationaleParts = [
-    `Retention is ${(focus.retention * 100).toFixed(0)}%`,
-    focus.lapses > 0 ? `${focus.lapses} lapse${focus.lapses > 1 ? "s" : ""} recorded` : null,
-    focus.card_state ? `card is ${focus.card_state}` : null,
-    misconception ? `an active misconception (${misconception}) is gating progress` : null,
+    `La rétention est de ${(focus.retention * 100).toFixed(0)} %`,
+    focus.lapses > 0 ? `${focus.lapses} oubli${focus.lapses > 1 ? "s" : ""} enregistré${focus.lapses > 1 ? "s" : ""}` : null,
+    focus.card_state ? `la carte est ${focus.card_state}` : null,
+    misconception ? `une conception erronée active (${misconception}) bloque la progression` : null,
   ].filter(Boolean);
 
   const intent: NowIntent = {
     conceptId: focus.concept_id,
     conceptName: name,
     activityType: misconception ? "DEBUG_MISCONCEPTION" : "GUIDED_PRACTICE",
-    rationale: `${rationaleParts.join(" · ")}. The runtime is holding you here to repair it before advancing.`,
+    rationale: `${rationaleParts.join(" · ")}. Le runtime vous maintient ici pour corriger cela avant d'avancer.`,
     difficultyTarget: focus.difficulty / 10,
     misconception,
   };
@@ -91,15 +91,16 @@ export default async function NowScreen() {
           borderRadius: 999,
         }}
       >
-        <span className="mono quiet" style={{ fontSize: 11 }}>
-          from your cohort’s syllabus · {BOUND_SYLLABUS_TITLE}
+        <span className="mono quiet" style={{ fontSize: 11 }} data-testid="now-syllabus-line">
+          issu du syllabus de votre groupe · {BOUND_SYLLABUS_TITLE}
         </span>
         <Link
           href="/learner/provenance"
           className="mono"
           style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}
+          data-testid="why-this-path"
         >
-          › why this path?
+          › pourquoi ce parcours ?
         </Link>
       </div>
 

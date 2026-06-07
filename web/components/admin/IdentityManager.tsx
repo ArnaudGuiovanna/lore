@@ -20,8 +20,16 @@ const ROLE_CLASS: Record<Role, string> = {
 // A tenant admin may grant these (SUPER_ADMIN is cross-tenant — not offered).
 const GRANTABLE: Role[] = ["TENANT_ADMIN", "TRAINER", "LEARNER"];
 
+// French display label for a role (the technical role id stays in the select values).
+const ROLE_FR: Record<Role, string> = {
+  SUPER_ADMIN: "super-admin",
+  TENANT_ADMIN: "administrateur",
+  TRAINER: "formateur",
+  LEARNER: "apprenant",
+};
+
 function RolePill({ role }: { role: Role }) {
-  return <span className={`${a.rolePill} ${ROLE_CLASS[role]}`}>{role.toLowerCase()}</span>;
+  return <span className={`${a.rolePill} ${ROLE_CLASS[role]}`}>{ROLE_FR[role]}</span>;
 }
 
 // Identity & memberships, now WRITABLE: invite/create users, and change a user's
@@ -77,7 +85,7 @@ export function IdentityManager({
       setInviteBusy(false);
       router.refresh(); // reflect the new membership in the table
     } catch (err) {
-      setInviteErr(err instanceof Error ? err.message : "network error");
+      setInviteErr(err instanceof Error ? err.message : "erreur réseau");
       setInviteBusy(false);
     }
   }
@@ -108,7 +116,7 @@ export function IdentityManager({
       setEditing(null);
       router.refresh();
     } catch (err) {
-      setRoleErr(err instanceof Error ? err.message : "network error");
+      setRoleErr(err instanceof Error ? err.message : "erreur réseau");
       setRoleBusy(false);
     }
   }
@@ -116,7 +124,7 @@ export function IdentityManager({
   const columns: Column<Record<string, unknown>>[] = [
     {
       key: "user",
-      header: "User",
+      header: "Utilisateur",
       render: (r) => {
         const m = r as unknown as MembershipRow;
         return (
@@ -131,11 +139,11 @@ export function IdentityManager({
     },
     {
       key: "role",
-      header: "Role (via membership)",
+      header: "Rôle (via l'appartenance)",
       render: (r) => <RolePill role={(r as unknown as MembershipRow).role} />,
     },
-    { key: "scope", header: "Scope", mono: true },
-    { key: "status", header: "Status", mono: true },
+    { key: "scope", header: "Périmètre", mono: true },
+    { key: "status", header: "Statut", mono: true },
     {
       key: "actions",
       header: "",
@@ -143,11 +151,11 @@ export function IdentityManager({
       render: (r) => {
         const m = r as unknown as MembershipRow;
         if (!m.manageable || !m.userId) {
-          return <span className="quiet" style={{ fontSize: 9.5 }}>— {m.self ? "you" : "read-only"} —</span>;
+          return <span className="quiet" style={{ fontSize: 9.5 }}>— {m.self ? "vous" : "lecture seule"} —</span>;
         }
         return (
           <button type="button" className={a.editBtn} onClick={() => openRoleEditor(m)}>
-            change role ⤸
+            changer le rôle ⤸
           </button>
         );
       },
@@ -157,58 +165,58 @@ export function IdentityManager({
   const rows = memberships.map((m) => ({ ...m })) as unknown as Record<string, unknown>[];
 
   const roleDiff: FieldDiff[] = editing
-    ? [{ field: "role", before: editing.role, after: nextRole }]
+    ? [{ field: "rôle", before: editing.role, after: nextRole }]
     : [];
 
   return (
     <div className="col" style={{ gap: 22 }}>
       <p className="soft" style={{ maxWidth: "62ch", margin: 0 }}>
-        A user is nothing until they hold a <em>membership</em> in this tenant. The membership carries the
-        role — the client can never ask for one. The runtime derives and enforces it on every tenant route.
-        You invite people in, and you grant their role.
+        Un utilisateur n&apos;est rien tant qu&apos;il ne détient pas une <em>appartenance</em> dans ce tenant.
+        L&apos;appartenance porte le rôle — le client ne peut jamais en demander un. Le runtime le dérive et
+        l&apos;applique sur chaque route du tenant. Vous invitez les personnes, et vous leur accordez leur rôle.
       </p>
 
       {/* INVITE / CREATE USER */}
       <Panel
-        kicker="Invite"
-        title="Add a user and grant their role"
+        kicker="Inviter"
+        title="Ajouter un utilisateur et accorder son rôle"
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>POST /v1/users · POST /v1/tenants/{tenantSlug}/memberships</span>}
       >
-        <form onSubmit={submitInvite} className={a.inviteGrid} aria-label="Invite a user">
+        <form onSubmit={submitInvite} className={a.inviteGrid} aria-label="Inviter un utilisateur">
           <div>
-            <label className={a.fieldLabel} htmlFor="inv-name">Name</label>
+            <label className={a.fieldLabel} htmlFor="inv-name">Nom</label>
             <input
               id="inv-name"
               className={a.input}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Full name"
+              placeholder="Nom complet"
               required
             />
           </div>
           <div>
-            <label className={a.fieldLabel} htmlFor="inv-email">Work email</label>
+            <label className={a.fieldLabel} htmlFor="inv-email">E-mail professionnel</label>
             <input
               id="inv-email"
               className={a.input}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="person@org.test"
+              placeholder="personne@org.test"
               required
             />
           </div>
           <div>
-            <label className={a.fieldLabel} htmlFor="inv-role">Role</label>
+            <label className={a.fieldLabel} htmlFor="inv-role">Rôle</label>
             <select id="inv-role" className={a.select} value={role} onChange={(e) => setRole(e.target.value as Role)}>
               {GRANTABLE.map((r) => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r} value={r}>{ROLE_FR[r]}</option>
               ))}
             </select>
           </div>
           <div className={a.inviteAction}>
             <button type="submit" className="btn primary" disabled={inviteBusy}>
-              {inviteBusy ? "Inviting…" : "Invite user →"}
+              {inviteBusy ? "Invitation…" : "Inviter l'utilisateur →"}
             </button>
           </div>
         </form>
@@ -223,8 +231,9 @@ export function IdentityManager({
           <div className={`${a.note} ${a.noteAmber}`} style={{ marginTop: 16 }} role="status">
             <span className={a.noteIco} aria-hidden="true">⚷</span>
             <span>
-              <b>{invited.name}</b> was created as <b>{invited.role}</b>. Share this temporary password{" "}
-              <em>once</em> — it is shown here a single time and is not stored in readable form:
+              <b>{invited.name}</b> a été créé en tant que <b>{ROLE_FR[invited.role]}</b>. Partagez ce mot de passe
+              temporaire <em>une seule fois</em> — il n&apos;est affiché qu&apos;une fois ici et n&apos;est pas stocké
+              sous forme lisible :
               <span className={a.tempPw}>
                 <code>{invited.tempPassword}</code>
                 <button
@@ -235,11 +244,11 @@ export function IdentityManager({
                     setCopied(true);
                   }}
                 >
-                  {copied ? "copied ✓" : "copy"}
+                  {copied ? "copié ✓" : "copier"}
                 </button>
               </span>
               <span className="mono quiet" style={{ display: "block", fontSize: 10.5, marginTop: 6 }}>
-                login {invited.email} · an invitation email was sent (or logged) · they must set their own password on first sign-in
+                identifiant {invited.email} · un e-mail d&apos;invitation a été envoyé (ou journalisé) · il devra définir son propre mot de passe à la première connexion
               </span>
             </span>
           </div>
@@ -249,32 +258,33 @@ export function IdentityManager({
       <div className={a.note}>
         <span className={a.noteIco} aria-hidden="true">⛬</span>
         <span>
-          <b>OIDC verify-only boundary.</b> When your identity provider issues tokens, LORE validates the{" "}
-          <b>RS256</b> signature and claims — it never mints user tokens itself. The subject is mapped to a
-          membership; the membership&apos;s role is what the runtime enforces.
+          <b>Frontière OIDC de vérification seule.</b> Lorsque votre fournisseur d&apos;identité émet des jetons,
+          LORE valide la signature <b>RS256</b> et les revendications — il ne génère jamais lui-même de jetons
+          utilisateur. Le sujet est associé à une appartenance ; c&apos;est le rôle de l&apos;appartenance que le
+          runtime applique.
         </span>
       </div>
 
       <Panel
-        kicker="Memberships"
-        title="Roles are granted by membership"
+        kicker="Appartenances"
+        title="Les rôles sont accordés par l'appartenance"
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>GET /v1/tenants/{tenantSlug}/memberships</span>}
       >
         <DataTable
           columns={columns}
           rows={rows}
           rowKey={(r) => (r as unknown as MembershipRow).email}
-          empty="No memberships."
+          empty="Aucune appartenance."
         />
       </Panel>
 
       <div className={`${a.note} ${a.noteAmber}`}>
         <span className={a.noteIco} aria-hidden="true">▲</span>
         <span>
-          <b>SUPER_ADMIN cannot be granted from here.</b> As <b>TENANT_ADMIN</b> you may grant TENANT_ADMIN,
-          TRAINER and LEARNER memberships within <b>{tenantSlug}</b>. Only the platform bootstrap / an existing
-          SUPER_ADMIN may grant SUPER_ADMIN — it is cross-tenant and outside your tenant authority. It is
-          shown read-only so the boundary stays legible.
+          <b>SUPER_ADMIN ne peut pas être accordé ici.</b> En tant que <b>TENANT_ADMIN</b>, vous pouvez accorder
+          les appartenances TENANT_ADMIN, TRAINER et LEARNER dans <b>{tenantSlug}</b>. Seul le bootstrap de la
+          plateforme / un SUPER_ADMIN existant peut accorder SUPER_ADMIN — c&apos;est inter-tenant et hors de votre
+          autorité de tenant. Il est affiché en lecture seule pour que la frontière reste lisible.
         </span>
       </div>
 
@@ -282,17 +292,17 @@ export function IdentityManager({
       <Drawer
         open={!!editing}
         onClose={() => setEditing(null)}
-        kicker="Membership · role"
-        title={editing ? `Change role · ${editing.name}` : ""}
+        kicker="Appartenance · rôle"
+        title={editing ? `Changer le rôle · ${editing.name}` : ""}
       >
         {editing ? (
           <div className="col" style={{ gap: 18 }}>
             <p className="soft" style={{ margin: 0 }}>
-              Re-granting a membership upserts the role on the backend. The change takes effect on the
-              user&apos;s next bearer token; their local login role is kept in sync.
+              Ré-accorder une appartenance met à jour (upsert) le rôle sur le backend. Le changement prend effet
+              au prochain jeton porteur de l&apos;utilisateur ; son rôle de connexion local est gardé synchronisé.
             </p>
             <div>
-              <label className={a.fieldLabel} htmlFor="role-next">New role</label>
+              <label className={a.fieldLabel} htmlFor="role-next">Nouveau rôle</label>
               <select
                 id="role-next"
                 className={a.select}
@@ -300,7 +310,7 @@ export function IdentityManager({
                 onChange={(e) => setNextRole(e.target.value as Role)}
               >
                 {GRANTABLE.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>{ROLE_FR[r]}</option>
                 ))}
               </select>
             </div>
@@ -308,17 +318,17 @@ export function IdentityManager({
               diffs={roleDiff}
               impact={
                 <>
-                  This re-grants <b>{editing.name}</b>&apos;s membership in <b>{tenantSlug}</b> as{" "}
-                  <strong className="mono">{nextRole}</strong>. The runtime enforces the new role on every
-                  tenant route from their next token onward.
+                  Ceci ré-accorde l&apos;appartenance de <b>{editing.name}</b> dans <b>{tenantSlug}</b> en tant que{" "}
+                  <strong className="mono">{nextRole}</strong>. Le runtime applique le nouveau rôle sur chaque
+                  route du tenant à partir de son prochain jeton.
                 </>
               }
               acknowledgement={
-                <>I understand this changes <strong>{editing.name}</strong>&apos;s role to{" "}
+                <>Je comprends que cela change le rôle de <strong>{editing.name}</strong> en{" "}
                 <strong className="mono">{nextRole}</strong>.</>
               }
-              confirmLabel="Apply role change"
-              cancelLabel="Cancel"
+              confirmLabel="Appliquer le changement de rôle"
+              cancelLabel="Annuler"
               busy={roleBusy}
               error={roleErr}
               onConfirm={applyRole}

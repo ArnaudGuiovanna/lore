@@ -20,8 +20,10 @@ export async function login(
   password: string = PASSWORD
 ): Promise<void> {
   await page.goto("/login");
-  const form = page.getByRole("form", { name: /sign in/i });
-  await form.getByLabel(/work email/i).fill(email);
-  await form.getByLabel(/password/i).fill(password);
-  await form.getByRole("button", { name: /continue/i }).click();
+  // UI is French by default: the sign-in form is "Se connecter", with labels
+  // "E-mail professionnel" / "Mot de passe" and a "Continuer" button.
+  const form = page.getByRole("form", { name: /se connecter/i });
+  await form.getByLabel(/e-mail professionnel/i).fill(email);
+  await form.getByLabel(/mot de passe/i).fill(password);
+  await form.getByRole("button", { name: /continuer/i }).click();
 }

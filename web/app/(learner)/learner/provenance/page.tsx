@@ -27,11 +27,11 @@ export default async function ProvenanceScreen() {
     return (
       <div className="col" style={{ gap: 24 }}>
         <div className="col" style={{ gap: 8 }}>
-          <span className="kicker">Why this path?</span>
-          <h1 className="standfirst">Where your parcours comes from.</h1>
+          <span className="kicker">Pourquoi ce parcours ?</span>
+          <h1 className="standfirst" data-testid="provenance-title">D&apos;où vient votre parcours.</h1>
         </div>
         <LearnerError
-          detail="We couldn't reach the runtime to read the domain graph, so we can't trace your lineage right now. Only your trainer can change this path — and it's safe."
+          detail="Nous n'avons pas pu joindre le runtime pour lire le graphe du domaine ; nous ne pouvons donc pas tracer votre lignée pour l'instant. Seul votre formateur peut modifier ce parcours — et c'est sûr."
           message={graphRes.error}
         />
       </div>
@@ -61,17 +61,17 @@ export default async function ProvenanceScreen() {
     <div className="col" style={{ gap: 24 }}>
       <div className="col" style={{ gap: 8 }}>
         <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-          <span className="kicker">Why this path?</span>
-          <Pill on>read-only</Pill>
+          <span className="kicker">Pourquoi ce parcours ?</span>
+          <Pill on>lecture seule</Pill>
         </div>
-        <h1 className="standfirst">Where your parcours comes from.</h1>
+        <h1 className="standfirst" data-testid="provenance-title">D&apos;où vient votre parcours.</h1>
         <p className="soft" style={{ maxWidth: "62ch", fontSize: 15, lineHeight: 1.6 }}>
-          Your path is generated from the syllabus bound to your cohort. You can see
-          this lineage — only your trainer can change it.
+          Votre parcours est généré à partir du syllabus rattaché à votre groupe. Vous pouvez voir
+          cette lignée — seul votre formateur peut la modifier.
         </p>
       </div>
 
-      <section className="panel" aria-label="Lineage">
+      <section className="panel" aria-label="Lignée">
         <ol className="col" style={{ gap: 0, listStyle: "none", margin: 0, padding: 0 }}>
           {nodes.map((n, i) => (
             <li
@@ -101,7 +101,7 @@ export default async function ProvenanceScreen() {
               <div className="spread" style={{ gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 16 }}>{n.label}</strong>
                 <span className="mono quiet" style={{ fontSize: 10, letterSpacing: "0.1em" }}>
-                  {n.kind === "binding" ? "real binding" : "provenance trace"}
+                  {n.kind === "binding" ? "lien réel" : "trace de provenance"}
                 </span>
               </div>
               {n.detail ? (
@@ -126,15 +126,15 @@ export default async function ProvenanceScreen() {
 
       {gates.length ? (
         <section className="panel col" style={{ gap: 12 }}>
-          <span className="kicker">Prerequisites on the graph</span>
+          <span className="kicker">Prérequis sur le graphe</span>
           <p className="soft" style={{ fontSize: 13 }}>
-            The runtime added these gates from the concept DAG — “{conceptName(graph.concepts, conceptId)}”
-            depends on them.
+            Le runtime a ajouté ces verrous depuis le DAG de concepts — « {conceptName(graph.concepts, conceptId)} »
+            en dépend.
           </p>
           <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
             {gates.map((g) => (
               <Pill key={g.id} on={g.mastered}>
-                {g.name} {g.mastered ? "✓" : "· locked"}
+                {g.name} {g.mastered ? "✓" : "· verrouillé"}
               </Pill>
             ))}
           </div>
@@ -146,16 +146,16 @@ export default async function ProvenanceScreen() {
         style={{ gap: 6, borderTop: "1px solid var(--line)", paddingTop: 16 }}
       >
         <p className="soft" style={{ fontSize: 13, lineHeight: 1.6 }}>
-          A syllabus is never edited in place. A trainer revision <strong>forks a new version</strong> and
-          <strong> rebinds</strong> the cohort; your state — mastery, reviews, snapshots — is preserved while
-          the runtime re-plans.
+          Un syllabus n&apos;est jamais modifié sur place. Une révision du formateur <strong>crée une nouvelle
+          version</strong> et <strong>rattache à nouveau</strong> le groupe ; votre état — maîtrise, révisions,
+          instantanés — est préservé pendant que le runtime replanifie.
         </p>
         <Link
           href="/learner"
           className="mono"
           style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}
         >
-          ← back to Now
+          ← retour à Maintenant
         </Link>
       </footer>
     </div>

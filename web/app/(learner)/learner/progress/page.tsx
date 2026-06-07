@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 // not a vanity bar. |confidence - mastery| small = well-calibrated.
 function calibration(st: LearnerState): { gap: number; label: string } {
   const gap = Math.abs(st.confidence - st.mastery);
-  const label = gap < 0.12 ? "calibrated" : st.confidence > st.mastery ? "over-confident" : "under-confident";
+  const label = gap < 0.12 ? "calibré" : st.confidence > st.mastery ? "sur-confiant" : "sous-confiant";
   return { gap, label };
 }
 
@@ -34,16 +34,16 @@ export default async function ProgressScreen() {
 
   const header = (
     <div className="col" style={{ gap: 8 }}>
-      <span className="kicker">Progress</span>
-      <h1 className="standfirst">Your path — and where you stand on it.</h1>
+      <span className="kicker">Progression</span>
+      <h1 className="standfirst">Votre parcours — et où vous en êtes.</h1>
       <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
         <span className="mono quiet" style={{ fontSize: 11 }}>
-          generated from the syllabus of {s.cohortName} · {BOUND_SYLLABUS_TITLE}
+          généré à partir du syllabus de {s.cohortName} · {BOUND_SYLLABUS_TITLE}
         </span>
       </div>
       <p className="soft" style={{ maxWidth: "62ch", fontSize: 14, lineHeight: 1.6 }}>
-        Honest signals only — mastery, retention and calibration as the runtime
-        scores them. No vanity bars.
+        Des signaux honnêtes uniquement — maîtrise, rétention et calibration tels que le runtime
+        les évalue. Aucune barre de vanité.
       </p>
     </div>
   );
@@ -53,7 +53,7 @@ export default async function ProgressScreen() {
       <div className="col" style={{ gap: 22 }}>
         {header}
         <LearnerError
-          detail="We couldn't reach the runtime to read your state, so there are no signals to show. We won't invent any."
+          detail="Nous n'avons pas pu joindre le runtime pour lire votre état ; il n'y a donc aucun signal à afficher. Nous n'en inventerons pas."
           message={statesRes.error}
         />
       </div>
@@ -69,10 +69,10 @@ export default async function ProgressScreen() {
       {header}
 
       {sorted.length === 0 ? (
-        <LearnerEmpty kicker="No signals yet">
-          The runtime hasn&rsquo;t scored any concepts for you yet. Take your first
-          step on <Link href="/learner" style={{ color: "var(--accent)" }}>Now</Link> and
-          your mastery, retention and calibration will appear here.
+        <LearnerEmpty kicker="Aucun signal pour l'instant">
+          Le runtime n&rsquo;a encore évalué aucun concept pour vous. Faites votre première
+          étape sur <Link href="/learner" style={{ color: "var(--accent)" }}>Maintenant</Link> et
+          votre maîtrise, votre rétention et votre calibration apparaîtront ici.
         </LearnerEmpty>
       ) : (
         <div className="grid" style={{ gridTemplateColumns: "1fr", gap: 14 }}>
@@ -94,7 +94,7 @@ export default async function ProgressScreen() {
                 </div>
                 <p className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "baseline", margin: 0 }}>
                   <span className="kicker" style={{ fontSize: 9 }}>
-                    serves
+                    sert
                   </span>
                   <Pill on={serves.kind === "objective"}>{serves.pill}</Pill>
                   <span className="soft" style={{ fontSize: 13, fontStyle: "italic" }}>
@@ -103,29 +103,29 @@ export default async function ProgressScreen() {
                 </p>
                 <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
                   <Metric
-                    label="mastery"
+                    label="maîtrise"
                     value={fmtPct(st.mastery)}
                     tone={st.mastery >= 0.8 ? "accent" : "ink"}
                   />
                   <Metric
-                    label="retention"
+                    label="rétention"
                     value={fmtPct(st.retention)}
                     tone={st.retention < 0.5 ? "amber" : "ink"}
                   />
                   <Metric
                     label="calibration"
                     value={cal.label}
-                    hint={`gap ${cal.gap.toFixed(2)}`}
-                    tone={cal.label === "calibrated" ? "accent" : "amber"}
+                    hint={`écart ${cal.gap.toFixed(2)}`}
+                    tone={cal.label === "calibré" ? "accent" : "amber"}
                   />
-                  <Metric label="reps · lapses" value={`${st.reps} · ${st.lapses}`} />
-                  <Metric label="next review" value={fmtDate(st.due_at)} />
+                  <Metric label="répét. · oublis" value={`${st.reps} · ${st.lapses}`} />
+                  <Metric label="prochaine révision" value={fmtDate(st.due_at)} />
                 </div>
                 {locked.length ? (
                   <p className="soft" style={{ fontSize: 13 }}>
-                    Runtime-added prerequisite{locked.length > 1 ? "s" : ""}:{" "}
+                    Prérequis ajouté{locked.length > 1 ? "s" : ""} par le runtime :{" "}
                     {locked.map((g) => (
-                      <Pill key={g.id}>{g.name} · locked</Pill>
+                      <Pill key={g.id}>{g.name} · verrouillé</Pill>
                     ))}
                   </p>
                 ) : null}
@@ -141,8 +141,8 @@ export default async function ProgressScreen() {
           style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 14 }}
         >
           <p className="soft" style={{ fontSize: 13, margin: 0 }}>
-            Some work is retention upkeep the runtime scheduled outside any single
-            objective — kept honest rather than hidden.
+            Une partie du travail correspond à l&apos;entretien de la rétention que le runtime a
+            planifié en dehors d&apos;un objectif précis — affiché honnêtement plutôt que masqué.
           </p>
           {/* Real progress exists (>= 1 tracked concept): offer the OF attestation
               (attestation de fin de formation) as a downloadable PDF. */}

@@ -8,9 +8,9 @@ import styles from "./AppBar.module.css";
 export type SurfaceRole = "learner" | "trainer" | "admin";
 
 const SURFACES: { id: SurfaceRole; href: string; label: string }[] = [
-  { id: "learner", href: "/learner", label: "learner" },
-  { id: "trainer", href: "/trainer", label: "trainer" },
-  { id: "admin", href: "/admin", label: "admin" },
+  { id: "learner", href: "/learner", label: "apprenant" },
+  { id: "trainer", href: "/trainer", label: "formateur" },
+  { id: "admin", href: "/admin", label: "administrateur" },
 ];
 
 // A demo affordance: jump between the three role surfaces. The real role is
@@ -23,8 +23,8 @@ export function RoleSwitcher({ active }: { active?: SurfaceRole }) {
     SURFACES.find((sc) => pathname.startsWith("/" + sc.id))?.id;
 
   return (
-    <div className={styles.switcher} aria-label="View as role">
-      <span className={styles.switchLabel}>view as</span>
+    <div className={styles.switcher} aria-label="Voir en tant que rôle">
+      <span className={styles.switchLabel}>voir en tant que</span>
       <div className={styles.seg} role="tablist">
         {SURFACES.map((sc) => {
           const isActive = sc.id === current;

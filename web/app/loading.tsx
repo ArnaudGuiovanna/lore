@@ -4,10 +4,10 @@ export default function Loading() {
     <div className="wrap" style={{ maxWidth: 980, padding: "64px 24px 96px" }}>
       <p className="kicker">LORE · runtime</p>
       <p className="standfirst" style={{ marginTop: 12, maxWidth: "30ch" }}>
-        Reading the runtime…
+        Lecture du runtime…
       </p>
       <p className="soft" style={{ marginTop: 8, maxWidth: "52ch" }}>
-        Fetching live, tenant-scoped state from the backend.
+        Récupération de l’état en direct, limité au tenant, depuis le backend.
       </p>
 
       <div className="col" aria-hidden="true" style={{ gap: 14, marginTop: 36 }}>

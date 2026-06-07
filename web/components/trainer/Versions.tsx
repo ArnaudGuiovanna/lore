@@ -111,7 +111,7 @@ export function Versions({
       setBinding(data as SyllabusBinding);
       setVersions((vs) => vs.map((v) => ({ ...v, bound: v.id === rebindTarget.id })));
     } catch (e) {
-      setRebindError(e instanceof Error ? e.message : "network error");
+      setRebindError(e instanceof Error ? e.message : "erreur réseau");
     } finally {
       setBusy(false);
     }
@@ -120,9 +120,9 @@ export function Versions({
   // Diff bound → target for the ReviewState.
   const diffs = rebindTarget
     ? [
-        { field: "bound syllabus", before: `v${boundVersion.version} · ${boundVersion.id.slice(0, 8)}`, after: `v${rebindTarget.version} · ${rebindTarget.id.slice(0, 8)}` },
+        { field: "syllabus rattaché", before: `v${boundVersion.version} · ${boundVersion.id.slice(0, 8)}`, after: `v${rebindTarget.version} · ${rebindTarget.id.slice(0, 8)}` },
         {
-          field: "objectives",
+          field: "objectifs",
           before: boundVersion.objectives.map(conceptName).join(", ") || "—",
           after: rebindTarget.objectives.map(conceptName).join(", ") || "—",
         },
@@ -135,13 +135,13 @@ export function Versions({
     return (
       <AuthorSyllabus
         concepts={concepts}
-        heading={`Fork v${latest.version + 1} from v${latest.version}`}
-        intro="Editing is append-only. Saving writes a NEW syllabus record (a new version) and emits SyllabusCreated. The current version stays byte-identical and bound until you rebind."
+        heading={`Dériver la v${latest.version + 1} depuis la v${latest.version}`}
+        intro="La modification est en ajout uniquement. L'enregistrement écrit un NOUVEAU syllabus (une nouvelle version) et émet SyllabusCreated. La version actuelle reste identique au bit près et rattachée jusqu'à ce que vous rattachiez à nouveau."
         initialTitle={latest.title}
         initialObjectives={latest.objectives}
         initialOutcomes={latest.outcomes}
-        submitLabel={`Save as v${latest.version + 1} (fork)`}
-        versionNote="Saving does not overwrite the current version. It creates a new, unbound draft. Nothing changes for learners until you rebind."
+        submitLabel={`Enregistrer comme v${latest.version + 1} (dérivation)`}
+        versionNote="L'enregistrement n'écrase pas la version actuelle. Il crée un nouveau brouillon non rattaché. Rien ne change pour les apprenants tant que vous ne rattachez pas à nouveau."
         onCreated={(s, objectives, outcomes) => onForked(s, objectives, outcomes)}
       />
     );
@@ -150,17 +150,18 @@ export function Versions({
   return (
     <div className="col" style={{ gap: 24 }}>
       <Panel
-        kicker="Versions · append-only"
-        title="Editing forks a new version"
+        kicker="Versions · ajout uniquement"
+        title="Modifier crée une nouvelle version"
         aside={
           <button type="button" className="btn primary" onClick={() => setForking(true)}>
-            Edit → fork {`v${latest.version + 1}`}
+            Modifier → dériver {`v${latest.version + 1}`}
           </button>
         }
       >
         <p className="soft" style={{ marginTop: -6, marginBottom: 18, maxWidth: "62ch" }}>
-          There is no overwrite and no version field on the record — a &quot;version&quot; is a product concept. Each
-          edit is a fresh syllabus. The cohort follows whichever version its <strong>binding</strong> points to.
+          Il n&apos;y a ni écrasement ni champ de version sur l&apos;enregistrement — une «&nbsp;version&nbsp;» est un
+          concept produit. Chaque modification est un nouveau syllabus. Le groupe suit la version vers laquelle pointe
+          son <strong>rattachement</strong>.
         </p>
 
         <Timeline
@@ -169,39 +170,39 @@ export function Versions({
             title: (
               <span className="row" style={{ gap: 10 }}>
                 v{v.version} · {v.title}
-                {v.bound ? <span className="pill on">bound → {cohortName}</span> : <span className="pill">draft · unbound</span>}
+                {v.bound ? <span className="pill on">rattachée → {cohortName}</span> : <span className="pill">brouillon · non rattachée</span>}
               </span>
             ),
             when: `${v.id.slice(0, 8)} · ${fmtDate(v.createdAt, true)}`,
-            observation: <span>objectives: {v.objectives.map(conceptName).join(", ") || "—"}</span>,
+            observation: <span>objectifs : {v.objectives.map(conceptName).join(", ") || "—"}</span>,
             rationale: v.bound ? (
-              "This is the version the cohort's learners experience as provenance."
+              "C'est la version que les apprenants du groupe vivent comme provenance."
             ) : (
               <span className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-                Not affecting learners yet.
+                N'affecte pas encore les apprenants.
                 <button type="button" className="btn" onClick={() => openRebind(v)}>
-                  Rebind {cohortName} → v{v.version}
+                  Rattacher {cohortName} → v{v.version}
                 </button>
               </span>
             ),
             source: v.bound ? "runtime" : undefined,
-            sourceDetail: v.bound ? "binding active" : undefined,
+            sourceDetail: v.bound ? "rattachement actif" : undefined,
           }))}
         />
       </Panel>
 
       {binding ? (
-        <Panel kicker="Re-planned" title="The runtime re-planned from the new version" aside={<SourceMark source="runtime" />}>
+        <Panel kicker="Replanifié" title="Le runtime a replanifié à partir de la nouvelle version" aside={<SourceMark source="runtime" />}>
           <p className="soft" style={{ marginTop: -6, marginBottom: 16, maxWidth: "62ch" }}>
-            <strong>SyllabusBound</strong> + <strong>ParcoursReplanRequested</strong> emitted. In-flight mastery,
-            retention and snapshots were preserved — only the forward intent changed.
+            <strong>SyllabusBound</strong> + <strong>ParcoursReplanRequested</strong> émis. La maîtrise, la rétention
+            et les instantanés en cours ont été préservés — seule l&apos;intention future a changé.
           </p>
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
             {replanOrder.map((o, i) => (
               <Card key={o.concept.id}>
-                <span className="kicker">step {i + 1}</span>
+                <span className="kicker">étape {i + 1}</span>
                 <div className="mono" style={{ fontSize: 14, fontWeight: 600, margin: "4px 0" }}>{o.concept.name}</div>
-                <StreamReader text={`Reframed for v${rebindTarget?.version}. ${o.prereqs.length ? `Requires ${o.prereqs.join(", ")}.` : "Entry point."}`} />
+                <StreamReader text={`Recadré pour la v${rebindTarget?.version}. ${o.prereqs.length ? `Nécessite ${o.prereqs.join(", ")}.` : "Point d'entrée."}`} />
               </Card>
             ))}
           </div>
@@ -211,26 +212,26 @@ export function Versions({
       <Drawer
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
-        kicker="Significant change · human-in-the-loop"
-        title={rebindTarget ? `Rebind ${cohortName} → v${rebindTarget.version}` : "Rebind"}
+        kicker="Changement important · humain dans la boucle"
+        title={rebindTarget ? `Rattacher ${cohortName} → v${rebindTarget.version}` : "Rattacher"}
       >
         {rebindTarget ? (
           binding ? (
             <div className="col" style={{ gap: 12 }}>
-              <SourceMark source="runtime" label="rebound" detail={binding.id.slice(0, 8)} />
+              <SourceMark source="runtime" label="rattaché à nouveau" detail={binding.id.slice(0, 8)} />
               <p className="soft">
-                The cohort now follows v{rebindTarget.version}. Mastery, retention and snapshots are intact — the
-                runtime re-planned the forward parcours only.
+                Le groupe suit désormais la v{rebindTarget.version}. La maîtrise, la rétention et les instantanés sont
+                intacts — le runtime a uniquement replanifié le parcours futur.
               </p>
               <button type="button" className="btn primary" onClick={() => setReviewOpen(false)}>
-                Done
+                Terminé
               </button>
             </div>
           ) : (
             <ReviewState
               diffs={diffs}
-              confirmLabel={`Rebind to v${rebindTarget.version}`}
-              acknowledgement={`I understand this re-plans the forward parcours for ${learnerCount} learners. In-flight mastery, retention and snapshots are preserved.`}
+              confirmLabel={`Rattacher à la v${rebindTarget.version}`}
+              acknowledgement={`Je comprends que cela replanifie le parcours futur pour ${learnerCount} apprenants. La maîtrise, la rétention et les instantanés en cours sont préservés.`}
               busy={busy}
               error={rebindError ?? undefined}
               onConfirm={confirmRebind}
@@ -238,15 +239,15 @@ export function Versions({
               impact={
                 <div className="col" style={{ gap: 10 }}>
                   <span>
-                    Affects <strong>{learnerCount} learners</strong>. The runtime will re-plan the parcours from
-                    v{rebindTarget.version}. In-flight <strong>mastery</strong>, <strong>retention</strong> and{" "}
-                    <strong>snapshots</strong> are PRESERVED — the runtime owns durable state; only the forward
-                    intent changes.
+                    Affecte <strong>{learnerCount} apprenants</strong>. Le runtime replanifiera le parcours à partir de
+                    la v{rebindTarget.version}. La <strong>maîtrise</strong>, la <strong>rétention</strong> et les{" "}
+                    <strong>instantanés</strong> en cours sont PRÉSERVÉS — le runtime détient l&apos;état durable ; seule
+                    l&apos;intention future change.
                   </span>
                   <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                    <span className="pill on">mastery preserved</span>
-                    <span className="pill on">retention preserved</span>
-                    <span className="pill on">snapshots preserved</span>
+                    <span className="pill on">maîtrise préservée</span>
+                    <span className="pill on">rétention préservée</span>
+                    <span className="pill on">instantanés préservés</span>
                   </div>
                 </div>
               }

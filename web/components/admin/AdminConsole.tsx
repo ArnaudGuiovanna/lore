@@ -23,12 +23,12 @@ import a from "./admin.module.css";
 type Section = "overview" | "identity" | "structure" | "graph" | "llm" | "outbox";
 
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "identity", label: "Identity" },
-  { id: "structure", label: "Org structure" },
-  { id: "graph", label: "Domain graph" },
-  { id: "llm", label: "LLM matrix" },
-  { id: "outbox", label: "Event outbox" },
+  { id: "overview", label: "Vue d'ensemble" },
+  { id: "identity", label: "Identité" },
+  { id: "structure", label: "Structure de l'organisation" },
+  { id: "graph", label: "Graphe du domaine" },
+  { id: "llm", label: "Matrice LLM" },
+  { id: "outbox", label: "Boîte d'événements" },
 ];
 
 export function AdminConsole({
@@ -74,13 +74,13 @@ export function AdminConsole({
   return (
     <div>
       <div className="spread" style={{ alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
-        <p className="kicker" style={{ margin: 0 }}>
-          Control plane · {tenantName}
+        <p className="kicker" style={{ margin: 0 }} data-testid="control-plane-kicker">
+          Plan de contrôle · {tenantName}
         </p>
         {/* tenant scope chip — always visible */}
         <span
           className={a.scopeChip}
-          title="Tenant scope is always in view. Every backend call is bearer-JWT scoped to this tenant."
+          title="Le périmètre du tenant est toujours visible. Chaque appel backend est limité à ce tenant par un JWT porteur."
         >
           <span className={a.scopeBadge}>tenant</span>
           <span>{tenantName}</span>
@@ -91,30 +91,31 @@ export function AdminConsole({
       </div>
 
       <h1 className="standfirst" style={{ marginTop: 6, marginBottom: 6 }}>
-        You configure the learning OS — you don&apos;t author syllabi.
+        Vous configurez l&apos;OS d&apos;apprentissage — vous ne rédigez pas de syllabus.
       </h1>
       <p className="soft" style={{ maxWidth: "62ch", marginBottom: backendOk ? 20 : 14 }}>
-        The runtime owns mastery, reviews, misconceptions and alerts. You shape{" "}
-        <em>who</em> is in the tenant, <em>how</em> it is structured, and <em>which model</em> generates
-        content.
+        Le runtime détient la maîtrise, les révisions, les conceptions erronées et les alertes. Vous façonnez{" "}
+        <em>qui</em> se trouve dans le tenant, <em>comment</em> il est structuré, et <em>quel modèle</em> génère
+        le contenu.
       </p>
 
       {!backendOk ? (
         <div className={a.degraded} role="status">
-          <span className="mark alarm">degraded</span>
+          <span className="mark alarm">dégradé</span>
           <span>
-            Some runtime reads didn&apos;t answer — the overview metrics, domain graph or outbox below may be
-            incomplete. Identity, structure and LLM configuration still work; nothing shown is fabricated to
-            fill the gap.
+            Certaines lectures du runtime n&apos;ont pas répondu — les métriques de la vue d&apos;ensemble, le graphe
+            du domaine ou la boîte d&apos;événements ci-dessous peuvent être incomplets. L&apos;identité, la structure
+            et la configuration LLM fonctionnent toujours ; rien n&apos;est inventé pour combler le manque.
           </span>
         </div>
       ) : null}
 
-      <nav className={a.nav} aria-label="Admin sections">
+      <nav className={a.nav} aria-label="Sections d'administration">
         {SECTIONS.map((sx) => (
           <button
             key={sx.id}
             type="button"
+            data-testid={`admin-nav-${sx.id}`}
             className={classNames(a.navBtn, section === sx.id && a.navOn)}
             aria-current={section === sx.id ? "page" : undefined}
             onClick={() => setSection(sx.id)}

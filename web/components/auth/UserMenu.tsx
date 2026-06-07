@@ -19,7 +19,7 @@ export function UserMenu({ name, role }: { name: string; role: string }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
       <span className="mono" style={{ fontSize: 12, color: "var(--ink)" }} title={role}>
-        {name || "Account"}
+        {name || "Compte"}
       </span>
       <button
         onClick={signOut}
@@ -27,7 +27,7 @@ export function UserMenu({ name, role }: { name: string; role: string }) {
         className="btn ghost"
         style={{ fontSize: 12, padding: "6px 12px" }}
       >
-        {busy ? "…" : "Sign out"}
+        {busy ? "…" : "Se déconnecter"}
       </button>
     </span>
   );

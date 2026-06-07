@@ -5,11 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Stepper, type Step } from "@/components/ui/Stepper";
 
 const SCREENS: { id: string; href: string; label: string; caption: string }[] = [
-  { id: "now", href: "/learner", label: "Now", caption: "read & answer" },
-  { id: "provenance", href: "/learner/provenance", label: "Provenance", caption: "why this path" },
-  { id: "reviews", href: "/learner/reviews", label: "Reviews", caption: "spaced recall" },
-  { id: "progress", href: "/learner/progress", label: "Progress", caption: "honest signals" },
-  { id: "history", href: "/learner/history", label: "History", caption: "snapshots" },
+  { id: "now", href: "/learner", label: "Maintenant", caption: "lire & répondre" },
+  { id: "provenance", href: "/learner/provenance", label: "Provenance", caption: "pourquoi ce parcours" },
+  { id: "reviews", href: "/learner/reviews", label: "Révisions", caption: "rappel espacé" },
+  { id: "progress", href: "/learner/progress", label: "Progression", caption: "signaux honnêtes" },
+  { id: "history", href: "/learner/history", label: "Historique", caption: "instantanés" },
 ];
 
 export function LearnerNav() {
@@ -32,7 +32,7 @@ export function LearnerNav() {
   }));
 
   return (
-    <nav aria-label="Your session" className="col" style={{ gap: 14 }}>
+    <nav aria-label="Votre session" className="col" style={{ gap: 14 }}>
       <div className="spread" style={{ flexWrap: "wrap", gap: 12 }}>
         <Link href="/" className="mono quiet" style={{ fontSize: 12, textDecoration: "none" }}>
           ← LORE

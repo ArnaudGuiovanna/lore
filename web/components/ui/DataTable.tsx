@@ -17,7 +17,7 @@ export function DataTable<Row extends Record<string, unknown>>({
   columns,
   rows,
   rowKey,
-  empty = "Nothing yet.",
+  empty = "Rien pour l’instant.",
   className,
 }: {
   columns: Column<Row>[];

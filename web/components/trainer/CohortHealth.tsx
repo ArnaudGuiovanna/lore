@@ -37,7 +37,7 @@ export function CohortHealth({
   const columns: Column<Row>[] = [
     {
       key: "name",
-      header: "Learner",
+      header: "Apprenant",
       render: (r) => (
         <div className="col" style={{ gap: 2 }}>
           <span style={{ fontFamily: "var(--serif)", fontSize: 16 }}>{r.name}</span>
@@ -47,7 +47,7 @@ export function CohortHealth({
     },
     {
       key: "avgMastery",
-      header: "Mastery",
+      header: "Maîtrise",
       align: "right",
       mono: true,
       render: (r) => (
@@ -58,7 +58,7 @@ export function CohortHealth({
     },
     {
       key: "avgRetention",
-      header: "Retention",
+      header: "Rétention",
       align: "right",
       mono: true,
       render: (r) => (
@@ -67,17 +67,17 @@ export function CohortHealth({
         </span>
       ),
     },
-    { key: "tracked", header: "Tracked", align: "right", mono: true },
+    { key: "tracked", header: "Suivis", align: "right", mono: true },
     {
       key: "due",
-      header: "Due",
+      header: "À faire",
       align: "right",
       mono: true,
       render: (r) => <span style={{ color: r.due ? "var(--amber)" : "var(--muted)" }}>{r.due}</span>,
     },
     {
       key: "openAlerts",
-      header: "Alerts",
+      header: "Alertes",
       align: "right",
       mono: true,
       render: (r) => <span style={{ color: r.openAlerts ? "var(--alarm)" : "var(--muted)" }}>{r.openAlerts}</span>,
@@ -89,7 +89,7 @@ export function CohortHealth({
         const atRisk = r.openAlerts > 0 || r.relearning > 0 || (r.avgMastery ?? 1) < 0.3;
         return (
           <span className={`pill ${atRisk ? "" : "on"}`}>
-            {atRisk ? "at risk" : r.due ? "review" : "on track"}
+            {atRisk ? "à risque" : r.due ? "à réviser" : "sur la bonne voie"}
           </span>
         );
       },
@@ -111,30 +111,30 @@ export function CohortHealth({
   return (
     <div className="col" style={{ gap: 22 }}>
       <Panel
-        kicker={`Cohort health · ${cohortName}`}
-        title="Where the cohort actually is"
-        aside={<SourceMark source="runtime" label="durable state" />}
+        kicker={`Santé du groupe · ${cohortName}`}
+        title="Où en est réellement le groupe"
+        aside={<SourceMark source="runtime" label="état durable" />}
       >
         <p className="soft" style={{ marginTop: -6, marginBottom: 18, maxWidth: "62ch" }}>
-          Evidence, not vanity. These come straight from <code>analytics/cohorts/{"{cohort}"}</code> — the
-          runtime&apos;s rolled-up durable state.
+          Des preuves, pas de la vanité. Elles viennent directement de <code>analytics/cohorts/{"{cohort}"}</code> —
+          l&apos;état durable consolidé du runtime.
         </p>
         {!analytics ? (
           <p className="mono" style={{ color: "var(--amber)", fontSize: 12, marginBottom: 16 }}>
-            Cohort analytics didn&apos;t answer — the rolled-up figures are unavailable. The per-learner roster
-            below is computed from durable state and is still authoritative.
+            Les analytics du groupe n&apos;ont pas répondu — les chiffres consolidés sont indisponibles. La liste
+            par apprenant ci-dessous est calculée à partir de l&apos;état durable et reste faisant autorité.
           </p>
         ) : null}
         <div className="row" style={{ gap: 30, flexWrap: "wrap" }}>
-          <Metric label="learners" value={analytics?.learner_count ?? learners.length} />
+          <Metric label="apprenants" value={analytics?.learner_count ?? learners.length} />
           <Metric
-            label="average mastery"
+            label="maîtrise moyenne"
             value={fmtPct(analytics?.average_mastery)}
             tone={(analytics?.average_mastery ?? 1) < 0.3 ? "alarm" : "ink"}
           />
-          <Metric label="states tracked" value={analytics?.state_count ?? "—"} />
+          <Metric label="états suivis" value={analytics?.state_count ?? "—"} />
           <Metric
-            label="active misconceptions"
+            label="conceptions erronées actives"
             value={analytics ? analytics.active_misconceptions : "—"}
             tone={(analytics?.active_misconceptions ?? 0) > 0 ? "alarm" : "ink"}
           />
@@ -142,19 +142,19 @@ export function CohortHealth({
       </Panel>
 
       <Panel
-        kicker="Roster · sorted by signal"
-        title="Who needs you first"
-        aside={<span className="mono quiet" style={{ fontSize: 11 }}>most at-risk first</span>}
+        kicker="Liste · triée par signal"
+        title="Qui a besoin de vous en premier"
+        aside={<span className="mono quiet" style={{ fontSize: 11 }}>les plus à risque d&apos;abord</span>}
       >
         <DataTable<Row>
           columns={columns}
           rows={sorted as Row[]}
           rowKey={(r) => r.id}
-          empty="No learners enrolled."
+          empty="Aucun apprenant inscrit."
         />
         {onInspect ? (
           <p className="quiet mono" style={{ fontSize: 11, marginTop: 12 }}>
-            Open Inspection to read any learner&apos;s snapshot timeline.
+            Ouvrez Inspection pour lire la chronologie des instantanés d&apos;un apprenant.
           </p>
         ) : null}
       </Panel>

@@ -36,7 +36,7 @@ export const SYLLABUS_OBJECTIVES = new Set(["persistence", "transactions"]);
 
 // The single outcome the bound syllabus drives toward (trainer-owned acquis).
 export const BOUND_OUTCOME =
-  "writes a handler that persists in a transaction and rolls back on error";
+  "écrit un handler qui persiste dans une transaction et annule en cas d'erreur";
 
 export type ServesKind = "objective" | "prerequisite" | "retention";
 
@@ -60,13 +60,13 @@ export function servesTrace(
     const isFinal = unlocks(deps, conceptId).every((c) => !SYLLABUS_OBJECTIVES.has(c));
     return {
       kind: "objective",
-      pill: `objective · ${conceptId}`,
+      pill: `objectif · ${conceptId}`,
       note:
         conceptId === "persistence"
-          ? `the outcome: “${BOUND_OUTCOME}”`
+          ? `l'acquis : « ${BOUND_OUTCOME} »`
           : isFinal
-            ? "the syllabus’ final objective; gated behind persistence"
-            : "a syllabus objective",
+            ? "l'objectif final du syllabus ; conditionné par la persistance"
+            : "un objectif du syllabus",
     };
   }
   // Does any objective depend (transitively, one hop) on this concept?
@@ -74,14 +74,14 @@ export function servesTrace(
   if (feedsObjective) {
     return {
       kind: "prerequisite",
-      pill: "runtime-added prerequisite",
-      note: "not a syllabus objective; the runtime planned it to support persistence",
+      pill: "prérequis ajouté par le runtime",
+      note: "pas un objectif du syllabus ; le runtime l'a planifié pour soutenir la persistance",
     };
   }
   return {
     kind: "retention",
-    pill: "outside syllabus objectives",
-    note: "kept for retention upkeep the runtime scheduled on the concept graph",
+    pill: "hors objectifs du syllabus",
+    note: "conservé pour l'entretien de la rétention que le runtime a planifié sur le graphe de concepts",
   };
 }
 
@@ -104,44 +104,44 @@ export function buildLineage(args: {
   const nodes: LineageNode[] = [
     {
       id: "cohort",
-      label: `cohort ${cohortName}`,
-      detail: "your enrolment scope",
+      label: `groupe ${cohortName}`,
+      detail: "votre périmètre d'inscription",
       kind: "binding",
     },
     {
       id: "syllabus",
-      label: `syllabus “${BOUND_SYLLABUS_TITLE}”`,
-      detail: `${syllabusId.slice(0, 8)} · authored by your trainer · adaptation_mode GUIDED · via SyllabusBound`,
+      label: `syllabus « ${BOUND_SYLLABUS_TITLE} »`,
+      detail: `${syllabusId.slice(0, 8)} · rédigé par votre formateur · adaptation_mode GUIDED · via SyllabusBound`,
       kind: "binding",
     },
     {
       id: "concept",
-      label: `this concept “${conceptLabel}”`,
+      label: `ce concept « ${conceptLabel} »`,
       detail: downstream.length
-        ? `${serves.note} — and gates ${downstream.join(", ")}`
+        ? `${serves.note} — et conditionne ${downstream.join(", ")}`
         : serves.note,
       kind: "trace",
     },
     {
       id: "outcome",
-      label: serves.kind === "objective" ? "the outcome it serves" : "where it sits in the syllabus",
+      label: serves.kind === "objective" ? "l'acquis qu'il sert" : "sa place dans le syllabus",
       detail:
         serves.kind === "objective"
-          ? `${serves.pill} → “${BOUND_OUTCOME}”`
+          ? `${serves.pill} → « ${BOUND_OUTCOME} »`
           : serves.pill,
       kind: "trace",
     },
     {
       id: "runtime",
-      label: "the runtime planned this step",
+      label: "le runtime a planifié cette étape",
       detail:
-        "planned on the concept graph by weighing mastery, retention and active misconceptions — runtime decided",
+        "planifié sur le graphe de concepts en pondérant maîtrise, rétention et conceptions erronées actives — décidé par le runtime",
       kind: "trace",
     },
     {
       id: "content",
-      label: "the content is instruction-only / runtime-authored",
-      detail: "the LLM, when active, only fills content — never the path",
+      label: "le contenu est en instruction seule / rédigé par le runtime",
+      detail: "le LLM, lorsqu'il est actif, ne fait que remplir le contenu — jamais le parcours",
       kind: "trace",
     },
   ];

@@ -43,10 +43,10 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
               </div>
               {item.source ? <SourceMark source={item.source} detail={item.sourceDetail} /> : null}
             </header>
-            <Slot label="Before">{item.before}</Slot>
+            <Slot label="Avant">{item.before}</Slot>
             <Slot label="Observation">{item.observation}</Slot>
-            <Slot label="After">{item.after}</Slot>
-            <Slot label="Rationale">{item.rationale}</Slot>
+            <Slot label="Après">{item.after}</Slot>
+            <Slot label="Justification">{item.rationale}</Slot>
           </div>
         </li>
       ))}

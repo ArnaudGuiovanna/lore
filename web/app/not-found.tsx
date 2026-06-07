@@ -9,25 +9,25 @@ export default function NotFound() {
           404
         </span>
         <h1 className="standfirst" style={{ marginTop: 16, maxWidth: "26ch" }}>
-          There’s nothing on this path.
+          Il n’y a rien sur ce chemin.
         </h1>
         <p className="soft" style={{ marginTop: 12, maxWidth: "54ch" }}>
-          The runtime decides what comes next — and this isn’t one of its routes. Head back to one
-          of the three surfaces.
+          Le runtime décide de la suite — et ceci n’est pas l’une de ses routes. Revenez vers l’une
+          des trois surfaces.
         </p>
 
         <div className="row" style={{ gap: 12, marginTop: 26, flexWrap: "wrap" }}>
           <Link className="btn primary" href="/">
-            Entry
+            Accueil
           </Link>
           <Link className="btn ghost" href="/learner">
-            Learner
+            Apprenant
           </Link>
           <Link className="btn ghost" href="/trainer">
-            Trainer
+            Formateur
           </Link>
           <Link className="btn ghost" href="/admin">
-            Admin
+            Administrateur
           </Link>
         </div>
       </div>

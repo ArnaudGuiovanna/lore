@@ -15,22 +15,22 @@ export function isInstructionOnly(cfg?: Pick<LLMConfiguration, "provider"> | nul
 // The single source-of-truth distinction the UI must always make visible.
 export type Source = "runtime" | "llm" | "fallbk";
 export function sourceLabel(s: Source): string {
-  return s === "runtime" ? "runtime decided" : s === "llm" ? "llm generated" : "instruction-only";
+  return s === "runtime" ? "décidé par le runtime" : s === "llm" ? "généré par le LLM" : "instruction seule";
 }
 
 // Human label for the trainer/admin alert types.
-export function alertLabel(t: string): string {
+export function alertLabel(type: string): string {
   const map: Record<string, string> = {
-    LearnerAtRisk: "Learner at risk",
-    ReviewDue: "Review due",
-    LowRetention: "Low retention",
+    LearnerAtRisk: "Apprenant à risque",
+    ReviewDue: "Révision à faire",
+    LowRetention: "Faible rétention",
     Plateau: "Plateau",
-    ZpdDrift: "ZPD drift",
-    Overload: "Overload",
-    MasteryReadiness: "Mastery ready",
-    Misconception: "Active misconception",
+    ZpdDrift: "Dérive de la ZPD",
+    Overload: "Surcharge",
+    MasteryReadiness: "Prêt pour la maîtrise",
+    Misconception: "Conception erronée active",
   };
-  return map[t] || t;
+  return map[type] || type;
 }
 
 export function relativeTime(iso?: string | null): string {

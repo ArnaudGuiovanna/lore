@@ -43,8 +43,8 @@ export function Inspection({
 
   if (!learner) {
     return (
-      <Panel kicker="Inspection" title="No learners">
-        <p className="quiet mono" style={{ fontSize: 13 }}>No learners in this cohort.</p>
+      <Panel kicker="Inspection" title="Aucun apprenant">
+        <p className="quiet mono" style={{ fontSize: 13 }}>Aucun apprenant dans ce groupe.</p>
       </Panel>
     );
   }
@@ -55,7 +55,7 @@ export function Inspection({
 
   return (
     <div className="col" style={{ gap: 20 }}>
-      <Panel kicker="Inspection · read-only evidence" title="A learner's durable record">
+      <Panel kicker="Inspection · preuves en lecture seule" title="Le dossier durable d'un apprenant">
         <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
           {learners.map((l) => (
             <button
@@ -77,37 +77,37 @@ export function Inspection({
       </Panel>
 
       <Panel
-        kicker={`Learner · ${learner.id}`}
+        kicker={`Apprenant · ${learner.id}`}
         title={learner.name}
-        aside={<SourceMark source="runtime" label="durable state" />}
+        aside={<SourceMark source="runtime" label="état durable" />}
       >
         <div className="row" style={{ gap: 28, flexWrap: "wrap", marginBottom: 20 }}>
-          <Metric label="avg mastery" value={fmtPct(learner.avgMastery)} tone={(learner.avgMastery ?? 1) < 0.3 ? "alarm" : "ink"} />
-          <Metric label="avg retention" value={fmtPct(learner.avgRetention)} tone={(learner.avgRetention ?? 1) < 0.6 ? "amber" : "ink"} />
-          <Metric label="concepts tracked" value={learner.tracked} />
-          <Metric label="relearning" value={learner.relearning} tone={learner.relearning ? "alarm" : "ink"} />
-          <Metric label="reviews due" value={learner.due} tone={learner.due ? "amber" : "ink"} />
-          <Metric label="open alerts" value={learner.openAlerts} tone={learner.openAlerts ? "alarm" : "ink"} />
+          <Metric label="maîtrise moy." value={fmtPct(learner.avgMastery)} tone={(learner.avgMastery ?? 1) < 0.3 ? "alarm" : "ink"} />
+          <Metric label="rétention moy." value={fmtPct(learner.avgRetention)} tone={(learner.avgRetention ?? 1) < 0.6 ? "amber" : "ink"} />
+          <Metric label="concepts suivis" value={learner.tracked} />
+          <Metric label="ré-apprentissage" value={learner.relearning} tone={learner.relearning ? "alarm" : "ink"} />
+          <Metric label="révisions à faire" value={learner.due} tone={learner.due ? "amber" : "ink"} />
+          <Metric label="alertes ouvertes" value={learner.openAlerts} tone={learner.openAlerts ? "alarm" : "ink"} />
         </div>
 
         <Card style={{ background: "var(--amber-soft)", borderColor: "rgba(154,106,22,.35)", marginBottom: 20 }}>
           <div className="spread" style={{ gap: 14, flexWrap: "wrap", alignItems: "center" }}>
             <p className="soft" style={{ margin: 0, color: "var(--amber)", fontSize: 14, maxWidth: "58ch" }}>
-              Mastery and retention are computed by the runtime (BKT / FSRS) from interactions. They are evidence,
-              not dials — there is no hand-edit. To change a trajectory, request a sanctioned action; the runtime
-              re-derives state from the result.
+              La maîtrise et la rétention sont calculées par le runtime (BKT / FSRS) à partir des interactions. Ce
+              sont des preuves, pas des curseurs — aucune modification manuelle. Pour infléchir une trajectoire,
+              demandez une action sanctionnée ; le runtime re-dérive l&apos;état à partir du résultat.
             </p>
             {onIntervene ? (
               <button type="button" className="btn" style={{ flex: "0 0 auto" }} onClick={onIntervene}>
-                Intervene →
+                Intervenir →
               </button>
             ) : null}
           </div>
         </Card>
 
-        <p className="kicker" style={{ marginBottom: 14 }}>Pedagogical snapshots · most recent first</p>
+        <p className="kicker" style={{ marginBottom: 14 }}>Instantanés pédagogiques · les plus récents d&apos;abord</p>
         {snaps.length === 0 ? (
-          <p className="quiet mono" style={{ fontSize: 13 }}>No snapshots recorded yet for {learner.name}.</p>
+          <p className="quiet mono" style={{ fontSize: 13 }}>Aucun instantané enregistré pour l&apos;instant pour {learner.name}.</p>
         ) : (
           <Timeline
             items={snaps.map((snap) => {
@@ -124,17 +124,17 @@ export function Inspection({
                   </span>
                 ),
                 when: fmtDate(snap.created_at, true),
-                before: from !== null ? <span className="mono">mastery {from.toFixed(2)}</span> : undefined,
+                before: from !== null ? <span className="mono">maîtrise {from.toFixed(2)}</span> : undefined,
                 observation: obs ? (
                   <span className="mono">
-                    {obs.success ? "success" : "miss"} · score {num(obs.score)?.toFixed(2) ?? "—"}
+                    {obs.success ? "réussite" : "échec"} · score {num(obs.score)?.toFixed(2) ?? "—"}
                     {obs.error_type ? ` · ${obs.error_type}` : ""}
                   </span>
                 ) : undefined,
                 after:
                   to !== null ? (
                     <span className="mono">
-                      mastery {to.toFixed(2)}
+                      maîtrise {to.toFixed(2)}
                       {delta !== null ? (
                         <span style={{ color: delta >= 0 ? "var(--accent)" : "var(--alarm)" }}>
                           {" "}({delta >= 0 ? "+" : ""}{delta.toFixed(2)})
@@ -143,8 +143,8 @@ export function Inspection({
                     </span>
                   ) : undefined,
                 rationale: decision?.review_due_at
-                  ? `Runtime scheduled next review at ${fmtDate(decision.review_due_at, true)}.`
-                  : "Runtime updated durable state from this interaction.",
+                  ? `Le runtime a programmé la prochaine révision le ${fmtDate(decision.review_due_at, true)}.`
+                  : "Le runtime a mis à jour l'état durable à partir de cette interaction.",
                 source: "runtime" as const,
                 sourceDetail: "BKT / FSRS",
               };

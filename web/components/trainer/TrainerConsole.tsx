@@ -27,12 +27,12 @@ type Section =
   | "intervention";
 
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: "design", label: "Design" },
-  { id: "author", label: "Author" },
-  { id: "attach", label: "Attach cohort" },
+  { id: "design", label: "Concevoir" },
+  { id: "author", label: "Rédiger" },
+  { id: "attach", label: "Rattacher un groupe" },
   { id: "versions", label: "Versions" },
-  { id: "health", label: "Cohort health" },
-  { id: "alerts", label: "Alerts" },
+  { id: "health", label: "Santé du groupe" },
+  { id: "alerts", label: "Alertes" },
   { id: "inspection", label: "Inspection" },
   { id: "intervention", label: "Intervention" },
 ];
@@ -121,25 +121,26 @@ export function TrainerConsole({
 
   return (
     <div>
-      <p className="kicker">Trainer console · {cohortName}</p>
+      <p className="kicker">Console formateur · {cohortName}</p>
       <h1 className="standfirst" style={{ marginTop: 8, marginBottom: 6 }}>
-        You don&apos;t build courses — you author a syllabus.
+        Vous ne construisez pas de cours — vous rédigez un syllabus.
       </h1>
       <p className="soft" style={{ maxWidth: "62ch", marginBottom: backendOk ? 20 : 14 }}>
-        Declare intent. Attach a cohort. The runtime plans; the LLM writes.
+        Déclarez l&apos;intention. Rattachez un groupe. Le runtime planifie ; le LLM rédige.
       </p>
 
       {!backendOk ? (
         <div className={t.degraded} role="status">
-          <span className="mark alarm">degraded</span>
+          <span className="mark alarm">dégradé</span>
           <span>
-            Some runtime reads didn&apos;t answer — analytics and alerts may be incomplete below. Authoring and
-            binding still work; nothing shown is fabricated to fill the gap.
+            Certaines lectures du runtime n&apos;ont pas répondu — les analytics et les alertes ci-dessous peuvent
+            être incomplètes. La rédaction et le rattachement fonctionnent toujours ; rien n&apos;est inventé pour
+            combler le manque.
           </span>
         </div>
       ) : null}
 
-      <nav className={t.nav} aria-label="Trainer sections">
+      <nav className={t.nav} aria-label="Sections du formateur">
         {SECTIONS.map((sx) => (
           <button
             key={sx.id}
@@ -156,33 +157,33 @@ export function TrainerConsole({
 
       {section === "design" ? (
         <div className="col" style={{ gap: 22 }}>
-          <Panel kicker="Design the learning" title="Intent, not artefacts">
+          <Panel kicker="Concevoir l'apprentissage" title="L'intention, pas les artefacts">
             <p className="prose" style={{ fontSize: 18, marginBottom: 14 }}>
-              You don&apos;t build courses. You design the learning: a <strong>syllabus</strong> of intent —
-              title, description, objectives, measurable outcomes. No course builder, no resource uploads, no
-              manual ordering.
+              Vous ne construisez pas de cours. Vous concevez l&apos;apprentissage : un <strong>syllabus</strong>
+              d&apos;intention — titre, description, objectifs, acquis mesurables. Pas de constructeur de cours,
+              pas d&apos;import de ressources, pas d&apos;ordonnancement manuel.
             </p>
             <div className={t.frameNeg}>
-              <span className={t.negChip}><s>build courses</s></span>
-              <span className={t.negChip}><s>upload resources</s></span>
-              <span className={t.negChip}><s>order activities</s></span>
-              <span className={t.negChip}><s>edit mastery</s></span>
+              <span className={t.negChip}><s>construire des cours</s></span>
+              <span className={t.negChip}><s>importer des ressources</s></span>
+              <span className={t.negChip}><s>ordonner les activités</s></span>
+              <span className={t.negChip}><s>modifier la maîtrise</s></span>
             </div>
           </Panel>
 
           <Panel
-            kicker="Syllabi"
-            title="Your syllabi"
+            kicker="Syllabus"
+            title="Vos syllabus"
             aside={
               <button type="button" className="btn primary" onClick={() => setSection("author")}>
-                + Author a new syllabus
+                + Rédiger un nouveau syllabus
               </button>
             }
           >
             {concepts.length === 0 ? (
               <p className="quiet mono" style={{ fontSize: 12, marginBottom: 14 }}>
-                The {domainName} graph returned no concepts — authoring against the DAG is paused until it
-                resolves. Your existing syllabi are unaffected.
+                Le graphe {domainName} n&apos;a renvoyé aucun concept — la rédaction sur le DAG est suspendue
+                jusqu&apos;à sa résolution. Vos syllabus existants ne sont pas affectés.
               </p>
             ) : null}
             <div className={t.sylGrid}>
@@ -190,7 +191,7 @@ export function TrainerConsole({
                 <Card key={c.id} className={t.sylCard}>
                   <div className="spread" style={{ alignItems: "flex-start" }}>
                     <strong style={{ fontFamily: "var(--display)", fontSize: 18 }}>{c.title}</strong>
-                    <span className={`pill ${c.bound ? "on" : ""}`}>{c.bound ? "live" : "draft"}</span>
+                    <span className={`pill ${c.bound ? "on" : ""}`}>{c.bound ? "actif" : "brouillon"}</span>
                   </div>
                   <p className="soft" style={{ fontSize: 14, margin: 0 }}>{c.description || "—"}</p>
                   <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -204,7 +205,7 @@ export function TrainerConsole({
                       <>
                         <span>→</span>
                         <span style={{ color: "var(--accent)" }}>{cohortName}</span>
-                        <SourceMark source="runtime" label="binding active" />
+                        <SourceMark source="runtime" label="rattachement actif" />
                       </>
                     ) : (
                       <button
@@ -224,7 +225,7 @@ export function TrainerConsole({
                           setSection("attach");
                         }}
                       >
-                        Attach cohort →
+                        Rattacher un groupe →
                       </button>
                     )}
                   </div>
@@ -235,7 +236,7 @@ export function TrainerConsole({
                       style={{ alignSelf: "flex-start", padding: "4px 10px" }}
                       onClick={() => setSection("versions")}
                     >
-                      Manage / version history →
+                      Gérer / historique des versions →
                     </button>
                   ) : null}
                 </Card>
@@ -248,8 +249,8 @@ export function TrainerConsole({
       {section === "author" ? (
         <AuthorSyllabus
           concepts={concepts}
-          heading="Author a syllabus"
-          intro={`Declare what this cohort should durably be able to do. Objectives are concepts from the ${domainName} graph — the runtime's planning targets.`}
+          heading="Rédiger un syllabus"
+          intro={`Déclarez ce que ce groupe doit durablement être capable de faire. Les objectifs sont des concepts du graphe ${domainName} — les cibles de planification du runtime.`}
           onCreated={(s, objectives) => onAuthored(s, objectives)}
         />
       ) : null}

@@ -71,7 +71,7 @@ export function OrgManager({
       setPBusy(false);
       router.refresh();
     } catch (err) {
-      setPErr(err instanceof Error ? err.message : "network error");
+      setPErr(err instanceof Error ? err.message : "erreur réseau");
       setPBusy(false);
     }
   }
@@ -92,7 +92,7 @@ export function OrgManager({
       setCBusy(false);
       router.refresh();
     } catch (err) {
-      setCErr(err instanceof Error ? err.message : "network error");
+      setCErr(err instanceof Error ? err.message : "erreur réseau");
       setCBusy(false);
     }
   }
@@ -111,11 +111,11 @@ export function OrgManager({
       const data = await res.json();
       if (!res.ok) { setEErr(data?.error || `HTTP ${res.status}`); setEBusy(false); return; }
       const who = learners.find((l) => l.id === eLearner)?.name ?? eLearner;
-      setEOk(`Enrolled ${who}.`);
+      setEOk(`${who} inscrit(e).`);
       setEBusy(false);
       router.refresh();
     } catch (err) {
-      setEErr(err instanceof Error ? err.message : "network error");
+      setEErr(err instanceof Error ? err.message : "erreur réseau");
       setEBusy(false);
     }
   }
@@ -123,7 +123,7 @@ export function OrgManager({
   const rosterCols: Column<Record<string, unknown>>[] = [
     {
       key: "name",
-      header: "Learner",
+      header: "Apprenant",
       render: (r) => {
         const row = r as unknown as RosterRow;
         return (
@@ -136,11 +136,11 @@ export function OrgManager({
     },
     {
       key: "mastery",
-      header: "Avg mastery",
+      header: "Maîtrise moy.",
       mono: true,
       render: (r) => {
         const row = r as unknown as RosterRow;
-        if (row.avgMastery == null) return <span className="quiet">— no runtime state —</span>;
+        if (row.avgMastery == null) return <span className="quiet">— aucun état runtime —</span>;
         return (
           <span style={{ color: "var(--accent)" }}>
             {(row.avgMastery * 100).toFixed(0)}% <span className="quiet">· {row.concepts} concepts</span>
@@ -150,7 +150,7 @@ export function OrgManager({
     },
     {
       key: "due",
-      header: "Reviews due",
+      header: "Révisions à faire",
       mono: true,
       render: (r) => {
         const row = r as unknown as RosterRow;
@@ -165,15 +165,15 @@ export function OrgManager({
     <div className="col" style={{ gap: 22 }}>
       {/* CREATE program + cohort */}
       <Panel
-        kicker="Containers"
-        title="Create programs and cohorts"
+        kicker="Conteneurs"
+        title="Créer des programmes et des groupes"
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>POST /v1/tenants/{tenantSlug}/programs · /cohorts</span>}
       >
         <div className={a.orgForms}>
-          <form onSubmit={createProgram} className="col" style={{ gap: 12 }} aria-label="Create a program">
-            <span className="kicker" style={{ margin: 0 }}>New program</span>
+          <form onSubmit={createProgram} className="col" style={{ gap: 12 }} aria-label="Créer un programme">
+            <span className="kicker" style={{ margin: 0 }}>Nouveau programme</span>
             <div>
-              <label className={a.fieldLabel} htmlFor="prog-name">Program name</label>
+              <label className={a.fieldLabel} htmlFor="prog-name">Nom du programme</label>
               <input
                 id="prog-name"
                 className={a.input}
@@ -185,25 +185,25 @@ export function OrgManager({
             </div>
             <div>
               <button type="submit" className="btn primary" disabled={pBusy}>
-                {pBusy ? "Creating…" : "Create program →"}
+                {pBusy ? "Création…" : "Créer le programme →"}
               </button>
             </div>
             {pErr ? <p className="mono" style={{ color: "var(--alarm)", fontSize: 12.5, margin: 0 }}>{pErr}</p> : null}
           </form>
 
-          <form onSubmit={createCohort} className="col" style={{ gap: 12 }} aria-label="Create a cohort">
-            <span className="kicker" style={{ margin: 0 }}>New cohort</span>
+          <form onSubmit={createCohort} className="col" style={{ gap: 12 }} aria-label="Créer un groupe">
+            <span className="kicker" style={{ margin: 0 }}>Nouveau groupe</span>
             <div>
-              <label className={a.fieldLabel} htmlFor="coh-prog">Under program</label>
+              <label className={a.fieldLabel} htmlFor="coh-prog">Dans le programme</label>
               <select id="coh-prog" className={a.select} value={cProgram} onChange={(e) => setCProgram(e.target.value)} required>
-                {programs.length === 0 ? <option value="">— create a program first —</option> : null}
+                {programs.length === 0 ? <option value="">— créez d&apos;abord un programme —</option> : null}
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className={a.fieldLabel} htmlFor="coh-name">Cohort name</label>
+              <label className={a.fieldLabel} htmlFor="coh-name">Nom du groupe</label>
               <input
                 id="coh-name"
                 className={a.input}
@@ -215,17 +215,17 @@ export function OrgManager({
             </div>
             <div className="row" style={{ gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <label className={a.fieldLabel} htmlFor="coh-start">Start</label>
+                <label className={a.fieldLabel} htmlFor="coh-start">Début</label>
                 <input id="coh-start" className={a.input} type="date" value={cStart} onChange={(e) => setCStart(e.target.value)} required />
               </div>
               <div style={{ flex: 1 }}>
-                <label className={a.fieldLabel} htmlFor="coh-end">End</label>
+                <label className={a.fieldLabel} htmlFor="coh-end">Fin</label>
                 <input id="coh-end" className={a.input} type="date" value={cEnd} onChange={(e) => setCEnd(e.target.value)} required />
               </div>
             </div>
             <div>
               <button type="submit" className="btn primary" disabled={cBusy || programs.length === 0}>
-                {cBusy ? "Creating…" : "Create cohort →"}
+                {cBusy ? "Création…" : "Créer le groupe →"}
               </button>
             </div>
             {cErr ? <p className="mono" style={{ color: "var(--alarm)", fontSize: 12.5, margin: 0 }}>{cErr}</p> : null}
@@ -235,24 +235,24 @@ export function OrgManager({
 
       {/* ENROLL a learner */}
       <Panel
-        kicker="Enrollment"
-        title="Enroll a learner into a cohort"
+        kicker="Inscription"
+        title="Inscrire un apprenant dans un groupe"
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>POST /v1/tenants/{tenantSlug}/cohorts/{"{cohort}"}/enrollments</span>}
       >
-        <form onSubmit={enroll} className={a.enrollGrid} aria-label="Enroll a learner">
+        <form onSubmit={enroll} className={a.enrollGrid} aria-label="Inscrire un apprenant">
           <div>
-            <label className={a.fieldLabel} htmlFor="enr-learner">Learner</label>
+            <label className={a.fieldLabel} htmlFor="enr-learner">Apprenant</label>
             <select id="enr-learner" className={a.select} value={eLearner} onChange={(e) => setELearner(e.target.value)} required>
-              {learners.length === 0 ? <option value="">— no known learners —</option> : null}
+              {learners.length === 0 ? <option value="">— aucun apprenant connu —</option> : null}
               {learners.map((l) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={a.fieldLabel} htmlFor="enr-cohort">Into cohort</label>
+            <label className={a.fieldLabel} htmlFor="enr-cohort">Dans le groupe</label>
             <select id="enr-cohort" className={a.select} value={eCohort} onChange={(e) => setECohort(e.target.value)} required>
-              {allCohorts.length === 0 ? <option value="">— create a cohort first —</option> : null}
+              {allCohorts.length === 0 ? <option value="">— créez d&apos;abord un groupe —</option> : null}
               {allCohorts.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -260,7 +260,7 @@ export function OrgManager({
           </div>
           <div className={a.inviteAction}>
             <button type="submit" className="btn primary" disabled={eBusy || allCohorts.length === 0 || learners.length === 0}>
-              {eBusy ? "Enrolling…" : "Enroll →"}
+              {eBusy ? "Inscription…" : "Inscrire →"}
             </button>
           </div>
         </form>
@@ -270,19 +270,19 @@ export function OrgManager({
 
       {/* ROSTER with live runtime state */}
       <Panel
-        kicker="Roster"
-        title={`${rosterCohortName} · enrolled learners`}
+        kicker="Liste"
+        title={`${rosterCohortName} · apprenants inscrits`}
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>GET …/learners/{"{id}"}/state · reviews/due</span>}
       >
         <p className="soft" style={{ marginTop: 0, marginBottom: 14, maxWidth: "62ch", fontSize: 15 }}>
-          The runtime owns mastery and review scheduling — the figures below are read from it, never
-          recomputed here. A learner with no runtime state yet simply shows none.
+          Le runtime détient la maîtrise et la planification des révisions — les chiffres ci-dessous en sont lus,
+          jamais recalculés ici. Un apprenant sans état runtime n&apos;affiche simplement rien.
         </p>
         <DataTable
           columns={rosterCols}
           rows={rosterRows}
           rowKey={(r) => (r as unknown as RosterRow).learnerId}
-          empty="No learners enrolled in this cohort yet."
+          empty="Aucun apprenant inscrit dans ce groupe pour l'instant."
         />
       </Panel>
 
