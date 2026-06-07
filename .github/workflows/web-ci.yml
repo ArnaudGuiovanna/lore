@@ -1,0 +1,148 @@
+name: Web CI
+
+# Web build/typecheck gate + Playwright e2e smoke. Runs only when web code (or
+# this workflow) changes. The Go backend has its own workflow (ci.yml).
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - "web/**"
+      - ".github/workflows/web-ci.yml"
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - "web/**"
+      - ".github/workflows/web-ci.yml"
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Required gate: install + typecheck/build. Fast and deterministic. -----
+  build:
+    name: Build & typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (typecheck + production build)
+        # `next build` runs the TypeScript typecheck and lints, then compiles —
+        # this is the required correctness gate for the web tier.
+        run: npm run build
+        env:
+          # Build-time placeholders; the real backend is only needed at runtime
+          # (the e2e job below supplies live values).
+          LORE_BASE: http://127.0.0.1:8080
+
+  # --- Best-effort: boot backend (JWT, in-memory) + seed + run the smoke. -----
+  # Build is the required gate; e2e is wired correctly here and runs on the same
+  # triggers. If the live-stack smoke proves flaky in CI it can be made optional
+  # via branch protection (keep `build` required, mark `e2e` non-blocking).
+  e2e:
+    name: Playwright e2e smoke
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      # Secrets for a throwaway CI instance (never used in prod).
+      JWT_SECRET: ci-jwt-secret-not-for-production-0123456789
+      LORE_BOOTSTRAP_TOKEN: ci-bootstrap-token-not-for-production
+      SESSION_SECRET: ci-session-secret-at-least-32-bytes-long-0123
+      DEFAULT_SEED_PASSWORD: "lore123!"
+      LORE_BASE: http://127.0.0.1:8080
+      # Playwright drives the canonical `localhost` host (cookie/redirect host
+      # must agree — the session cookie is host-only).
+      PLAYWRIGHT_BASE_URL: http://localhost:3001
+      # Let the Playwright config start `next start` itself.
+      PLAYWRIGHT_WEB_SERVER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build backend
+        run: go build -o /tmp/lore ./cmd/lore
+
+      - name: Start backend (JWT mode, in-memory store)
+        run: |
+          STORE_DRIVER=memory \
+          JWT_SECRET="$JWT_SECRET" \
+          JWT_ALG=HS256 \
+          LORE_BOOTSTRAP_TOKEN="$LORE_BOOTSTRAP_TOKEN" \
+          PORT=8080 \
+          /tmp/lore &
+          echo "backend_pid=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/health >/dev/null; then
+              echo "backend healthy"; exit 0
+            fi
+            sleep 1
+          done
+          echo "backend did not become healthy in time"; exit 1
+
+      - name: Seed demo data
+        working-directory: web
+        run: npm run seed
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+
+      - name: Run Playwright smoke
+        working-directory: web
+        # The Playwright config (PLAYWRIGHT_WEB_SERVER=1) boots `next start` and
+        # tears it down; seed.json is read from web/.gen by the running server.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
+
+      - name: Stop backend
+        if: always()
+        run: kill "${backend_pid}" 2>/dev/null || true
