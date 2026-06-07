@@ -95,8 +95,8 @@ export function Drawer({
             {kicker ? <span className="kicker">{kicker}</span> : null}
             {title ? <h2 style={{ fontSize: 22 }}>{title}</h2> : null}
           </div>
-          <button type="button" className="btn ghost" onClick={onClose} aria-label="Close">
-            Close ✕
+          <button type="button" className="btn ghost" onClick={onClose} aria-label="Fermer">
+            Fermer ✕
           </button>
         </header>
         <div className={s.drawerBody}>{children}</div>

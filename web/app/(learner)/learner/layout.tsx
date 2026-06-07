@@ -14,9 +14,9 @@ export default async function LearnerLayout({ children }: { children: ReactNode 
       <header className="col" style={{ gap: 18 }}>
         <LearnerNav />
         <div className="spread" style={{ flexWrap: "wrap", gap: 10, alignItems: "baseline" }}>
-          <p className="kicker">Learner · {learner.name}</p>
+          <p className="kicker" data-testid="learner-banner">Apprenant · {learner.name}</p>
           <span className="mono quiet" style={{ fontSize: 11 }}>
-            cohort Go-Spring-24 · tutor instruction-only
+            groupe Go-Spring-24 · tuteur en instruction seule
           </span>
         </div>
       </header>

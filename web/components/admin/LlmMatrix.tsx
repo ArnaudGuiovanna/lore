@@ -102,7 +102,7 @@ export function LlmMatrix({
   async function apply() {
     if (!editing) return;
     if (!hasChange) {
-      setErr("No field differs from the current config — nothing to apply.");
+      setErr("Aucun champ ne diffère de la config actuelle — rien à appliquer.");
       return;
     }
     setBusy(true);
@@ -138,13 +138,13 @@ export function LlmMatrix({
         occurredAt: new Date().toISOString(),
         published: false,
         payload: { scope_type: data.scope_type, provider: data.provider, model: data.model },
-        annotation: "just applied — committed in the same transaction as the write",
+        annotation: "vient d'être appliqué — validé dans la même transaction que l'écriture",
       };
       setBusy(false);
       setEditing(null);
       onApplied(applied, event);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "network error");
+      setErr(e instanceof Error ? e.message : "erreur réseau");
       setBusy(false);
     }
   }
@@ -152,26 +152,26 @@ export function LlmMatrix({
   return (
     <div className="col" style={{ gap: 22 }}>
       <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <Mark source="llm">llm generation config</Mark>
-        <span className="mono quiet" style={{ fontSize: 11 }}>most-specific-first resolution</span>
+        <Mark source="llm">config de génération LLM</Mark>
+        <span className="mono quiet" style={{ fontSize: 11 }}>résolution du plus spécifique au plus général</span>
       </div>
       <p className="soft" style={{ maxWidth: "62ch", margin: 0 }}>
-        The LLM only generates learner-facing content from a runtime-authored instruction — it never owns
-        progression. <em>This</em> is what you configure: provider, model and limits, at four scope tiers.
-        The runtime resolves the effective config <em>most-specific-first</em> (learner › cohort › program ›
-        tenant).
+        Le LLM ne génère que le contenu destiné à l&apos;apprenant à partir d&apos;une instruction rédigée par le
+        runtime — il ne pilote jamais la progression. C&apos;est <em>cela</em> que vous configurez : fournisseur,
+        modèle et limites, à quatre niveaux de périmètre. Le runtime résout la config effective <em>du plus
+        spécifique au plus général</em> (apprenant › groupe › programme › tenant).
       </p>
 
       <Panel
-        kicker="Configuration matrix"
-        title="Which model speaks, and where"
+        kicker="Matrice de configuration"
+        title="Quel modèle parle, et où"
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>GET /v1/tenants/{tenantSlug}/llm-configurations</span>}
       >
         <div className={a.matrixWrap}>
           <table style={{ width: "100%", minWidth: 680, borderCollapse: "collapse", fontFamily: "var(--mono)", fontSize: 13 }}>
             <thead>
               <tr>
-                {["Scope", "Provider / model", "Temp", "Max tokens", "Set at", ""].map((h) => (
+                {["Périmètre", "Fournisseur / modèle", "Temp", "Max tokens", "Défini au niveau", ""].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -211,7 +211,7 @@ export function LlmMatrix({
                           {c!.model && !isInstr ? `/${c!.model}` : ""}
                         </span>
                       ) : (
-                        <span className={a.inherit}>↑ inherits {row.tier === "tenant" ? "—" : "parent"}</span>
+                        <span className={a.inherit}>↑ hérite {row.tier === "tenant" ? "—" : "du parent"}</span>
                       )}
                     </td>
                     <td style={{ padding: "11px 12px" }} className={set ? "" : a.inherit}>
@@ -221,7 +221,7 @@ export function LlmMatrix({
                       {set && c!.max_tokens != null ? c!.max_tokens : "—"}
                     </td>
                     <td style={{ padding: "11px 12px" }} className="quiet">
-                      {row.tier === "tenant" ? "tenant default" : set ? "override" : "not overridden"}
+                      {row.tier === "tenant" ? "défaut du tenant" : set ? "remplacement" : "non remplacé"}
                     </td>
                     <td style={{ padding: "11px 12px", textAlign: "right" }}>
                       {row.editable && row.tier !== "tenant" ? (
@@ -230,10 +230,10 @@ export function LlmMatrix({
                           className={classNames(a.editBtn, editing?.tier === row.tier && editing?.scopeId === row.scopeId && a.editBtnOn)}
                           onClick={() => openEditor(row)}
                         >
-                          edit ⤸
+                          modifier ⤸
                         </button>
                       ) : (
-                        <span className="quiet" style={{ fontSize: 9.5 }}>— inherited root —</span>
+                        <span className="quiet" style={{ fontSize: 9.5 }}>— racine héritée —</span>
                       )}
                     </td>
                   </tr>
@@ -247,9 +247,9 @@ export function LlmMatrix({
         {learners.length ? (
           <div className={a.resolveBox}>
             <p className="kicker" style={{ marginTop: 0 }}>
-              Resolution · most-specific-first (learner › cohort › program › tenant)
+              Résolution · du plus spécifique au plus général (apprenant › groupe › programme › tenant)
             </p>
-            <div className={a.resolveToggle} role="group" aria-label="Resolve effective config for">
+            <div className={a.resolveToggle} role="group" aria-label="Résoudre la config effective pour">
               {learners.map((l) => (
                 <button
                   key={l}
@@ -257,7 +257,7 @@ export function LlmMatrix({
                   className={classNames(a.rtBtn, who === l && a.rtOn)}
                   onClick={() => setWho(l)}
                 >
-                  for {l}
+                  pour {l}
                 </button>
               ))}
             </div>
@@ -266,7 +266,7 @@ export function LlmMatrix({
                 <span key={stg.tier} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   <span className={classNames(a.rstage, i === chain.winIdx && a.rstageWin)}>
                     <span className={a.ord}>{i + 1}</span>
-                    {stg.label} · {stg.set ? "set" : "—"}
+                    {stg.label} · {stg.set ? "défini" : "—"}
                   </span>
                   {i < chain.order.length - 1 ? <span className={a.ra}>→</span> : null}
                 </span>
@@ -279,19 +279,19 @@ export function LlmMatrix({
                 if (cfg && isInstructionOnly(cfg)) {
                   return (
                     <>
-                      Most-specific match is the <b>{win.tier}</b> scope → effective config ={" "}
-                      <strong className="mono" style={{ color: "var(--amber)" }}>instruction_only</strong>. The
-                      tutor model is off here; the runtime authors the scaffolds.
+                      La correspondance la plus spécifique est le périmètre <b>{win.tier}</b> → config effective ={" "}
+                      <strong className="mono" style={{ color: "var(--amber)" }}>instruction_only</strong>. Le
+                      modèle tuteur est désactivé ici ; le runtime rédige les supports.
                     </>
                   );
                 }
                 return (
                   <>
-                    First config found is the <b>{win?.tier}</b> scope → effective config ={" "}
+                    La première config trouvée est le périmètre <b>{win?.tier}</b> → config effective ={" "}
                     <strong className="mono" style={{ color: "var(--accent)" }}>
-                      {cfg ? `${cfg.provider}/${cfg.model}` : "tenant default"}
+                      {cfg ? `${cfg.provider}/${cfg.model}` : "défaut du tenant"}
                     </strong>
-                    . This learner gets generated tutoring.
+                    . Cet apprenant reçoit un tutorat généré.
                   </>
                 );
               })()}
@@ -302,8 +302,8 @@ export function LlmMatrix({
 
       {editing ? (
         <Panel
-          kicker="LLM config · scope edit"
-          title={`Edit ${editing.tier} scope`}
+          kicker="Config LLM · édition de périmètre"
+          title={`Modifier le périmètre ${editing.tier}`}
           aside={<span className="mono quiet" style={{ fontSize: 11 }}>PUT /v1/tenants/{tenantSlug}/llm-configurations</span>}
         >
           <div className="row" style={{ gap: 18, rowGap: 6, marginBottom: 14, fontFamily: "var(--mono)", fontSize: 12, flexWrap: "wrap" }}>
@@ -315,7 +315,7 @@ export function LlmMatrix({
 
           <div className={a.editorGrid}>
             <div>
-              <label className={a.fieldLabel} htmlFor="adm-provider">Provider</label>
+              <label className={a.fieldLabel} htmlFor="adm-provider">Fournisseur</label>
               <select
                 id="adm-provider"
                 className={a.select}
@@ -336,12 +336,12 @@ export function LlmMatrix({
               >
                 <option value="anthropic">anthropic</option>
                 <option value="ollama">ollama</option>
-                <option value="instruction_only">instruction_only (no LLM)</option>
+                <option value="instruction_only">instruction_only (aucun LLM)</option>
               </select>
-              <p className={a.hint}>instruction_only = runtime authors scaffolds, no model called</p>
+              <p className={a.hint}>instruction_only = le runtime rédige les supports, aucun modèle appelé</p>
             </div>
             <div>
-              <label className={a.fieldLabel} htmlFor="adm-model">Model</label>
+              <label className={a.fieldLabel} htmlFor="adm-model">Modèle</label>
               <select
                 id="adm-model"
                 className={a.select}
@@ -353,11 +353,11 @@ export function LlmMatrix({
                 <option value="claude-haiku">claude-haiku</option>
                 <option value="gemma4">gemma4</option>
               </select>
-              <p className={a.hint}>disabled when provider is instruction_only</p>
+              <p className={a.hint}>désactivé quand le fournisseur est instruction_only</p>
             </div>
             <div>
               <label className={a.fieldLabel} htmlFor="adm-temp">
-                Temperature · <span className="mono" style={{ color: "var(--accent)" }}>{draft.temperature.toFixed(1)}</span>
+                Température · <span className="mono" style={{ color: "var(--accent)" }}>{draft.temperature.toFixed(1)}</span>
               </label>
               <div className={a.rangeRow}>
                 <input
@@ -372,7 +372,7 @@ export function LlmMatrix({
                 />
                 <span className={a.rangeVal}>{draft.temperature.toFixed(1)}</span>
               </div>
-              <p className={a.hint}>lower = more deterministic generation</p>
+              <p className={a.hint}>plus bas = génération plus déterministe</p>
             </div>
             <div>
               <label className={a.fieldLabel} htmlFor="adm-max">Max tokens</label>
@@ -387,35 +387,36 @@ export function LlmMatrix({
                 disabled={instr}
                 onChange={(e) => setDraft((d) => ({ ...d, max_tokens: Number(e.target.value) }))}
               />
-              <p className={a.hint}>per generation ceiling</p>
+              <p className={a.hint}>plafond par génération</p>
             </div>
           </div>
 
           <div style={{ borderTop: "1px dashed var(--line)", paddingTop: 20, marginTop: 4 }}>
             <p className="kicker" style={{ color: "var(--amber)", marginTop: 0 }}>
-              Review state · dangerous-change discipline
+              Revue · discipline des changements sensibles
             </p>
             <p className="mono quiet" style={{ fontSize: 11, marginTop: 0, marginBottom: 14 }}>
-              Apply is gated until you check the box and at least one field differs.
+              L&apos;application est bloquée tant que vous n&apos;avez pas coché la case et qu&apos;au moins un champ ne diffère pas.
             </p>
             <ReviewState
               diffs={diffs}
               impact={
                 <>
-                  This writes an explicit config at <b>{editing.tier}:{editing.scopeId || "(tenant)"}</b> and
-                  changes generation for the affected learners. Resolution stays most-specific-first — a more
-                  specific scope still wins. This is a runtime-owned, audited change.
+                  Ceci écrit une config explicite à <b>{editing.tier}:{editing.scopeId || "(tenant)"}</b> et
+                  change la génération pour les apprenants concernés. La résolution reste du plus spécifique au plus
+                  général — un périmètre plus spécifique l&apos;emporte toujours. C&apos;est un changement détenu par
+                  le runtime et audité.
                 </>
               }
               acknowledgement={
                 <>
-                  I understand this writes an explicit config at{" "}
-                  <strong className="mono">{editing.tier}:{editing.scopeId || "(tenant)"}</strong> and changes
-                  generation for the affected learners.
+                  Je comprends que cela écrit une config explicite à{" "}
+                  <strong className="mono">{editing.tier}:{editing.scopeId || "(tenant)"}</strong> et change la
+                  génération pour les apprenants concernés.
                 </>
               }
-              confirmLabel="Apply configuration"
-              cancelLabel="Cancel"
+              confirmLabel="Appliquer la configuration"
+              cancelLabel="Annuler"
               busy={busy}
               error={err}
               onConfirm={apply}
@@ -428,9 +429,9 @@ export function LlmMatrix({
       <div className={a.note}>
         <span className={a.noteIco} aria-hidden="true">⤸</span>
         <span>
-          The runtime checks <b>learner</b> first, then <b>cohort</b>, then <b>program</b>, then{" "}
-          <b>tenant</b> — the first config it finds wins. Editing a scope opens a review state (live field
-          diff, blast radius, explicit confirmation) before anything is applied.
+          Le runtime vérifie d&apos;abord <b>l&apos;apprenant</b>, puis le <b>groupe</b>, puis le <b>programme</b>, puis le{" "}
+          <b>tenant</b> — la première config trouvée l&apos;emporte. Modifier un périmètre ouvre une revue (diff de
+          champ en direct, rayon d&apos;impact, confirmation explicite) avant toute application.
         </span>
       </div>
     </div>

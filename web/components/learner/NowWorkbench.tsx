@@ -34,20 +34,20 @@ interface PlannedActivity {
 function fallbackScaffold(intent: NowIntent, misconception?: string): { prose: string; code: string } {
   const c = intent.conceptName.toLowerCase();
   const prose =
-    `This is a runtime-authored repair task on ${c}. No model generated it — the runtime ` +
-    `composed it from your instruction set, because your tutor resolves to instruction-only. ` +
-    `Work through it in order:\n\n` +
-    `1. Read the handler below and name, in one sentence, what it fails to guarantee` +
-    (misconception ? ` (your last attempt showed: ${misconception}).` : `.`) +
-    `\n2. Identify the exact line where a failure leaves persisted state inconsistent.` +
-    `\n3. Rewrite it so the work either fully commits or fully rolls back.` +
-    `\n4. State the single invariant your fix now holds.`;
+    `Ceci est une tâche de remédiation rédigée par le runtime sur ${c}. Aucun modèle ne l'a générée — le runtime ` +
+    `l'a composée à partir de votre jeu d'instructions, car votre tuteur est résolu en instruction seule. ` +
+    `Procédez dans l'ordre :\n\n` +
+    `1. Lisez le handler ci-dessous et nommez, en une phrase, ce qu'il ne garantit pas` +
+    (misconception ? ` (votre dernière tentative montrait : ${misconception}).` : `.`) +
+    `\n2. Repérez la ligne exacte où un échec laisse l'état persistant incohérent.` +
+    `\n3. Réécrivez-le pour que le travail soit entièrement validé ou entièrement annulé.` +
+    `\n4. Énoncez l'unique invariant que votre correction garantit désormais.`;
   const code =
     `func (s *Store) transfer(ctx context.Context, from, to ID, amount int64) error {\n` +
     `    if err := s.debit(ctx, from, amount); err != nil {\n` +
     `        return err\n` +
     `    }\n` +
-    `    // ${c}: what happens to the debit if this next call fails?\n` +
+    `    // ${c} : que devient le débit si cet appel suivant échoue ?\n` +
     `    return s.credit(ctx, to, amount)\n` +
     `}`;
   return { prose, code };
@@ -114,7 +114,7 @@ export function NowWorkbench({
       });
       setPhase("reading");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not plan your next step.");
+      setError(e instanceof Error ? e.message : "Impossible de planifier votre prochaine étape.");
     } finally {
       setPlanning(false);
     }
@@ -122,7 +122,7 @@ export function NowWorkbench({
 
   const submit = useCallback(async () => {
     if (!planned?.activityId) {
-      setError("No planned activity to record against.");
+      setError("Aucune activité planifiée à laquelle rattacher cet enregistrement.");
       return;
     }
     setBusy(true);
@@ -154,7 +154,7 @@ export function NowWorkbench({
       }
       setPhase("delta");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not record your evidence.");
+      setError(e instanceof Error ? e.message : "Impossible d'enregistrer votre preuve.");
     } finally {
       setBusy(false);
     }
@@ -171,7 +171,7 @@ export function NowWorkbench({
               concept {intent.conceptId} · {intent.activityType.toLowerCase().replace(/_/g, " ")}
             </span>
           </div>
-          <h1 className="standfirst">Repair {intent.conceptName.toLowerCase()} before advancing.</h1>
+          <h1 className="standfirst">Corrigez {intent.conceptName.toLowerCase()} avant d&apos;avancer.</h1>
           <p className="soft" style={{ maxWidth: "62ch", fontSize: 15, lineHeight: 1.6 }}>
             {intent.rationale}
           </p>
@@ -180,12 +180,12 @@ export function NowWorkbench({
           className="row"
           style={{ gap: "20px 28px", flexWrap: "wrap", rowGap: 16 }}
         >
-          <Metric label="mastery" value={fmtPct(before?.mastery)} />
-          <Metric label="retention" value={fmtPct(before?.retention)} tone="amber" />
-          <Metric label="difficulty target" value={intent.difficultyTarget.toFixed(2)} />
+          <Metric label="maîtrise" value={fmtPct(before?.mastery)} />
+          <Metric label="rétention" value={fmtPct(before?.retention)} tone="amber" />
+          <Metric label="difficulté visée" value={intent.difficultyTarget.toFixed(2)} />
           {intent.misconception ? (
             <span style={{ maxWidth: "100%", overflowWrap: "anywhere" }}>
-              <Metric label="misconception" value={intent.misconception} tone="alarm" />
+              <Metric label="conception erronée" value={intent.misconception} tone="alarm" />
             </span>
           ) : null}
         </div>
@@ -196,10 +196,10 @@ export function NowWorkbench({
         ) : null}
         <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
           <button type="button" className="btn primary" onClick={begin} disabled={planning}>
-            {planning ? "Asking the runtime…" : "⏎ Begin"}
+            {planning ? "Interrogation du runtime…" : "⏎ Commencer"}
           </button>
-          <span className="mono quiet" style={{ fontSize: 11 }}>
-            the runtime plans this step · the LLM only fills content
+          <span className="mono quiet" style={{ fontSize: 11 }} data-testid="now-intent-line">
+            le runtime planifie cette étape · le LLM ne fait que remplir le contenu
           </span>
         </div>
       </section>
@@ -211,14 +211,14 @@ export function NowWorkbench({
     return (
       <section className="col" style={{ gap: 20 }}>
         <div className="spread" style={{ flexWrap: "wrap", gap: 10 }}>
-          <SourceMark source="fallbk" detail="runtime-authored · instruction-only" />
+          <SourceMark source="fallbk" detail="rédigé par le runtime · instruction seule" />
           <button type="button" className="btn ghost" onClick={() => setPhase("intent")}>
-            ← back
+            ← retour
           </button>
         </div>
         {planned?.rationale ? (
           <p className="mono quiet" style={{ fontSize: 11 }}>
-            runtime rationale · {planned.rationale}
+            justification du runtime · {planned.rationale}
           </p>
         ) : null}
         <div className="prose" style={{ whiteSpace: "pre-wrap", fontSize: 18 }}>
@@ -232,11 +232,11 @@ export function NowWorkbench({
             onClick={() => setPhase("evidence")}
             disabled={!doneReading}
           >
-            I worked through it →
+            J&apos;ai terminé →
           </button>
           {!doneReading ? (
             <span className="mono quiet" style={{ fontSize: 11 }}>
-              revealing at reading pace…
+              dévoilement au rythme de lecture…
             </span>
           ) : null}
         </div>
@@ -249,10 +249,10 @@ export function NowWorkbench({
     return (
       <section className="col" style={{ gap: 18, maxWidth: 560 }}>
         <div className="col" style={{ gap: 6 }}>
-          <span className="kicker">Your evidence</span>
+          <span className="kicker">Votre preuve</span>
           <p className="soft" style={{ fontSize: 14, lineHeight: 1.6 }}>
-            Tell the runtime what happened. It — not the content — decides mastery,
-            retention and your next step.
+            Dites au runtime ce qui s&apos;est passé. C&apos;est lui — pas le contenu — qui décide
+            de la maîtrise, de la rétention et de votre prochaine étape.
           </p>
         </div>
 
@@ -261,7 +261,7 @@ export function NowWorkbench({
           style={{ gap: 10, border: "1px solid var(--line)", borderRadius: 12, padding: 16 }}
         >
           <legend className="kicker" style={{ padding: "0 6px" }}>
-            outcome
+            résultat
           </legend>
           <label className="row" style={{ gap: 10, cursor: "pointer" }}>
             <input
@@ -270,7 +270,7 @@ export function NowWorkbench({
               checked={success}
               onChange={() => setSuccess(true)}
             />
-            <span style={{ fontSize: 15 }}>I made the work atomic — it commits or rolls back.</span>
+            <span style={{ fontSize: 15 }}>J&apos;ai rendu le traitement atomique — il valide ou annule entièrement.</span>
           </label>
           <label className="row" style={{ gap: 10, cursor: "pointer" }}>
             <input
@@ -279,12 +279,12 @@ export function NowWorkbench({
               checked={!success}
               onChange={() => setSuccess(false)}
             />
-            <span style={{ fontSize: 15 }}>I’m still stuck — the failure path is unclear.</span>
+            <span style={{ fontSize: 15 }}>Je suis encore bloqué — le chemin d&apos;échec n&apos;est pas clair.</span>
           </label>
         </fieldset>
 
         <label className="col" style={{ gap: 8 }}>
-          <span className="kicker">confidence in this answer · {score}%</span>
+          <span className="kicker">confiance dans cette réponse · {score}%</span>
           <input
             type="range"
             min={0}
@@ -292,7 +292,7 @@ export function NowWorkbench({
             step={5}
             value={score}
             onChange={(e) => setScore(Number(e.target.value))}
-            aria-label="confidence score"
+            aria-label="niveau de confiance"
           />
         </label>
 
@@ -304,10 +304,10 @@ export function NowWorkbench({
 
         <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
           <button type="button" className="btn primary" onClick={submit} disabled={busy}>
-            {busy ? "Recording…" : "Record evidence"}
+            {busy ? "Enregistrement…" : "Enregistrer la preuve"}
           </button>
           <button type="button" className="btn ghost" onClick={() => setPhase("reading")} disabled={busy}>
-            ← re-read
+            ← relire
           </button>
         </div>
       </section>
@@ -316,22 +316,22 @@ export function NowWorkbench({
 
   // ---- DELTA (in-column state delta from the refreshed /state) --------------
   const deltaRows: { label: string; from?: number; to?: number; pct?: boolean }[] = [
-    { label: "mastery", from: before?.mastery, to: after?.mastery, pct: true },
-    { label: "retention", from: before?.retention, to: after?.retention, pct: true },
-    { label: "confidence", from: before?.confidence, to: after?.confidence, pct: true },
-    { label: "stability", from: before?.stability, to: after?.stability },
-    { label: "reps", from: before?.reps, to: after?.reps },
-    { label: "lapses", from: before?.lapses, to: after?.lapses },
+    { label: "maîtrise", from: before?.mastery, to: after?.mastery, pct: true },
+    { label: "rétention", from: before?.retention, to: after?.retention, pct: true },
+    { label: "confiance", from: before?.confidence, to: after?.confidence, pct: true },
+    { label: "stabilité", from: before?.stability, to: after?.stability },
+    { label: "répétitions", from: before?.reps, to: after?.reps },
+    { label: "oublis", from: before?.lapses, to: after?.lapses },
   ];
   return (
     <section className="col" style={{ gap: 18 }}>
       <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
         <Mark source="runtime" />
         <span className="mono quiet" style={{ fontSize: 11 }}>
-          state delta · the runtime re-scored you
+          écart d&apos;état · le runtime vous a réévalué
         </span>
       </div>
-      <h2 style={{ fontSize: 22 }}>What changed for {intent.conceptName.toLowerCase()}.</h2>
+      <h2 style={{ fontSize: 22 }}>Ce qui a changé pour {intent.conceptName.toLowerCase()}.</h2>
       <div className="col" style={{ gap: 2 }}>
         {deltaRows.map((r) => {
           const fmt = (v?: number) =>
@@ -362,12 +362,12 @@ export function NowWorkbench({
       </div>
       {after?.card_state ? (
         <p className="soft" style={{ fontSize: 14 }}>
-          Card state: <span className="mono">{after.card_state}</span>
+          État de la carte : <span className="mono">{after.card_state}</span>
           {misconception ? (
             <>
               {" "}
-              · misconception <span className="mono">{misconception}</span> still tracked — the
-              runtime keeps this concept gated until the repair holds.
+              · conception erronée <span className="mono">{misconception}</span> toujours suivie — le
+              runtime maintient ce concept verrouillé tant que la correction ne tient pas.
             </>
           ) : null}
         </p>
@@ -383,10 +383,10 @@ export function NowWorkbench({
             setPhase("intent");
           }}
         >
-          ↺ next attempt
+          ↺ prochaine tentative
         </button>
         <span className="mono quiet" style={{ fontSize: 11 }}>
-          progression is the runtime’s call — never the content’s
+          la progression relève du runtime — jamais du contenu
         </span>
       </div>
     </section>

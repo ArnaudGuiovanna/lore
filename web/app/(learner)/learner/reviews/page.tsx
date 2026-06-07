@@ -31,11 +31,11 @@ export default async function ReviewsScreen() {
     return (
       <div className="col" style={{ gap: 22 }}>
         <div className="col" style={{ gap: 8 }}>
-          <span className="kicker">Reviews</span>
-          <h1 className="standfirst">Spaced recall, due now.</h1>
+          <span className="kicker">Révisions</span>
+          <h1 className="standfirst">Rappel espacé, à faire maintenant.</h1>
         </div>
         <LearnerError
-          detail="We couldn't reach the runtime to read your due reviews. Nothing is lost — your FSRS schedule lives on the backend."
+          detail="Nous n'avons pas pu joindre le runtime pour lire vos révisions à faire. Rien n'est perdu — votre planning FSRS est sur le backend."
           message={cardsRes.error}
         />
       </div>
@@ -62,39 +62,39 @@ export default async function ReviewsScreen() {
     { key: "concept", header: "Concept", render: (r) => <strong>{r.concept}</strong> },
     {
       key: "due_at",
-      header: "Due",
+      header: "Échéance",
       mono: true,
       render: (r) => (
         <span style={{ color: r.overdue ? "var(--alarm)" : "var(--ink)" }}>
-          {fmtDate(r.due_at, true)} {r.overdue ? "· overdue" : ""}
+          {fmtDate(r.due_at, true)} {r.overdue ? "· en retard" : ""}
         </span>
       ),
     },
-    { key: "state", header: "Card", mono: true, render: (r) => <Pill>{r.state}</Pill> },
-    { key: "retention", header: "Retention", align: "right", mono: true, render: (r) => fmtPct(r.retention) },
-    { key: "reps", header: "Reps", align: "right", mono: true },
-    { key: "lapses", header: "Lapses", align: "right", mono: true },
+    { key: "state", header: "Carte", mono: true, render: (r) => <Pill>{r.state}</Pill> },
+    { key: "retention", header: "Rétention", align: "right", mono: true, render: (r) => fmtPct(r.retention) },
+    { key: "reps", header: "Répét.", align: "right", mono: true },
+    { key: "lapses", header: "Oublis", align: "right", mono: true },
   ];
 
   return (
     <div className="col" style={{ gap: 22 }}>
       <div className="col" style={{ gap: 8 }}>
-        <span className="kicker">Reviews</span>
-        <h1 className="standfirst">Spaced recall, due now.</h1>
+        <span className="kicker">Révisions</span>
+        <h1 className="standfirst">Rappel espacé, à faire maintenant.</h1>
         <p className="soft" style={{ maxWidth: "62ch", fontSize: 15, lineHeight: 1.6 }}>
-          The runtime schedules these with FSRS. {rows.length} due
-          {overdueCount ? `, ${overdueCount} overdue` : ""}. Clear them from{" "}
+          Le runtime les planifie avec FSRS. {rows.length} à faire
+          {overdueCount ? `, ${overdueCount} en retard` : ""}. Traitez-les depuis{" "}
           <Link href="/learner" style={{ color: "var(--accent)" }}>
-            Now
+            Maintenant
           </Link>{" "}
-          — recall feeds back into your retention.
+          — le rappel renforce votre rétention.
         </p>
       </div>
       <DataTable<Row>
         columns={columns}
         rows={rows}
         rowKey={(r, i) => `${r.concept}-${i}`}
-        empty="Nothing due. Retention is holding."
+        empty="Rien à faire. La rétention tient."
       />
     </div>
   );

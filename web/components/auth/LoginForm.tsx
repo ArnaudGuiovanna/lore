@@ -21,22 +21,22 @@ export function LoginForm({ firstEmail }: { firstEmail?: string }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error || "Sign-in failed");
+        setError(data?.error || "Échec de la connexion");
         setBusy(false);
         return;
       }
       router.push(data.redirect || "/");
       router.refresh();
     } catch {
-      setError("The runtime is unreachable. Try again.");
+      setError("Le runtime est injoignable. Réessayez.");
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="panel" style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-label="Sign in">
+    <form onSubmit={submit} className="panel" style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-label="Se connecter">
       <label className="col" style={{ gap: 6 }}>
-        <span className="kicker">Work email</span>
+        <span className="kicker">E-mail professionnel</span>
         <input
           type="email"
           value={email}
@@ -47,7 +47,7 @@ export function LoginForm({ firstEmail }: { firstEmail?: string }) {
         />
       </label>
       <label className="col" style={{ gap: 6 }}>
-        <span className="kicker">Password</span>
+        <span className="kicker">Mot de passe</span>
         <input
           type="password"
           value={password}
@@ -63,10 +63,10 @@ export function LoginForm({ firstEmail }: { firstEmail?: string }) {
         </p>
       )}
       <button type="submit" className="btn primary" disabled={busy} style={{ marginTop: 4 }}>
-        {busy ? "Signing in…" : "Continue →"}
+        {busy ? "Connexion…" : "Continuer →"}
       </button>
       <p className="mono quiet" style={{ fontSize: 11, margin: 0 }}>
-        bearer JWT · role from membership · tenant-scoped
+        JWT porteur · rôle issu de l&apos;appartenance · limité au tenant
       </p>
     </form>
   );

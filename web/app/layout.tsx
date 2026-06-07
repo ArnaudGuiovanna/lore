@@ -8,12 +8,12 @@ const splineMono = Spline_Sans_Mono({ subsets: ["latin"], display: "swap", varia
 
 export const metadata: Metadata = {
   title: "LORE — Learning Orchestration Runtime Engine",
-  description: "A headless LMS where the runtime owns progression. Frontend in the LECTURE design language.",
+  description: "Un LMS headless où le runtime pilote la progression. Interface dans le langage de design LECTURE.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${newsreader.variable} ${fraunces.variable} ${splineMono.variable}`}>
+    <html lang="fr" className={`${newsreader.variable} ${fraunces.variable} ${splineMono.variable}`}>
       <body>{children}</body>
     </html>
   );

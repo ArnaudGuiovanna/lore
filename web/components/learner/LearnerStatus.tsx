@@ -6,7 +6,7 @@ import Link from "next/link";
 // empty state. Tone "alarm" = the backend did not answer; tone "quiet" = a
 // genuine, healthy emptiness.
 export function LearnerError({
-  kicker = "The runtime didn't answer",
+  kicker = "Le runtime n'a pas répondu",
   detail,
   message,
 }: {
@@ -21,12 +21,12 @@ export function LearnerError({
       style={{ gap: 12, borderColor: "var(--line-2)" }}
     >
       <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <span className="mark alarm">offline</span>
+        <span className="mark alarm">hors ligne</span>
         <span className="kicker">{kicker}</span>
       </div>
       <p className="soft" style={{ maxWidth: "58ch", fontSize: 15, lineHeight: 1.6 }}>
         {detail ??
-          "We couldn't reach the learning runtime, so we won't guess at your state. Your progress is safe on the backend — this is only a read."}
+          "Nous n'avons pas pu joindre le runtime d'apprentissage ; nous ne devinerons donc pas votre état. Votre progression est en sécurité sur le backend — ceci n'est qu'une lecture."}
       </p>
       {message ? (
         <p className="mono quiet" style={{ fontSize: 11, wordBreak: "break-word" }}>
@@ -35,7 +35,7 @@ export function LearnerError({
       ) : null}
       <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
         <Link href="/learner" className="btn">
-          ↺ retry
+          ↺ réessayer
         </Link>
       </div>
     </section>

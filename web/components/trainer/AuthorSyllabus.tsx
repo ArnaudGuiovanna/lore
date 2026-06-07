@@ -18,7 +18,7 @@ export function AuthorSyllabus({
   initialOutcomes = [""],
   heading,
   intro,
-  submitLabel = "Create syllabus",
+  submitLabel = "Créer le syllabus",
   versionNote,
   onCreated,
 }: {
@@ -81,7 +81,7 @@ export function AuthorSyllabus({
       }
       onCreated(data as Syllabus, objectives, cleanOutcomes);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "network error");
+      setError(e instanceof Error ? e.message : "erreur réseau");
     } finally {
       setBusy(false);
     }
@@ -89,14 +89,14 @@ export function AuthorSyllabus({
 
   return (
     <div className={t.two}>
-      <Panel kicker="Intent only" title={heading}>
+      <Panel kicker="Intention seule" title={heading}>
         <p className="soft" style={{ marginTop: -6, marginBottom: 20, maxWidth: "62ch" }}>
           {intro}
         </p>
 
         <div className="col" style={{ gap: 22 }}>
           <label className="col" style={{ gap: 8 }}>
-            <span className="kicker">Title *</span>
+            <span className="kicker">Titre *</span>
             <input
               className={t.input}
               value={title}
@@ -111,16 +111,16 @@ export function AuthorSyllabus({
               className={t.textarea}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What durable competence should this cohort leave with?"
+              placeholder="Quelle compétence durable ce groupe doit-il acquérir ?"
             />
           </label>
 
           <div className="col" style={{ gap: 8 }}>
-            <span className="kicker">Objectives * · validated against the Go Backend DAG</span>
+            <span className="kicker">Objectifs * · validés sur le DAG Go Backend</span>
             <div className={t.chipField}>
               {objectives.length === 0 ? (
                 <span className="quiet mono" style={{ fontSize: 12 }}>
-                  Pick concepts below — these are the runtime's planning targets.
+                  Choisissez des concepts ci-dessous — ce sont les cibles de planification du runtime.
                 </span>
               ) : (
                 objectives.map((id) => (
@@ -129,7 +129,7 @@ export function AuthorSyllabus({
                     <button
                       type="button"
                       className={t.objRm}
-                      aria-label={`Remove ${id}`}
+                      aria-label={`Retirer ${id}`}
                       onClick={() => removeObjective(id)}
                     >
                       ×
@@ -148,20 +148,20 @@ export function AuthorSyllabus({
           </div>
 
           <div className="col" style={{ gap: 8 }}>
-            <span className="kicker">Outcomes · measurable</span>
+            <span className="kicker">Acquis · mesurables</span>
             {outcomes.map((o, i) => (
               <div key={i} className={t.outcomeRow}>
                 <input
                   className={t.input}
                   value={o}
                   onChange={(e) => setOutcome(i, e.target.value)}
-                  placeholder="The learner can …"
+                  placeholder="L'apprenant sait …"
                 />
                 {outcomes.length > 1 ? (
                   <button
                     type="button"
                     className={t.outcomeRm}
-                    aria-label="Remove outcome"
+                    aria-label="Retirer l'acquis"
                     onClick={() => setOutcomes((arr) => arr.filter((_, j) => j !== i))}
                   >
                     ×
@@ -175,13 +175,14 @@ export function AuthorSyllabus({
               style={{ alignSelf: "flex-start" }}
               onClick={() => setOutcomes((o) => [...o, ""])}
             >
-              + Add outcome
+              + Ajouter un acquis
             </button>
           </div>
 
           <p className={t.note}>
-            No courses. No resources. No manual ordering. You declare <b>intent</b>; the runtime plans the
-            parcours and the LLM generates each activity's framing from a TutorInstruction.
+            Pas de cours. Pas de ressources. Pas d&apos;ordonnancement manuel. Vous déclarez l&apos;<b>intention</b> ;
+            le runtime planifie le parcours et le LLM génère le cadrage de chaque activité à partir d&apos;une
+            TutorInstruction.
           </p>
 
           {versionNote ? (
@@ -203,7 +204,7 @@ export function AuthorSyllabus({
               disabled={!valid || busy}
               onClick={submit}
             >
-              {busy ? "Saving…" : submitLabel}
+              {busy ? "Enregistrement…" : submitLabel}
             </button>
             <span className="quiet mono" style={{ fontSize: 11 }}>
               POST /api/syllabi
@@ -213,7 +214,7 @@ export function AuthorSyllabus({
       </Panel>
 
       <div className={t.sticky}>
-        <Panel kicker="Request payload" title="What you send">
+        <Panel kicker="Charge utile de la requête" title="Ce que vous envoyez">
           <p className="quiet mono" style={{ fontSize: 11, marginTop: -4, marginBottom: 10 }}>
             POST /v1/tenants/{"{t}"}/syllabi
           </p>

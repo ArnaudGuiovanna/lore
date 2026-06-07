@@ -8,9 +8,9 @@ import styles from "./AppBar.module.css";
 // Display labels for the current-role chip. The role is derived from membership;
 // each surface passes the one it represents.
 const ROLE_LABEL: Record<SurfaceRole, string> = {
-  learner: "Learner",
-  trainer: "Trainer",
-  admin: "Tenant Admin",
+  learner: "Apprenant",
+  trainer: "Formateur",
+  admin: "Administrateur",
 };
 
 // The unified LECTURE top bar: wordmark, always-visible tenant scope chip, the
@@ -26,7 +26,7 @@ export async function AppBar({ role }: { role: SurfaceRole }) {
           LORE.
         </Link>
 
-        <span className={styles.scope} title="Every backend call is bearer-JWT scoped to this tenant.">
+        <span className={styles.scope} title="Chaque appel backend est limité à ce tenant par un JWT porteur.">
           <span className={styles.scopeKey}>tenant</span>
           <span>{s.tenantSlug}</span>
           <span className={styles.scopeSep}>·</span>

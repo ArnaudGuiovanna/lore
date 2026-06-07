@@ -15,9 +15,9 @@ export interface FieldDiff {
 export function ReviewState({
   diffs,
   impact,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  acknowledgement = "I understand the impact of this change.",
+  confirmLabel = "Confirmer",
+  cancelLabel = "Annuler",
+  acknowledgement = "Je comprends l’impact de ce changement.",
   busy = false,
   error,
   onConfirm,
@@ -55,7 +55,7 @@ export function ReviewState({
 
       {impact ? (
         <div className="rs-impact panel" style={{ padding: 16 }}>
-          <span className="kicker">Impact</span>
+          <span className="kicker">Impact</span>{/* "Impact" identique en FR */}
           <div className="soft" style={{ marginTop: 6 }}>
             {impact}
           </div>
@@ -85,7 +85,7 @@ export function ReviewState({
           disabled={!ack || busy}
           onClick={onConfirm}
         >
-          {busy ? "Saving…" : confirmLabel}
+          {busy ? "Enregistrement…" : confirmLabel}
         </button>
         {onCancel ? (
           <button type="button" className="btn ghost" disabled={busy} onClick={onCancel}>

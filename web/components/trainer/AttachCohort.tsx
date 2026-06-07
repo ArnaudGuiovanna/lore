@@ -61,7 +61,7 @@ export function AttachCohort({
       }
       setBinding(data as SyllabusBinding);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "network error");
+      setError(e instanceof Error ? e.message : "erreur réseau");
     } finally {
       setBusy(false);
     }
@@ -70,25 +70,25 @@ export function AttachCohort({
   return (
     <div className="col" style={{ gap: 24 }}>
       <div className={t.two}>
-        <Panel kicker="Attach a cohort" title="The binding fires — the parcours materializes">
+        <Panel kicker="Rattacher un groupe" title="Le rattachement se déclenche — le parcours se matérialise">
           <p className="soft" style={{ marginTop: -6, marginBottom: 18, maxWidth: "62ch" }}>
-            You don&apos;t order activities. You bind <strong>{syllabusTitle}</strong> to a cohort. The runtime
-            owns progression from there.
+            Vous n&apos;ordonnez pas les activités. Vous rattachez <strong>{syllabusTitle}</strong> à un groupe.
+            Le runtime pilote la progression à partir de là.
           </p>
 
           <Card style={{ marginBottom: 16, borderColor: "rgba(42,79,62,.3)", background: "var(--accent-soft)" }}>
             <div className="spread">
               <div className="col" style={{ gap: 3 }}>
-                <span className="kicker">target · COHORT</span>
+                <span className="kicker">cible · GROUPE</span>
                 <strong style={{ fontSize: 18 }}>{cohortName}</strong>
-                <span className="quiet mono" style={{ fontSize: 11 }}>{learnerCount} learners</span>
+                <span className="quiet mono" style={{ fontSize: 11 }}>{learnerCount} apprenants</span>
               </div>
-              <span className="pill on">selected</span>
+              <span className="pill on">sélectionné</span>
             </div>
           </Card>
 
           <div className="col" style={{ gap: 8 }}>
-            <span className="kicker">adaptation mode</span>
+            <span className="kicker">mode d&apos;adaptation</span>
             {(["GUIDED", "SELF_DIRECTED"] as const).map((m) => (
               <button
                 key={m}
@@ -106,13 +106,13 @@ export function AttachCohort({
                 <div className="spread">
                   <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
                     {m}
-                    {m === "GUIDED" ? <span className="pill on" style={{ marginLeft: 8 }}>default</span> : null}
+                    {m === "GUIDED" ? <span className="pill on" style={{ marginLeft: 8 }}>par défaut</span> : null}
                   </span>
                 </div>
                 <p className="soft" style={{ margin: "6px 0 0", fontSize: 14 }}>
                   {m === "GUIDED"
-                    ? "The runtime drives sequencing and pacing against mastery + retention."
-                    : "The learner chooses next concepts within the runtime's prerequisite guardrails."}
+                    ? "Le runtime pilote le séquencement et le rythme en fonction de la maîtrise et de la rétention."
+                    : "L'apprenant choisit les concepts suivants dans les garde-fous de prérequis du runtime."}
                 </p>
               </button>
             ))}
@@ -126,26 +126,26 @@ export function AttachCohort({
 
           <div className="row" style={{ marginTop: 18 }}>
             <button type="button" className="btn primary" disabled={busy || !!binding} onClick={bind}>
-              {busy ? "Binding…" : binding ? "Bound ✓" : "Bind & generate parcours"}
+              {busy ? "Rattachement…" : binding ? "Rattaché ✓" : "Rattacher & générer le parcours"}
             </button>
             <span className="quiet mono" style={{ fontSize: 11 }}>POST /api/syllabi/bind</span>
           </div>
         </Panel>
 
         <div className={t.sticky}>
-          <Panel kicker="What the binding activates" title="Runtime + LLM">
+          <Panel kicker="Ce que le rattachement active" title="Runtime + LLM">
             <p className="soft" style={{ fontSize: 14, marginTop: -4 }}>
-              The binding is the only authoritative act here. Once written, the runtime plans the parcours from
-              the objectives and the LLM streams each activity&apos;s framing.
+              Le rattachement est le seul acte qui fait autorité ici. Une fois écrit, le runtime planifie le
+              parcours à partir des objectifs et le LLM diffuse le cadrage de chaque activité.
             </p>
             <div className="col" style={{ gap: 8, marginTop: 12 }}>
-              <SourceMark source="runtime" label="orders concepts" detail="prerequisite-respecting" />
-              <SourceMark source="llm" label="frames each activity" detail="from TutorInstruction" />
-              <SourceMark source="fallbk" label="instruction-only" detail="if no provider" />
+              <SourceMark source="runtime" label="ordonne les concepts" detail="respect des prérequis" />
+              <SourceMark source="llm" label="cadre chaque activité" detail="depuis la TutorInstruction" />
+              <SourceMark source="fallbk" label="instruction seule" detail="si aucun fournisseur" />
             </div>
             {binding ? (
               <p className="quiet mono" style={{ fontSize: 11, marginTop: 14, wordBreak: "break-all" }}>
-                binding {binding.id} · {binding.adaptation_mode}
+                rattachement {binding.id} · {binding.adaptation_mode}
               </p>
             ) : null}
           </Panel>
@@ -154,13 +154,14 @@ export function AttachCohort({
 
       {binding ? (
         <Panel
-          kicker="Generated parcours"
-          title="The runtime sequenced these concepts"
+          kicker="Parcours généré"
+          title="Le runtime a séquencé ces concepts"
           aside={<SourceMark source="runtime" />}
         >
           <p className="soft" style={{ marginTop: -6, marginBottom: 18, maxWidth: "62ch" }}>
-            Order is <strong>runtime-decided</strong> along the domain DAG. The per-activity framing is
-            <strong> LLM-generated</strong> and disposable — regenerate at will; the runtime owns the order.
+            L&apos;ordre est <strong>décidé par le runtime</strong> le long du DAG du domaine. Le cadrage de chaque
+            activité est <strong>généré par le LLM</strong> et jetable — régénérez à volonté ; l&apos;ordre
+            appartient au runtime.
           </p>
           <ol className={t.parcours}>
             {ordered.map((o, i) => (
@@ -171,21 +172,21 @@ export function AttachCohort({
                     <span className={t.pconcept}>{o.concept.name}</span>
                     <span className="row" style={{ gap: 10 }}>
                       {o.prereqs.length ? (
-                        <span className={t.pprereq}>after {o.prereqs.join(", ")}</span>
+                        <span className={t.pprereq}>après {o.prereqs.join(", ")}</span>
                       ) : (
-                        <span className={t.pprereq}>entry point</span>
+                        <span className={t.pprereq}>point d&apos;entrée</span>
                       )}
                       <SourceMark source="runtime" />
                     </span>
                   </div>
                   <div className={t.pbody}>
                     <div className="kicker" style={{ marginBottom: 6 }}>
-                      <SourceMark source="llm" label="framing" />
+                      <SourceMark source="llm" label="cadrage" />
                     </div>
                     <StreamReader
-                      text={`We open ${o.concept.name.toLowerCase()} once ${
-                        o.prereqs.length ? o.prereqs.join(" and ").toLowerCase() : "the prerequisites"
-                      } hold. Expect a short diagnostic, then guided practice calibrated to the cohort's current mastery.`}
+                      text={`Nous ouvrons ${o.concept.name.toLowerCase()} dès que ${
+                        o.prereqs.length ? o.prereqs.join(" et ").toLowerCase() : "les prérequis"
+                      } sont acquis. Attendez-vous à un court diagnostic, puis à une pratique guidée calibrée sur la maîtrise actuelle du groupe.`}
                     />
                   </div>
                 </div>

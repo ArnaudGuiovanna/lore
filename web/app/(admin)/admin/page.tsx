@@ -89,20 +89,20 @@ export default async function AdminHome() {
             </span>
           </div>
           <section className="panel" style={{ maxWidth: "60ch", marginTop: 24 }} role="alert">
-            <p className="kicker" style={{ color: "var(--alarm)" }}>Control plane · unavailable</p>
+            <p className="kicker" style={{ color: "var(--alarm)" }}>Plan de contrôle · indisponible</p>
             <h1 className="standfirst" style={{ margin: "10px 0 12px" }}>
-              The runtime didn&apos;t answer.
+              Le runtime n&apos;a pas répondu.
             </h1>
             <p className="soft" style={{ marginBottom: 16, maxWidth: "58ch" }}>
-              The tenant control plane couldn&apos;t reach the runtime, so there&apos;s nothing durable to
-              show — no domain DAG to validate, no LLM defaults, no outbox trace. This is a backend
-              reachability problem, not lost configuration. Nothing has been changed.
+              Le plan de contrôle du tenant n&apos;a pas pu joindre le runtime ; il n&apos;y a donc rien de durable à
+              afficher — aucun DAG de domaine à valider, aucun défaut LLM, aucune trace d&apos;outbox. C&apos;est un
+              problème d&apos;accès au backend, pas une perte de configuration. Rien n&apos;a été modifié.
             </p>
             <p className="mono quiet" style={{ fontSize: 11, marginBottom: 18, wordBreak: "break-word" }}>
-              GET /domains/{s.domainId.slice(0, 8)}… · GET /llm-configurations · GET /events/outbox · no response
+              GET /domains/{s.domainId.slice(0, 8)}… · GET /llm-configurations · GET /events/outbox · pas de réponse
             </p>
             <Link href="/admin" className="btn primary" style={{ textDecoration: "none" }}>
-              ↺ Retry
+              ↺ Réessayer
             </Link>
           </section>
         </div>
@@ -198,7 +198,7 @@ export default async function AdminHome() {
             email: who.email,
             role: m.role,
             scope: `tenant · ${s.tenantSlug}`,
-            status: isSelf ? `${m.status.toLowerCase()} · you` : m.status.toLowerCase(),
+            status: isSelf ? `${m.status.toLowerCase()} · vous` : m.status.toLowerCase(),
             self: isSelf,
             userId: m.user_id,
             // a tenant admin can re-grant anyone except a SUPER_ADMIN or themselves
@@ -218,7 +218,7 @@ export default async function AdminHome() {
           email: c.email,
           role: c.role,
           scope: `tenant · ${s.tenantSlug}`,
-          status: isSelf ? "active · you" : "active",
+          status: isSelf ? "actif · vous" : "actif",
           self: isSelf,
           userId: c.userId,
           manageable: c.role !== "SUPER_ADMIN" && !isSelf,
@@ -338,7 +338,7 @@ export default async function AdminHome() {
     payload: e.payload,
     annotation:
       e.event_type === "SyllabusBound" || e.event_type === "SyllabusCreated"
-        ? "by trainer R. Köhler — not an admin action"
+        ? "par le formateur R. Köhler — pas une action d'admin"
         : undefined,
   }));
 

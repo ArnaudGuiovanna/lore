@@ -16,6 +16,16 @@ function sevClass(sev: string): string {
   return t.alertLow;
 }
 
+// French labels for the alert lifecycle status (the pill on each row).
+function statusLabel(status: string): string {
+  const map: Record<string, string> = {
+    OPEN: "ouverte",
+    ACKNOWLEDGED: "prise en compte",
+    RESOLVED: "résolue",
+  };
+  return map[status] ?? status.toLowerCase();
+}
+
 // ALERTS: triage runtime-raised alerts. The runtime decides WHAT to surface and the
 // recommended action; the trainer only changes lifecycle status (PATCH /api/alerts/[id]).
 export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName: (id: string) => string }) {
@@ -50,7 +60,7 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
       }
       setAlerts((as) => as.map((a) => (a.id === id ? (data as Alert) : a)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "network error");
+      setError(e instanceof Error ? e.message : "erreur réseau");
     } finally {
       setPending(null);
     }
@@ -60,13 +70,13 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
 
   return (
     <Panel
-      kicker="Alerts · grouped by recommended action"
-      title="Triage the runtime's signals"
-      aside={<span className="mono quiet" style={{ fontSize: 12 }}>{open} open · {alerts.length} total</span>}
+      kicker="Alertes · groupées par action recommandée"
+      title="Triez les signaux du runtime"
+      aside={<span className="mono quiet" style={{ fontSize: 12 }}>{open} ouverte(s) · {alerts.length} au total</span>}
     >
       <p className="soft" style={{ marginTop: -6, marginBottom: 20, maxWidth: "62ch" }}>
-        The runtime raises these from durable state and prescribes an action. You set lifecycle status — you never
-        edit mastery.
+        Le runtime les remonte depuis l&apos;état durable et prescrit une action. Vous fixez le statut du cycle de
+        vie — vous ne modifiez jamais la maîtrise.
       </p>
 
       {error ? (
@@ -74,7 +84,7 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
       ) : null}
 
       {alerts.length === 0 ? (
-        <p className="quiet mono" style={{ fontSize: 13 }}>No alerts. The cohort is within bounds.</p>
+        <p className="quiet mono" style={{ fontSize: 13 }}>Aucune alerte. Le groupe est dans les clous.</p>
       ) : (
         groups.map(([action, items]) => (
           <div key={action} style={{ marginBottom: 22 }}>
@@ -96,14 +106,14 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
                   <div className={t.alertBody}>
                     <strong className="row" style={{ gap: 9, fontFamily: "var(--serif)", fontSize: 16 }}>
                       {learnerName(a.learner_id)}
-                      <span className="pill">{a.status.toLowerCase()}</span>
+                      <span className="pill">{statusLabel(a.status)}</span>
                     </strong>
                     <span className="soft" style={{ fontSize: 14 }}>
                       {alertLabel(a.alert_type)}
                       {a.concept_id ? <> · <span className="mono">{a.concept_id}</span></> : null} — {a.recommended_action}
                     </span>
                     <span className="quiet mono" style={{ fontSize: 10 }}>
-                      raised {fmtDate(a.created_at, true)}
+                      émise le {fmtDate(a.created_at, true)}
                     </span>
                   </div>
                   <div className={t.alertActions}>
@@ -114,7 +124,7 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
                         disabled={pending === a.id}
                         onClick={() => patch(a.id, "ACKNOWLEDGED")}
                       >
-                        {pending === a.id ? "…" : "Acknowledge"}
+                        {pending === a.id ? "…" : "Prendre en compte"}
                       </button>
                     ) : null}
                     {a.status !== "RESOLVED" ? (
@@ -124,7 +134,7 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
                         disabled={pending === a.id}
                         onClick={() => patch(a.id, "RESOLVED")}
                       >
-                        {pending === a.id ? "…" : "Resolve"}
+                        {pending === a.id ? "…" : "Résoudre"}
                       </button>
                     ) : (
                       <button
@@ -133,7 +143,7 @@ export function Alerts({ initial, learnerName }: { initial: Alert[]; learnerName
                         disabled={pending === a.id}
                         onClick={() => patch(a.id, "OPEN")}
                       >
-                        Reopen
+                        Rouvrir
                       </button>
                     )}
                   </div>

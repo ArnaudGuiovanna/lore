@@ -10,13 +10,33 @@ export function fmtPct(x: number | undefined | null, digits = 0): string {
   return `${(clamp(x, 0, 1) * 100).toFixed(digits)}%`;
 }
 
-// Deterministic, server-safe date formatting (UTC, no locale drift).
+// French (fr-FR) date formatting. Deterministic and server-safe: we pin the
+// timeZone to UTC so the output never drifts between server and client (the
+// backend timestamps are UTC). Produces e.g. "07/06/2026" and, with time,
+// "07/06/2026 14:30 UTC".
+const FR_DATE = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+const FR_DATETIME = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 export function fmtDate(iso?: string | null, withTime = false): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const date = d.toISOString().slice(0, 10);
-  return withTime ? `${date} ${d.toISOString().slice(11, 16)} UTC` : date;
+  if (!withTime) return FR_DATE.format(d);
+  // "07/06/2026 14:30" → append the explicit UTC marker.
+  return `${FR_DATETIME.format(d).replace(/,?\s+/, " ")} UTC`;
 }
 
 // "review_due" / "REVIEW DUE" -> "Review Due"

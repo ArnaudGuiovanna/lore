@@ -89,27 +89,27 @@ export function DomainGraph({ graph }: { graph: DomainGraphData }) {
   return (
     <div className="col" style={{ gap: 22 }}>
       <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <Mark source="runtime">runtime decided structure</Mark>
-        <span className="mono quiet" style={{ fontSize: 11 }}>domain · {graph.domainName}</span>
+        <Mark source="runtime">structure décidée par le runtime</Mark>
+        <span className="mono quiet" style={{ fontSize: 11 }}>domaine · {graph.domainName}</span>
       </div>
       <p className="soft" style={{ maxWidth: "62ch", margin: 0 }}>
-        This is the dependency graph the runtime walks to choose each learner&apos;s next concept. You can
-        read it and validate it; you cannot edit progression. Edges point from prerequisite → dependent; diff
-        is the runtime&apos;s difficulty weight.
+        Voici le graphe de dépendances que le runtime parcourt pour choisir le prochain concept de chaque
+        apprenant. Vous pouvez le lire et le valider ; vous ne pouvez pas modifier la progression. Les arêtes vont
+        du prérequis → dépendant ; «&nbsp;diff&nbsp;» est le poids de difficulté du runtime.
       </p>
 
       <Panel
-        kicker="Domain graph"
-        title="The concept DAG, read-only"
+        kicker="Graphe du domaine"
+        title="Le DAG de concepts, en lecture seule"
         aside={<span className="mono quiet" style={{ fontSize: 11 }}>GET /v1/tenants/…/domains/{graph.domainId.slice(0, 8)}</span>}
       >
         {graph.concepts.length === 0 ? (
           <div className={a.emptyState} role="status">
-            <span className={a.ek}>no concepts resolved</span>
+            <span className={a.ek}>aucun concept résolu</span>
             <span>
-              The domain read returned no concepts, so there is no DAG to walk yet. Either the runtime
-              didn&apos;t answer, or this domain has not been populated. The graph is the runtime&apos;s — the
-              control plane only reads it, so there is nothing to add here.
+              La lecture du domaine n&apos;a renvoyé aucun concept ; il n&apos;y a donc pas encore de DAG à parcourir.
+              Soit le runtime n&apos;a pas répondu, soit ce domaine n&apos;a pas été peuplé. Le graphe appartient au
+              runtime — le plan de contrôle ne fait que le lire, il n&apos;y a donc rien à ajouter ici.
             </span>
           </div>
         ) : (
@@ -120,7 +120,7 @@ export function DomainGraph({ graph }: { graph: DomainGraphData }) {
             viewBox={`0 0 ${width} ${height}`}
             style={{ width: width }}
             role="img"
-            aria-label={`${graph.domainName} concept dependency graph`}
+            aria-label={`Graphe de dépendances des concepts ${graph.domainName}`}
           >
             <defs>
               <marker id="adm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -164,16 +164,16 @@ export function DomainGraph({ graph }: { graph: DomainGraphData }) {
 
         <div className={a.legend}>
           <span className={a.lg}>
-            <span className={a.sw} /> concept · prereq → dependent
+            <span className={a.sw} /> concept · prérequis → dépendant
           </span>
-          <span className={a.lg}>arrowhead = direction of dependency</span>
+          <span className={a.lg}>pointe de flèche = sens de la dépendance</span>
         </div>
 
         <div className={a.validity}>
           <span className={a.ck}>{acyclic ? "✓" : "!"}</span>
           <span>
-            {graph.concepts.length} concepts · {edges.length} edges ·{" "}
-            {acyclic ? "acyclic — no cycles, no invalid edges. Topological order resolved." : "cycle detected — binding would be refused."}
+            {graph.concepts.length} concepts · {edges.length} arêtes ·{" "}
+            {acyclic ? "acyclique — aucun cycle, aucune arête invalide. Ordre topologique résolu." : "cycle détecté — le rattachement serait refusé."}
           </span>
         </div>
         </>
@@ -183,9 +183,10 @@ export function DomainGraph({ graph }: { graph: DomainGraphData }) {
       <div className={a.note}>
         <span className={a.noteIco} aria-hidden="true">↻</span>
         <span>
-          Validation is <b>cycle-safe</b>: the runtime refuses to bind a syllabus over a graph with a cycle or
-          an edge to an unknown concept. Here, the domain read resolves a clean topological order — so the
-          runtime can always name a next concept. Graph version <b>v{graph.graphVersion}</b>.
+          La validation est <b>sûre vis-à-vis des cycles</b> : le runtime refuse de rattacher un syllabus sur un
+          graphe comportant un cycle ou une arête vers un concept inconnu. Ici, la lecture du domaine résout un
+          ordre topologique propre — le runtime peut donc toujours nommer un concept suivant. Version du graphe{" "}
+          <b>v{graph.graphVersion}</b>.
         </span>
       </div>
     </div>

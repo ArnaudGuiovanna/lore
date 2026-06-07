@@ -60,20 +60,20 @@ export default async function TrainerHome() {
             style={{ maxWidth: "60ch", marginTop: 24, textAlign: "left" }}
             role="alert"
           >
-            <p className="kicker" style={{ color: "var(--alarm)" }}>Trainer console · unavailable</p>
+            <p className="kicker" style={{ color: "var(--alarm)" }}>Console formateur · indisponible</p>
             <h1 className="standfirst" style={{ margin: "10px 0 12px" }}>
-              The runtime didn&apos;t answer.
+              Le runtime n&apos;a pas répondu.
             </h1>
             <p className="soft" style={{ marginBottom: 16 }}>
-              The domain graph for <strong>{s.cohortName}</strong> couldn&apos;t be reached, so there&apos;s
-              nothing durable to show — no concepts to author against, no roster to triage. This is a backend
-              reachability problem, not lost work. Nothing has been changed.
+              Le graphe du domaine pour <strong>{s.cohortName}</strong> n&apos;a pas pu être joint ; il n&apos;y a
+              donc rien de durable à afficher — aucun concept sur lequel rédiger, aucune liste à trier. C&apos;est
+              un problème d&apos;accès au backend, pas une perte de travail. Rien n&apos;a été modifié.
             </p>
             <p className="mono quiet" style={{ fontSize: 11, marginBottom: 18 }}>
-              GET /domains/{s.domainId.slice(0, 8)}… · no response
+              GET /domains/{s.domainId.slice(0, 8)}… · pas de réponse
             </p>
             <Link href="/trainer" className="btn primary" style={{ textDecoration: "none" }}>
-              Retry
+              Réessayer
             </Link>
           </section>
         </div>
@@ -125,12 +125,12 @@ export default async function TrainerHome() {
     id: s.syllabusId,
     title: "Production-grade Go persistence",
     description:
-      "Author durable, transactional persistence for a Go backend — connection lifecycle, transactions, and safe migrations.",
+      "Concevoir une persistance durable et transactionnelle pour un backend Go — cycle de vie des connexions, transactions et migrations sûres.",
     objectives: concepts.filter((c) => ["persistence", "transactions", "migrations"].includes(c.id)).map((c) => c.id),
     outcomes: [
-      "Open and reuse a connection pool without leaks.",
-      "Wrap multi-step writes in a transaction with correct rollback.",
-      "Apply forward-only migrations safely against live data.",
+      "Ouvrir et réutiliser un pool de connexions sans fuite.",
+      "Encapsuler des écritures multi-étapes dans une transaction avec un rollback correct.",
+      "Appliquer des migrations en avant uniquement, en toute sécurité, sur des données en production.",
     ],
     version: 1,
     bound: true,
@@ -145,7 +145,7 @@ export default async function TrainerHome() {
           </Link>
           <span className="row" style={{ gap: 16, alignItems: "center" }}>
             <Link href="/trainer/emargement" className="mono" style={{ fontSize: 12, textDecoration: "underline" }}>
-              Émargement / Attendance →
+              Émargement / Présences →
             </Link>
             <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
               tenant {s.tenantSlug} · TRAINER · R. Köhler

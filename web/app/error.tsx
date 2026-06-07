@@ -7,14 +7,14 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   return (
     <div className="wrap" style={{ maxWidth: 720, padding: "80px 24px 96px" }}>
       <div className="panel" style={{ padding: 32 }}>
-        <span className="mark alarm">runtime unreachable</span>
+        <span className="mark alarm">runtime injoignable</span>
         <h1 className="standfirst" style={{ marginTop: 18, maxWidth: "24ch" }}>
-          The runtime didn’t answer.
+          Le runtime n’a pas répondu.
         </h1>
         <p className="soft" style={{ marginTop: 12, maxWidth: "56ch" }}>
-          This surface reads live, tenant-scoped state from the backend. The last request failed —
-          the server may be down, restarting, or the seed may be missing. Nothing was lost; the
-          runtime owns progression, and your evidence is durable.
+          Cette surface lit l’état en direct, limité au tenant, depuis le backend. La dernière requête a
+          échoué — le serveur est peut-être arrêté, en redémarrage, ou les données initiales manquent. Rien
+          n’est perdu ; le runtime pilote la progression et vos preuves sont durables.
         </p>
 
         {error?.digest ? (
@@ -25,10 +25,10 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
         <div className="row" style={{ gap: 12, marginTop: 26, flexWrap: "wrap" }}>
           <button type="button" className="btn primary" onClick={() => reset()}>
-            Try again
+            Réessayer
           </button>
           <a className="btn ghost" href="/">
-            Back to entry
+            Retour à l’accueil
           </a>
         </div>
       </div>

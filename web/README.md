@@ -12,6 +12,25 @@ admins manage tenants, people, and policy but do **not** own syllabi.
 
 This guide is for a training organization (OF) that wants to run LORE itself.
 
+## Language (i18n) — French by default
+
+The UI ships **in French by default** (`<html lang="fr">`): the users are French
+training organizations (*organismes de formation*). The whole learner / trainer /
+admin surface, the AppBar + role nav, login, setup, attestations, émargement and
+RGPD copy are French. Dates and numbers are formatted with the **`fr-FR`** locale
+via `web/lib/format.ts` (`fmtDate` pins the timeZone to UTC so it stays
+deterministic between server and client).
+
+This is deliberately a **pragmatic central dictionary, not an i18n routing
+framework**. `web/lib/i18n.ts` holds a small FR string map plus a pure,
+server+client-safe `t(key, vars?)` helper used for the **shared/repeated** strings
+(role labels, provenance marks — "décidé par le runtime" / "généré par le LLM" /
+"instruction seule"); most surface copy is translated **inline**. Runtime-first
+vocabulary stays meaningful in French while short technical marks may remain
+bilingual. The Playwright smoke suite (`web/e2e/*.spec.ts`) asserts the French
+copy — stable `data-testid` attributes back the key assertions so the suite is
+robust to wording tweaks.
+
 ---
 
 ## What is and isn't implemented

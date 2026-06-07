@@ -18,7 +18,7 @@ function stateOf(slot: unknown): LearnerState | undefined {
 function masteryLine(slot: unknown): string {
   const st = stateOf(slot);
   if (!st) return "—";
-  return `mastery ${fmtPct(st.mastery)} · retention ${fmtPct(st.retention)} · ${st.card_state}`;
+  return `maîtrise ${fmtPct(st.mastery)} · rétention ${fmtPct(st.retention)} · ${st.card_state}`;
 }
 
 export default async function HistoryScreen() {
@@ -31,11 +31,11 @@ export default async function HistoryScreen() {
 
   const header = (
     <div className="col" style={{ gap: 8 }}>
-      <span className="kicker">History</span>
-      <h1 className="standfirst">Every step the runtime took with you.</h1>
+      <span className="kicker">Historique</span>
+      <h1 className="standfirst">Chaque étape parcourue par le runtime avec vous.</h1>
       <p className="soft" style={{ maxWidth: "62ch", fontSize: 15, lineHeight: 1.6 }}>
-        Pedagogical snapshots — before, what you showed, after, and why. The
-        runtime&rsquo;s reasoning, made legible.
+        Instantanés pédagogiques — avant, ce que vous avez montré, après, et pourquoi. Le
+        raisonnement du runtime, rendu lisible.
       </p>
     </div>
   );
@@ -45,7 +45,7 @@ export default async function HistoryScreen() {
       <div className="col" style={{ gap: 22 }}>
         {header}
         <LearnerError
-          detail="We couldn't reach the runtime to read your snapshots. Your history is preserved on the backend — this view is read-only."
+          detail="Nous n'avons pas pu joindre le runtime pour lire vos instantanés. Votre historique est conservé sur le backend — cette vue est en lecture seule."
           message={snapsRes.error}
         />
       </div>
@@ -63,10 +63,10 @@ export default async function HistoryScreen() {
     const masteryDelta = typeof decision.mastery_delta === "number" ? decision.mastery_delta : undefined;
 
     const obsBits: string[] = [];
-    if (typeof observation.success === "boolean") obsBits.push(observation.success ? "success" : "miss");
+    if (typeof observation.success === "boolean") obsBits.push(observation.success ? "réussite" : "échec");
     if (typeof observation.score === "number") obsBits.push(`score ${observation.score.toFixed(2)}`);
     if (typeof observation.error_type === "string" && observation.error_type)
-      obsBits.push(`error: ${observation.error_type}`);
+      obsBits.push(`erreur : ${observation.error_type}`);
 
     return {
       id: snap.id,
@@ -77,11 +77,11 @@ export default async function HistoryScreen() {
       after: masteryLine(snap.after),
       rationale: (
         <span>
-          {rationale ?? "runtime decision recorded"}
+          {rationale ?? "décision du runtime enregistrée"}
           {masteryDelta !== undefined ? (
             <>
               {" "}
-              <span className="mono quiet">(Δ mastery {masteryDelta >= 0 ? "+" : ""}{masteryDelta.toFixed(3)})</span>
+              <span className="mono quiet">(Δ maîtrise {masteryDelta >= 0 ? "+" : ""}{masteryDelta.toFixed(3)})</span>
             </>
           ) : null}
         </span>
@@ -94,10 +94,10 @@ export default async function HistoryScreen() {
     <div className="col" style={{ gap: 22 }}>
       {header}
       {items.length === 0 ? (
-        <LearnerEmpty kicker="No snapshots yet">
-          The timeline starts with your first attempt on{" "}
-          <Link href="/learner" style={{ color: "var(--accent)" }}>Now</Link>. Each step the
-          runtime takes — before, what you showed, after, and why — lands here.
+        <LearnerEmpty kicker="Aucun instantané pour l'instant">
+          La chronologie commence avec votre première tentative sur{" "}
+          <Link href="/learner" style={{ color: "var(--accent)" }}>Maintenant</Link>. Chaque étape que
+          le runtime parcourt — avant, ce que vous avez montré, après, et pourquoi — atterrit ici.
         </LearnerEmpty>
       ) : (
         <Timeline items={items} />

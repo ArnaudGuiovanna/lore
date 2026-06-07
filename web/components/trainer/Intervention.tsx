@@ -38,35 +38,35 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
   const learner = learners.find((l) => l.id === selectedId) ?? learners[0];
 
   const primaryAlert: Alert | undefined = learner?.alerts[0];
-  const concept = primaryAlert?.concept_id ?? "the overdue concept";
+  const concept = primaryAlert?.concept_id ?? "le concept en retard";
 
   const actions: ActionDef[] = useMemo(
     () => [
       {
         id: "retrieval",
-        title: "Schedule a retrieval session",
-        desc: `Queue a spaced-retrieval session on ${concept} — targets the overdue reviews driving retention down.`,
-        effect: "runtime effect · FSRS re-anchors the review schedule; no mastery change until the learner engages.",
+        title: "Programmer une séance de rappel",
+        desc: `Mettre en file une séance de rappel espacé sur ${concept} — vise les révisions en retard qui font baisser la rétention.`,
+        effect: "effet runtime · FSRS recale le planning de révision ; aucun changement de maîtrise tant que l'apprenant n'est pas actif.",
         lifecycle: "ACKNOWLEDGED",
       },
       {
         id: "nudge",
-        title: "Send a re-engagement nudge",
-        desc: "A calm, runtime-templated message inviting the learner back — addresses absence first.",
-        effect: "runtime effect · queues a notification; no state change. Often paired with retrieval.",
+        title: "Envoyer une relance d'engagement",
+        desc: "Un message calme, modèle du runtime, invitant l'apprenant à revenir — traite d'abord l'absence.",
+        effect: "effet runtime · met une notification en file ; aucun changement d'état. Souvent associé au rappel.",
         lifecycle: "ACKNOWLEDGED",
       },
       {
         id: "repair",
-        title: "Assign a repair activity",
-        desc: "Targets an active misconception. The runtime makes this available only when it tracks one.",
-        effect: "runtime effect · queues a repair activity bound to the misconception.",
+        title: "Assigner une activité de remédiation",
+        desc: "Vise une conception erronée active. Le runtime ne le propose que lorsqu'il en suit une.",
+        effect: "effet runtime · met en file une activité de remédiation liée à la conception erronée.",
       },
       {
         id: "escalate",
-        title: "Escalate to program advisor",
-        desc: "Hand off to a human advisor if engagement does not recover — keeps a person in the loop beyond the runtime.",
-        effect: "runtime effect · routes the alert; leaves it open under advisor ownership.",
+        title: "Escalader vers un conseiller de programme",
+        desc: "Transmettre à un conseiller humain si l'engagement ne repart pas — garde une personne dans la boucle au-delà du runtime.",
+        effect: "effet runtime · route l'alerte ; la laisse ouverte sous la responsabilité du conseiller.",
         lifecycle: "RESOLVED",
       },
     ],
@@ -97,7 +97,7 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
     // The only act the runtime actually accepts here is an alert lifecycle change —
     // a sanctioned move. We never write mastery or review state by hand.
     if (!chosen.lifecycle || !primaryAlert) {
-      setApplied({ action: chosen.id, status: "requested" });
+      setApplied({ action: chosen.id, status: "demandée" });
       return;
     }
     setBusy(true);
@@ -113,9 +113,9 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
         setError(data?.error ?? `HTTP ${res.status}`);
         return;
       }
-      setApplied({ action: chosen.id, status: chosen.lifecycle.toLowerCase() });
+      setApplied({ action: chosen.id, status: chosen.lifecycle === "RESOLVED" ? "résolue" : "prise en compte" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "network error");
+      setError(e instanceof Error ? e.message : "erreur réseau");
     } finally {
       setBusy(false);
     }
@@ -123,15 +123,15 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
 
   if (!learner) {
     return (
-      <Panel kicker="Intervention" title="No learners">
-        <p className="quiet mono" style={{ fontSize: 13 }}>No learners in this cohort.</p>
+      <Panel kicker="Intervention" title="Aucun apprenant">
+        <p className="quiet mono" style={{ fontSize: 13 }}>Aucun apprenant dans ce groupe.</p>
       </Panel>
     );
   }
 
   return (
     <div className="col" style={{ gap: 20 }}>
-      <Panel kicker="Intervention · learner" title="Pick whom to intervene for">
+      <Panel kicker="Intervention · apprenant" title="Choisissez pour qui intervenir">
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           {ranked.map((l) => (
             <button
@@ -159,12 +159,13 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
 
       <Panel
         kicker={`Intervention · ${learner.name}`}
-        title="Choose a sanctioned action"
-        aside={<SourceMark source="runtime" label="human-in-the-loop" />}
+        title="Choisissez une action sanctionnée"
+        aside={<SourceMark source="runtime" label="humain dans la boucle" />}
       >
         <p className="soft" style={{ marginTop: -6, marginBottom: 16, maxWidth: "62ch" }}>
-          You do not hand-edit mastery or review state — the runtime owns pedagogical truth. You request a
-          sanctioned move; the runtime applies it and re-derives state from the result.
+          Vous ne modifiez pas à la main la maîtrise ni l&apos;état de révision — le runtime détient la vérité
+          pédagogique. Vous demandez un mouvement sanctionné ; le runtime l&apos;applique et re-dérive l&apos;état
+          à partir du résultat.
         </p>
 
         <Card
@@ -191,25 +192,25 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
             <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <p className="soft" style={{ margin: 0, fontSize: 14, color: "var(--ink-soft)" }}>
-            The console is never the source of pedagogical truth. Mastery (<b>BKT</b>) and review state
-            (<b>FSRS</b>) are read-only here — current avg mastery <span className="mono">{fmtPct(learner.avgMastery)}</span>,
-            retention <span className="mono">{fmtPct(learner.avgRetention)}</span>. The runtime decides what it does to
-            state and writes an audit snapshot.
+            La console n&apos;est jamais la source de la vérité pédagogique. La maîtrise (<b>BKT</b>) et l&apos;état
+            de révision (<b>FSRS</b>) sont en lecture seule ici — maîtrise moyenne actuelle <span className="mono">{fmtPct(learner.avgMastery)}</span>,
+            rétention <span className="mono">{fmtPct(learner.avgRetention)}</span>. Le runtime décide de ce qu&apos;il fait
+            à l&apos;état et écrit un instantané d&apos;audit.
           </p>
         </Card>
 
         {primaryAlert ? (
           <p className="quiet mono" style={{ fontSize: 11, marginTop: -4, marginBottom: 14 }}>
-            runtime signal · {alertLabel(primaryAlert.alert_type)}
-            {primaryAlert.concept_id ? ` · ${primaryAlert.concept_id}` : ""} · recommends &ldquo;{primaryAlert.recommended_action}&rdquo;
+            signal runtime · {alertLabel(primaryAlert.alert_type)}
+            {primaryAlert.concept_id ? ` · ${primaryAlert.concept_id}` : ""} · recommande «&nbsp;{primaryAlert.recommended_action}&nbsp;»
           </p>
         ) : (
           <p className="quiet mono" style={{ fontSize: 11, marginTop: -4, marginBottom: 14 }}>
-            No open runtime alert for {learner.name} — any action here is advisory only.
+            Aucune alerte runtime ouverte pour {learner.name} — toute action ici est purement consultative.
           </p>
         )}
 
-        <div className={t.intervGrid} role="radiogroup" aria-label="Sanctioned interventions">
+        <div className={t.intervGrid} role="radiogroup" aria-label="Interventions sanctionnées">
           {actions.map((a) => {
             const disabled = isDisabled(a);
             const selected = a.id === action && !disabled;
@@ -226,12 +227,12 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
               >
                 <span className={t.actionTitle}>
                   {a.title}
-                  {a.id === "retrieval" ? <span className="pill on" style={{ marginLeft: 8 }}>recommended</span> : null}
+                  {a.id === "retrieval" ? <span className="pill on" style={{ marginLeft: 8 }}>recommandé</span> : null}
                 </span>
                 <span className={t.actionDesc}>{a.desc}</span>
                 <span className={t.actionEffect}>
                   {disabled
-                    ? "unavailable · no active misconception to repair — this block is decay, not error"
+                    ? "indisponible · aucune conception erronée active à corriger — ce blocage est un oubli, pas une erreur"
                     : a.effect}
                 </span>
               </button>
@@ -247,19 +248,19 @@ export function Intervention({ learners }: { learners: LearnerRow[] }) {
           <p className="soft" style={{ margin: 0, fontSize: 14, maxWidth: "62ch" }}>
             {applied ? (
               <>
-                Requested <strong>{chosen.title.toLowerCase()}</strong> for {learner.name}. The runtime took
-                ownership — alert now <span className="mono">{applied.status}</span>; it will close itself when the
-                learner completes the work. You changed nothing by hand.
+                <strong>{chosen.title}</strong> demandé pour {learner.name}. Le runtime a pris la main —
+                alerte désormais <span className="mono">{applied.status}</span> ; elle se fermera d&apos;elle-même
+                quand l&apos;apprenant aura terminé le travail. Vous n&apos;avez rien modifié à la main.
               </>
             ) : (
               <>
-                You will request <strong>{chosen.title.toLowerCase()}</strong> for {learner.name}. The runtime
-                applies it and writes an audit snapshot — you change nothing by hand.
+                Vous allez demander <strong>{chosen.title.toLowerCase()}</strong> pour {learner.name}. Le runtime
+                l&apos;applique et écrit un instantané d&apos;audit — vous ne modifiez rien à la main.
               </>
             )}
           </p>
           <button type="button" className="btn primary" disabled={busy || !!applied} onClick={apply}>
-            {busy ? "Applying…" : applied ? "Applied ✓" : "Apply intervention"}
+            {busy ? "Application…" : applied ? "Appliqué ✓" : "Appliquer l'intervention"}
           </button>
         </div>
       </Panel>
