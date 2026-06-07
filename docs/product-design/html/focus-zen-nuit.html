@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Zen / Veilleuse — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     VEILLEUSE — a low-arousal night-reading environment for ZEN.
+     Two restful palettes (warm-dark default + warm sepia), the airiest
+     layout of the family, soft contrast, a faint ambient warm wash.
+     ============================================================ */
+  :root{
+    /* --- default: NUIT (warm dark) --- */
+    --bg:#1a1714;
+    --bg-deep:#141210;
+    --wash-a:#2a211a;   /* warm ambient glow, top */
+    --wash-b:#1f1a22;   /* faint cool counter-glow, bottom */
+    --ink:#e8ddc9;          /* warm off-white reading ink */
+    --ink-soft:#bdb29c;
+    --ink-faint:#8a8071;
+    --ink-ghost:#5f584d;
+    --line:#332c25;
+    --line-soft:#262019;
+    --card:#211c17;
+    --card-hi:#26211a;
+    --accent:#cfa15e;       /* warm amber-gold, low-arousal */
+    --accent-deep:#e3bd83;
+    --accent-soft:#2e2718;
+    --rose:#c98a86;         /* soft misconception/negative, never harsh red */
+    --rose-soft:#2c211f;
+    --sage:#9fb79a;         /* soft positive */
+    --code-bg:#15120f;
+    --code-ink:#cabfa8;
+    --measure:62ch;         /* live reading measure (controllable) */
+    --rsize:21px;           /* live reading body size (controllable) */
+    --rlead:1.78;           /* generous leading */
+    --grain:0.5;            /* ambient grain opacity multiplier */
+  }
+  /* --- SEPIA: ink on warm paper --- */
+  body.sepia{
+    --bg:#e9ddc4;
+    --bg-deep:#e1d3b6;
+    --wash-a:#f1e8d2;
+    --wash-b:#e6dcc8;
+    --ink:#36302409;       /* placeholder, overridden below */
+    --ink:#3a3326;
+    --ink-soft:#5a5142;
+    --ink-faint:#857a64;
+    --ink-ghost:#a99c80;
+    --line:#cdbf9f;
+    --line-soft:#dcd0b3;
+    --card:#f0e7d3;
+    --card-hi:#f5edda;
+    --accent:#8a6a2c;
+    --accent-deep:#6f5320;
+    --accent-soft:#ece0c2;
+    --rose:#9c5a52;
+    --rose-soft:#ecdcc9;
+    --sage:#5f7a55;
+    --code-bg:#efe6d0;
+    --code-ink:#4a4231;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  ::selection{background:var(--accent-soft);color:var(--ink)}
+  a{color:inherit}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,[role="option"]:focus-visible,textarea:focus-visible,input:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;
+  }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Spectral", Georgia, serif;
+    font-size:18px; line-height:1.6;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    min-height:100vh; overflow-x:hidden;
+    transition:background .9s ease, color .9s ease;
+  }
+  .mono{font-family:"Spline Sans Mono",ui-monospace,monospace}
+
+  /* ---- AMBIENT environment layers: warm vignette + faint grain ---- */
+  .ambient{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .ambient .glow{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, var(--wash-a) 0%, transparent 58%),
+      radial-gradient(100% 70% at 85% 112%, var(--wash-b) 0%, transparent 55%);
+    opacity:.9;transition:opacity 1.2s ease;
+    animation:breathe 16s ease-in-out infinite;
+  }
+  @keyframes breathe{0%,100%{opacity:.78}50%{opacity:1}}
+  .ambient .vignette{
+    position:absolute;inset:0;
+    box-shadow:inset 0 0 220px 60px rgba(0,0,0,.32);
+  }
+  body.sepia .ambient .vignette{box-shadow:inset 0 0 220px 70px rgba(120,96,52,.18)}
+  .ambient .grain{
+    position:absolute;inset:-50%;width:200%;height:200%;
+    opacity:calc(.045 * var(--grain));
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode:overlay;
+  }
+  /* reduced-transparency / reduced-data users: drop grain + glow animation */
+  @media (prefers-reduced-transparency: reduce){
+    .ambient .grain{display:none}
+    .ambient .glow{animation:none}
+  }
+  body.no-grain .ambient .grain{display:none}
+
+  /* ---- chrome that recedes during reading ---- */
+  .chrome{transition:opacity .7s ease, filter .7s ease}
+  body.dim .chrome{opacity:.1; filter:blur(1.5px); pointer-events:none}
+  body.dim .chrome.keep{opacity:.34; filter:none}
+
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:300;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.06em;
+    text-decoration:none;color:var(--ink-faint);
+    background:color-mix(in srgb, var(--card) 72%, transparent);
+    backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn 1s .2s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:300;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn 1s .3s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, var(--accent-deep), var(--accent));
+    color:var(--bg-deep);display:grid;place-items:center;
+    font-family:"Spectral",serif;font-weight:600;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink-soft)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:200;
+    font-family:"Spectral",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn 1.1s .45s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:500;color:var(--accent)}
+
+  .mode-pill{
+    position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.06em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;
+    opacity:0;animation:chromeIn 1.1s .5s ease both;
+  }
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .mode-dot{background:var(--rose);box-shadow:0 0 0 4px var(--rose-soft)}
+  .mode-pill .lbl b{color:var(--ink-soft);font-weight:600}
+
+  /* ============================================================
+     READING-COMFORT CONTROLS — unobtrusive corner dock
+     ============================================================ */
+  .comfort{
+    position:fixed;bottom:16px;right:18px;z-index:300;
+    display:flex;align-items:center;gap:6px;
+    background:color-mix(in srgb, var(--card) 80%, transparent);
+    backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:999px;padding:5px 7px;
+    opacity:0;animation:chromeIn 1.1s .55s ease both;
+  }
+  .comfort .grp{display:flex;align-items:center;gap:2px}
+  .comfort .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
+  .cbtn{
+    appearance:none;cursor:pointer;border:none;background:transparent;
+    font-family:"Spline Sans Mono",monospace;color:var(--ink-faint);
+    border-radius:999px;padding:5px 9px;transition:.18s ease;line-height:1;
+    display:inline-flex;align-items:center;gap:5px;
+  }
+  .cbtn:hover{color:var(--accent);background:var(--accent-soft)}
+  .cbtn[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
+  .cbtn .a-sm{font-size:11px}
+  .cbtn .a-lg{font-size:16px;font-weight:600}
+  .cbtn .lbl{font-size:10px;letter-spacing:.04em}
+  .comfort .read-meta{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.05em;
+    color:var(--ink-ghost);padding:0 6px;min-width:74px;text-align:center;
+    white-space:nowrap;
+  }
+  @media (max-width:680px){
+    .comfort .read-meta{display:none}
+    .brand-whisper,.mode-pill{display:none}
+  }
+
+  /* ================= STAGE (the void) ================= */
+  .stage{
+    min-height:100vh; position:relative; z-index:1;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:140px 24px;
+  }
+  .zen{
+    width:100%;max-width:680px;margin:0 auto;text-align:center;
+    transition:opacity .7s ease, transform .7s ease;
+  }
+  .zen.gone{opacity:0;transform:translateY(-16px);pointer-events:none}
+
+  .eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:26px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    opacity:0;animation:riseIn 1.2s .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .eyebrow .rl{flex:0 0 40px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
+  .eyebrow .rl.r{background:linear-gradient(90deg,var(--line),transparent)}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;white-space:nowrap;
+  }
+  .badge.runtime{background:var(--accent-soft);color:var(--accent-deep);border:1px solid var(--line)}
+  .badge.llm{background:transparent;color:var(--ink-faint);border:1px solid var(--line)}
+  .badge.fallbk{background:var(--rose-soft);color:var(--rose);border:1px solid var(--line)}
+  .badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  .intent-line{
+    font-family:"Spectral",serif;font-weight:300;font-size:35px;line-height:1.4;
+    letter-spacing:-.012em;color:var(--ink);
+    margin:0 auto;max-width:600px;
+    opacity:0;animation:riseIn 1.3s .65s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .intent-line em{font-style:italic;color:var(--accent);font-weight:400}
+  .intent-line .neg{color:var(--rose);font-style:normal;font-weight:400;
+    font-family:"Spline Sans Mono",monospace;font-size:.56em;letter-spacing:-.01em}
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  /* supporting runtime state — present but recessed so the intent line is the
+     single focal point; lifts to full presence on hover/focus (one idea at rest) */
+  .intent-meta{
+    margin-top:26px;display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;align-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+    opacity:0;animation:settleIn 1.3s .8s cubic-bezier(.2,.7,.2,1) both;
+    transition:opacity .5s ease;
+  }
+  .zen:hover .intent-meta,.zen:focus-within .intent-meta{opacity:1}
+  @keyframes settleIn{from{opacity:0;transform:translateY(14px)}to{opacity:.62;transform:none}}
+  .metric{display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 12px}
+  .metric .k{letter-spacing:.07em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--rose)}
+  .metric .v.warn{color:var(--accent)}
+
+  .recovery{
+    margin-top:20px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.03em;color:var(--accent);display:inline-flex;align-items:center;gap:8px;
+    background:var(--accent-soft);border:1px solid var(--line);border-radius:999px;padding:5px 14px;
+    opacity:0;animation:settleIn 1.3s .95s cubic-bezier(.2,.7,.2,1) both;
+    transition:opacity .5s ease;
+  }
+  .zen:hover .recovery,.zen:focus-within .recovery{opacity:1}
+  .recovery svg{width:12px;height:12px}
+
+  /* ---- the single summon field + caret ---- */
+  .summon{
+    margin-top:54px;position:relative;width:100%;max-width:460px;margin-left:auto;margin-right:auto;
+    opacity:0;animation:riseIn 1.3s 1.1s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .summon-line{
+    display:flex;align-items:baseline;gap:12px;justify-content:center;
+    border-bottom:1px solid var(--line);padding:11px 4px 13px;cursor:text;
+    transition:border-color .4s ease;position:relative;
+  }
+  .summon.focused .summon-line{border-color:var(--accent)}
+  body.fallback .summon.focused .summon-line{border-color:var(--rose)}
+  .summon .glyph{
+    font-family:"Spline Sans Mono",monospace;font-size:20px;font-weight:500;color:var(--accent);
+    flex:0 0 auto;user-select:none;transition:color .3s;line-height:1;align-self:center;
+  }
+  body.fallback .summon .glyph{color:var(--rose)}
+  .field-wrap{flex:1 1 auto;position:relative;min-height:30px;text-align:left;display:flex;align-items:center}
+  .field{
+    width:100%;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:17px;line-height:1.5;
+    color:var(--ink);padding:0;margin:0;overflow:hidden;caret-color:transparent;
+  }
+  .field::placeholder{color:var(--ink-ghost)}
+  .caret{
+    position:absolute;width:9px;height:22px;background:var(--accent);border-radius:1px;
+    top:50%;transform:translateY(-50%);left:0;pointer-events:none;opacity:0;
+    transition:left .05s linear;animation:blink 1.15s steps(1) infinite;
+  }
+  body.fallback .caret{background:var(--rose)}
+  .summon.focused .caret{opacity:1}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+  .whisper-hint{
+    margin-top:18px;text-align:center;font-family:"Spline Sans Mono",monospace;
+    font-size:10.5px;letter-spacing:.05em;color:var(--ink-ghost);
+    transition:opacity .4s ease;
+  }
+  .whisper-hint kbd{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;background:var(--card);
+    border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink-soft);
+  }
+  .summon.focused .whisper-hint{opacity:0;pointer-events:none}
+
+  /* ---- sanctioned moves: quiet inline list revealed on focus ---- */
+  .moves{
+    margin-top:20px;display:flex;flex-direction:column;gap:1px;
+    max-height:0;overflow:hidden;opacity:0;
+    transition:max-height .45s ease, opacity .4s ease;
+  }
+  .summon.focused .moves.armed{max-height:380px;opacity:1}
+  .moves-head{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-ghost);padding:4px 6px 10px;text-align:left;
+    display:flex;justify-content:space-between;
+  }
+  .moves-head .ct{color:var(--accent)}
+  .move{
+    display:flex;align-items:baseline;gap:14px;padding:9px 8px;border-radius:8px;cursor:pointer;
+    text-align:left;transition:background .14s;
+  }
+  .move[aria-selected="true"],.move:hover{background:var(--card-hi)}
+  .move-key{font-family:"Spline Sans Mono",monospace;font-size:13px;font-weight:500;color:var(--accent);
+    flex:0 0 auto;min-width:172px}
+  .move-desc{font-family:"Spectral",serif;font-size:15px;color:var(--ink-soft);flex:1 1 auto;line-height:1.35}
+  .move-tag{font-family:"Spline Sans Mono",monospace;font-size:8.5px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink-ghost);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+  .move.is-disabled{opacity:.3;cursor:not-allowed}
+  .move.is-disabled:hover{background:transparent}
+
+  /* ================= FULL-BLEED READING TAKEOVER ================= */
+  .takeover{
+    position:fixed;inset:0;z-index:150;
+    background:var(--bg);
+    display:flex;flex-direction:column;align-items:center;
+    padding:108px 24px 140px;overflow-y:auto;
+    opacity:0;pointer-events:none;
+    transition:opacity .8s ease, background .9s ease;
+  }
+  .takeover.show{opacity:1;pointer-events:auto}
+  body.reading{overflow:hidden}
+  /* the airy reading column — measure driven by the comfort control */
+  .reader{
+    width:100%;max-width:var(--measure);margin:0 auto;
+    opacity:0;transform:translateY(16px);
+    transition:opacity .9s ease, transform .9s ease, max-width .5s ease;
+  }
+  .takeover.show .reader{opacity:1;transform:none}
+
+  .reader-status{
+    display:flex;align-items:center;gap:11px;margin-bottom:30px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.03em;color:var(--ink-faint);
+  }
+  .reader-status .spin{
+    width:13px;height:13px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite;
+  }
+  body.fallback .reader-status .spin{border-top-color:var(--rose)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .reader-status.done .spin{display:none}
+  .reader-status .check{display:none}
+  .reader-status.done .check{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);color:var(--bg-deep);font-size:9px}
+  body.fallback .reader-status.done .check{background:var(--rose)}
+  .reader-status .src{color:var(--ink-soft);font-weight:600}
+
+  .scenario-label{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);display:block;margin-bottom:20px}
+  .reader-badge{margin-bottom:20px;display:inline-block}
+
+  /* THE READING BODY — the hero. size + leading from the comfort controls. */
+  .reader-body{font-family:"Spectral",serif;font-size:var(--rsize);line-height:var(--rlead);color:var(--ink);
+    font-weight:300;letter-spacing:.002em}
+  .reader-body p{margin:0 0 1.35em}
+  .reader-body strong{font-weight:500;color:var(--ink)}
+
+  /* softly tinted code — never harsh */
+  pre.code{
+    margin:1.6em 0;background:var(--code-bg);border:1px solid var(--line);
+    border-radius:14px;padding:24px 26px;overflow-x:auto;
+    font-family:"Spline Sans Mono",monospace;font-size:13.5px;line-height:1.85;color:var(--code-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  pre.code .kw{color:var(--accent)}
+  pre.code .fn{color:var(--sage)}
+  pre.code .str{color:var(--ink-soft)}
+  pre.code .cm{color:var(--ink-faint);font-style:italic}
+  pre.code .err{color:var(--rose)}
+
+  ol.scaffold{margin:.6em 0 0;padding-left:0;list-style:none;counter-reset:step}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:16px 0 16px 50px;
+    font-family:"Spectral",serif;font-size:calc(var(--rsize) - 2px);line-height:1.65;color:var(--ink-soft);
+    font-weight:300;border-bottom:1px solid var(--line-soft);
+  }
+  ol.scaffold li:last-child{border-bottom:none}
+  ol.scaffold li::before{
+    content:counter(step,decimal-leading-zero);position:absolute;left:0;top:15px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;font-weight:600;color:var(--accent);
+    background:var(--accent-soft);border:1px solid var(--line);border-radius:7px;
+    width:32px;height:24px;display:grid;place-items:center;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:500}
+
+  /* reader footer: moves + evidence, revealed after stream resolves */
+  .reader-foot{
+    margin-top:42px;opacity:0;transform:translateY(10px);
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .reader-foot.show{opacity:1;transform:none}
+
+  .reader-moves{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:28px}
+  .reader-moves .gl{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-right:4px}
+  .gesture{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 14px;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .gesture:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  .gesture .g{color:var(--accent);font-weight:600}
+  .gesture.danger:hover{border-color:var(--rose);color:var(--rose)}
+  .gesture.danger .g{color:var(--rose)}
+  .gesture:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+  .inline-resp{
+    margin:0 0 1.5em;border-left:2px solid var(--line);padding:6px 0 6px 20px;
+    font-family:"Spectral",serif;font-size:calc(var(--rsize) - 2px);line-height:1.7;color:var(--ink-soft);
+    font-weight:300;
+  }
+  .inline-resp.runtime-resp{border-left-color:var(--accent)}
+  .inline-resp.fallbk-resp{border-left-color:var(--rose)}
+  .inline-resp .rtag{display:block;margin-bottom:10px}
+
+  .evidence{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px;position:relative;
+  }
+  .evidence-head{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .evidence-row{display:flex;align-items:flex-start;gap:12px}
+  .evidence .glyph{font-family:"Spline Sans Mono",monospace;font-size:17px;color:var(--ink-faint)}
+  .evidence textarea{
+    flex:1 1 auto;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:14px;line-height:1.7;color:var(--ink);
+    min-height:54px;overflow:hidden;
+  }
+  .evidence textarea::placeholder{color:var(--ink-ghost)}
+  .evidence-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:12px}
+  .evidence-foot .hint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+  .submit{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.04em;color:var(--bg-deep);background:var(--accent);border:1px solid var(--accent-deep);
+    border-radius:10px;padding:9px 17px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .submit:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .submit kbd{font-family:inherit;font-size:10px;background:rgba(0,0,0,.18);border-radius:4px;padding:1px 5px}
+
+  /* ================= STATE DELTA OVERLAY ================= */
+  .delta-veil{
+    position:fixed;inset:0;z-index:220;
+    background:color-mix(in srgb, var(--bg-deep) 70%, transparent);
+    backdrop-filter:blur(8px);
+    display:flex;align-items:center;justify-content:center;padding:40px 24px;
+    opacity:0;pointer-events:none;transition:opacity .6s ease;
+  }
+  .delta-veil.show{opacity:1;pointer-events:auto}
+  .delta{
+    width:100%;max-width:560px;background:var(--card);border:1px solid var(--line);
+    border-radius:20px;padding:28px 30px;
+    box-shadow:0 40px 90px -50px rgba(0,0,0,.8);
+    transform:translateY(18px) scale(.985);transition:transform .65s cubic-bezier(.2,.7,.2,1);
+  }
+  .delta-veil.show .delta{transform:none}
+  .delta-head{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:20px;display:flex;align-items:center;gap:9px;
+  }
+  .delta-head .ico{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .delta-rows{display:flex;flex-direction:column;gap:14px}
+  .drow{display:flex;align-items:baseline;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px;flex-wrap:wrap}
+  .drow .dk{flex:0 0 154px;color:var(--ink-faint);letter-spacing:.02em}
+  .drow .dv{display:flex;align-items:baseline;gap:9px;color:var(--ink);flex:1 1 auto;flex-wrap:wrap}
+  .drow .from{color:var(--ink-ghost)}
+  .drow .arr{color:var(--accent)}
+  .drow .to{font-weight:600;color:var(--accent)}
+  .drow .to.warn{color:var(--accent)}
+  .drow .to.bad{color:var(--rose)}
+  .drow .note{font-family:"Spectral",serif;font-style:italic;font-size:13.5px;color:var(--ink-faint);font-weight:300}
+  .delta-foot{
+    margin-top:22px;padding-top:18px;border-top:1px solid var(--line);
+    font-family:"Spectral",serif;font-size:15px;color:var(--ink-soft);font-style:italic;font-weight:300;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .delta-foot .continue{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11.5px;font-weight:600;
+    letter-spacing:.04em;text-transform:uppercase;color:var(--accent);background:transparent;
+    border:1px solid var(--accent);border-radius:999px;padding:9px 17px;transition:.18s ease;font-style:normal;
+  }
+  .delta-foot .continue:hover{background:var(--accent);color:var(--bg-deep)}
+
+  /* ---- streaming caret + word fade ---- */
+  .stream-cursor{
+    display:inline-block;width:8px;height:1.05em;background:var(--accent);
+    vertical-align:-2px;margin-left:1px;border-radius:1px;animation:blink 1.1s steps(1) infinite;
+  }
+  body.fallback .stream-cursor{background:var(--rose)}
+  .w{opacity:0;animation:wordIn .4s ease forwards}
+  @keyframes wordIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+
+  /* breath flash between intents */
+  .breath{
+    position:fixed;inset:0;z-index:160;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;opacity:0;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-ghost);
+  }
+  .breath.show{opacity:1;transition:opacity .6s ease}
+
+  @media (max-width:640px){
+    body{font-size:17px}
+    .intent-line{font-size:27px}
+    .stage{padding:110px 18px}
+    .drow .dk{flex-basis:120px}
+    .move-key{min-width:128px;font-size:12px}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+    .caret,.stream-cursor{animation:none;opacity:1}
+    .w{opacity:1;animation:none}
+    .ambient .glow{animation:none}
+  }
+</style>
+</head>
+<body>
+  <!-- ambient warm reading environment -->
+  <div class="ambient" aria-hidden="true">
+    <div class="glow"></div>
+    <div class="vignette"></div>
+    <div class="grain"></div>
+  </div>
+
+  <a class="gallery-badge chrome keep" href="../">&larr; gallery index</a>
+
+  <div class="ident chrome" aria-label="Learner identity">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar" aria-hidden="true">AO</div>
+  </div>
+
+  <div class="brand-whisper chrome" aria-hidden="true"><b>LORE</b> · veilleuse — night reading</div>
+
+  <div class="mode-pill chrome keep" role="status" aria-live="polite">
+    <span class="mode-dot" aria-hidden="true"></span>
+    <span class="lbl">tutor · <b id="modeLabel">anthropic/claude</b></span>
+  </div>
+
+  <!-- READING-COMFORT CONTROLS -->
+  <div class="comfort chrome keep" role="group" aria-label="Reading comfort controls">
+    <div class="grp" aria-label="Text size">
+      <button class="cbtn" id="sizeDown" aria-label="Decrease text size"><span class="a-sm">A</span><span aria-hidden="true">−</span></button>
+      <button class="cbtn" id="sizeUp" aria-label="Increase text size"><span aria-hidden="true">+</span><span class="a-lg">A</span></button>
+    </div>
+    <span class="sep" aria-hidden="true"></span>
+    <div class="grp" aria-label="Reading width">
+      <button class="cbtn" id="widthBtn" aria-label="Cycle reading width"><span class="lbl" id="widthLbl">measure ·</span></button>
+    </div>
+    <span class="sep" aria-hidden="true"></span>
+    <div class="grp" aria-label="Palette">
+      <button class="cbtn" id="paletteBtn" aria-pressed="false" aria-label="Toggle night and sepia reading palette"><span class="lbl" id="paletteLbl">nuit</span></button>
+    </div>
+    <span class="read-meta" id="readMeta">21px · 62ch</span>
+  </div>
+
+  <main class="stage">
+    <section class="zen" id="zen">
+      <div class="eyebrow chrome">
+        <span class="rl"></span>
+        <span class="badge runtime"><span class="dot"></span>runtime decided</span>
+        <span class="rl r"></span>
+      </div>
+      <h1 class="intent-line" id="intentLine">
+        Now — gently repair <em>persistence</em> before advancing.
+        <span class="neg">retention 0.38</span> · review overdue <span class="neg">2d</span>
+      </h1>
+
+      <div class="intent-meta chrome" id="intentMeta">
+        <span class="metric"><span class="k">mastery</span><span class="v bad" id="mMastery">0.41 ↓</span></span>
+        <span class="metric"><span class="k">retention</span><span class="v bad">0.38</span></span>
+        <span class="metric"><span class="k">misconception</span><span class="v warn">forgot-tx-rollback</span></span>
+        <span class="metric"><span class="k">gate</span><span class="v">transactions · locked</span></span>
+      </div>
+
+      <div class="chrome" style="margin-top:0">
+        <span class="recovery" id="recovery" title="The runtime deliberately lowered load after 2 failed attempts.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/>
+          </svg>
+          overload recovery — load lowered after 2 failed attempts
+        </span>
+      </div>
+
+      <section class="summon" id="summon" aria-label="Runtime command — summon">
+        <div class="summon-line" id="summonLine">
+          <span class="glyph" aria-hidden="true" id="glyph">&rsaquo;</span>
+          <div class="field-wrap">
+            <span class="caret" id="caret"></span>
+            <textarea class="field" id="field" rows="1" spellcheck="false" autocomplete="off"
+              aria-label="Summon a runtime move, or type your answer"
+              placeholder="press / or ⏎ to begin reading"></textarea>
+          </div>
+        </div>
+
+        <div class="whisper-hint" id="whisperHint">
+          a single intention waits in the dark · press <kbd>/</kbd> to reveal the sanctioned moves
+        </div>
+
+        <div class="moves" id="moves" role="listbox" aria-label="Sanctioned runtime moves">
+          <div class="moves-head"><span>sanctioned runtime moves</span><span class="ct" id="movesCount">7</span></div>
+          <div id="moveList"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div class="takeover" id="takeover" aria-live="polite" aria-hidden="true">
+    <div class="reader" id="reader"></div>
+  </div>
+
+  <div class="delta-veil" id="deltaVeil" role="dialog" aria-modal="true" aria-label="State delta" aria-hidden="true">
+    <div class="delta" id="delta"></div>
+  </div>
+
+  <div class="breath" id="breath" aria-hidden="true"></div>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- elements ---------- */
+  const body = document.body;
+  const root = document.documentElement;
+  const zen = document.getElementById("zen");
+  const summon = document.getElementById("summon");
+  const summonLine = document.getElementById("summonLine");
+  const field = document.getElementById("field");
+  const caret = document.getElementById("caret");
+  const moves = document.getElementById("moves");
+  const moveList = document.getElementById("moveList");
+  const movesCount = document.getElementById("movesCount");
+  const takeover = document.getElementById("takeover");
+  const reader = document.getElementById("reader");
+  const deltaVeil = document.getElementById("deltaVeil");
+  const deltaBox = document.getElementById("delta");
+  const breath = document.getElementById("breath");
+  const modeLabel = document.getElementById("modeLabel");
+
+  /* ---------- state ---------- */
+  let mode = "llm";
+  let practiceShown = false;
+  let busy = false;
+  let selIdx = 0;
+  let mastery = 0.41;
+  let retention = 0.38;
+  let attempts = 0;
+  let cleared = 0;
+  let footShown = false;
+
+  /* ============================================================
+     READING-COMFORT CONTROLS — they affect the live reading.
+     ============================================================ */
+  const SIZES = [18, 19.5, 21, 22.5, 24];     // reading body px
+  const LEADS = [1.7, 1.74, 1.78, 1.82, 1.86]; // leading scales gently with size
+  let sizeIdx = 2;
+  const WIDTHS = [
+    { lbl:"narrow", measure:"54ch", ch:54 },
+    { lbl:"calm",   measure:"62ch", ch:62 },
+    { lbl:"wide",   measure:"68ch", ch:68 },
+  ];
+  let widthIdx = 1;
+
+  const sizeUp = document.getElementById("sizeUp");
+  const sizeDown = document.getElementById("sizeDown");
+  const widthBtn = document.getElementById("widthBtn");
+  const widthLbl = document.getElementById("widthLbl");
+  const paletteBtn = document.getElementById("paletteBtn");
+  const paletteLbl = document.getElementById("paletteLbl");
+  const readMeta = document.getElementById("readMeta");
+
+  function applyReading(){
+    root.style.setProperty("--rsize", SIZES[sizeIdx] + "px");
+    root.style.setProperty("--rlead", LEADS[sizeIdx]);
+    root.style.setProperty("--measure", WIDTHS[widthIdx].measure);
+    widthLbl.textContent = "measure · " + WIDTHS[widthIdx].lbl;
+    readMeta.textContent = SIZES[sizeIdx] + "px · " + WIDTHS[widthIdx].ch + "ch";
+    sizeUp.disabled = sizeIdx >= SIZES.length - 1;
+    sizeDown.disabled = sizeIdx <= 0;
+  }
+  sizeUp.addEventListener("click", ()=>{ sizeIdx = Math.min(SIZES.length-1, sizeIdx+1); applyReading(); });
+  sizeDown.addEventListener("click", ()=>{ sizeIdx = Math.max(0, sizeIdx-1); applyReading(); });
+  widthBtn.addEventListener("click", ()=>{ widthIdx = (widthIdx+1) % WIDTHS.length; applyReading(); });
+  paletteBtn.addEventListener("click", ()=>{
+    const sepia = body.classList.toggle("sepia");
+    paletteLbl.textContent = sepia ? "sepia" : "nuit";
+    paletteBtn.setAttribute("aria-pressed", sepia ? "true" : "false");
+  });
+  applyReading();
+
+  /* ---------- sanctioned command set ---------- */
+  const COMMANDS = [
+    { key:"/start",               desc:"Summon the repair practice for ‘persistence’", tag:"generate", needsPractice:false },
+    { key:"/explain-differently", desc:"Reframe the current task another way",          tag:"gesture",  needsPractice:true  },
+    { key:"/example",             desc:"Stream one more worked example",                 tag:"gesture",  needsPractice:true  },
+    { key:"/stuck",               desc:"Ask the runtime for a lighter scaffold",         tag:"gesture",  needsPractice:true  },
+    { key:"/why",                 desc:"Why did the runtime choose this move?",          tag:"meta",     needsPractice:false },
+    { key:"/fallback",            desc:"Flip tutor off — instruction-only scaffold",     tag:"runtime",  needsPractice:false },
+    { key:"/regenerate",          desc:"Discard & re-summon this content",               tag:"generate", needsPractice:true  },
+  ];
+
+  /* ---------- custom caret over transparent textarea ---------- */
+  const mirror = document.createElement("div");
+  Object.assign(mirror.style,{
+    position:"absolute",visibility:"hidden",whiteSpace:"pre",
+    left:"0",top:"0",pointerEvents:"none"
+  });
+  field.parentNode.appendChild(mirror);
+  function syncMirrorFont(){
+    const cs = getComputedStyle(field);
+    mirror.style.font = cs.font; mirror.style.letterSpacing = cs.letterSpacing;
+  }
+  function updateCaret(){
+    syncMirrorFont();
+    mirror.textContent = field.value.substring(0, field.selectionEnd) || "";
+    caret.style.left = mirror.offsetWidth + "px";
+  }
+  function autoGrow(el){ el.style.height="auto"; el.style.height = el.scrollHeight + "px"; }
+
+  /* ---------- moves list ---------- */
+  function renderMoves(filter){
+    moveList.innerHTML = "";
+    const f = (filter||"").toLowerCase();
+    const items = COMMANDS.filter(c => !f || c.key.toLowerCase().startsWith(f));
+    movesCount.textContent = items.length;
+    items.forEach((c,i)=>{
+      const disabled = c.needsPractice && !practiceShown;
+      const el = document.createElement("div");
+      el.className = "move" + (disabled ? " is-disabled":"");
+      el.setAttribute("role","option");
+      el.dataset.key = c.key; el.dataset.disabled = disabled ? "1":"0"; el.tabIndex = -1;
+      el.innerHTML =
+        `<span class="move-key">${c.key}</span>`+
+        `<span class="move-desc">${c.desc}</span>`+
+        `<span class="move-tag">${c.tag}</span>`;
+      el.addEventListener("mousedown",(e)=>{ e.preventDefault(); if(!disabled) runCommand(c.key); });
+      el.addEventListener("mouseenter",()=>{ selIdx=i; paintSel(); });
+      moveList.appendChild(el);
+    });
+    selIdx = Math.min(selIdx, Math.max(0, items.length-1));
+    paintSel();
+    return items;
+  }
+  function paintSel(){
+    [...moveList.children].forEach((el,i)=> el.setAttribute("aria-selected", i===selIdx ? "true":"false"));
+    const cur = moveList.children[selIdx];
+    if(cur) cur.scrollIntoView({block:"nearest"});
+  }
+  function armMoves(){ moves.classList.add("armed"); }
+  function disarmMoves(){ moves.classList.remove("armed"); }
+
+  function dimWorld(on){ body.classList.toggle("dim", !!on); }
+
+  /* ============================================================
+     CALM streaming engine — a humane, reading-paced reveal.
+     Slower than the reference: word cadence ~ a relaxed read.
+     ============================================================ */
+  function streamWords(target, text, opts){
+    opts = opts || {};
+    const speed = opts.speed || 46;          // base ms/word — calm
+    const words = text.split(/(\s+)/);
+    let i = 0;
+    const cursor = document.createElement("span");
+    cursor.className = "stream-cursor";
+    target.appendChild(cursor);
+    return new Promise(resolve=>{
+      if(reduceMotion){ cursor.remove(); target.insertAdjacentText("beforeend", text); return resolve(); }
+      function tick(){
+        if(i >= words.length){ cursor.remove(); return resolve(); }
+        const span = document.createElement("span");
+        span.className = "w"; span.textContent = words[i];
+        target.insertBefore(span, cursor);
+        i++; followStream();
+        // longer breaths at sentence punctuation: the prose can be read, not skimmed
+        const prev = words[i-1] || "";
+        let pause = 0;
+        if(/[.!?]["”']?$/.test(prev)) pause = 320;
+        else if(/[,;:—]$/.test(prev)) pause = 150;
+        setTimeout(tick, speed + Math.random()*26 + pause);
+      }
+      tick();
+    });
+  }
+  function streamReveal(target, html, perDelay){
+    target.innerHTML = html;
+    const reveals = [...target.querySelectorAll("[data-reveal]")];
+    return new Promise(resolve=>{
+      if(reduceMotion){ reveals.forEach(r=>r.style.opacity=1); return resolve(); }
+      let i=0;
+      reveals.forEach(r=>{ r.style.opacity="0"; r.style.transform="translateY(6px)"; r.style.transition="opacity .45s, transform .45s"; });
+      function tick(){
+        if(i>=reveals.length) return resolve();
+        reveals[i].style.opacity="1"; reveals[i].style.transform="none";
+        i++; followStream();
+        setTimeout(tick, perDelay || 110);
+      }
+      tick();
+    });
+  }
+  function followStream(){
+    if(reduceMotion) return;
+    const cursor = reader.querySelector(".stream-cursor");
+    const target = cursor || reader.lastElementChild;
+    if(target) target.scrollIntoView({block:"nearest",behavior:"smooth"});
+  }
+
+  /* ---------- content fixtures (airy, one idea at a time) ---------- */
+  const LLM_P1 = "Take a slow breath. We are only repairing one idea tonight — how a transaction must end. Nothing else is asked of you.";
+  const LLM_P2 = "A teammate wrote this small Go function to record a new enrollment. It opens a transaction, inserts one row, and then meets an error on the way. Read it gently, line by line.";
+  const LLM_P3 = "When InsertEnrollment fails, the function returns the error and walks away. The transaction it opened is never closed — the partial write can linger under load. Your task is quiet and singular: add the rollback path so persistence stays whole on the error branch.";
+
+  const CODE_HTML =
+`<pre class="code" aria-label="Go function with a missing rollback"><span data-reveal><span class="kw">func</span> <span class="fn">RecordEnrollment</span>(ctx context.Context, db *sql.DB, e Enrollment) <span class="kw">error</span> {</span>
+<span data-reveal>    tx, err := db.BeginTx(ctx, <span class="kw">nil</span>)</span>
+<span data-reveal>    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }</span>
+<span data-reveal>
+    <span class="cm">// insert the enrollment row inside the tx</span></span>
+<span data-reveal>    <span class="kw">if</span> err := <span class="fn">InsertEnrollment</span>(ctx, tx, e); err != <span class="kw">nil</span> {</span>
+<span data-reveal>        <span class="err">return err   // ← the tx leaks: no tx.Rollback()</span></span>
+<span data-reveal>    }</span>
+<span data-reveal>    <span class="kw">return</span> tx.<span class="fn">Commit</span>()</span>
+<span data-reveal>}</span></pre>`;
+
+  const FALLBACK_STEPS = [
+    "Open the failing function <b>RecordEnrollment</b> and find the error branch just after <b>InsertEnrollment</b>.",
+    "On that branch the code does <b>return err</b> directly — the open transaction is never closed.",
+    "Before returning, call <b>tx.Rollback()</b> so the partial write is quietly discarded.",
+    "Handle the rollback’s own error: log or join it, but still return the <b>original</b> insert error.",
+    "Confirm the happy path still ends in <b>tx.Commit()</b> — Commit and Rollback are mutually exclusive.",
+    "Say the rule once, softly: every BeginTx path must reach exactly one of Commit or Rollback."
+  ];
+
+  const GESTURE_TEXT = {
+    "/explain-differently":
+      "Think of a transaction as a sealed envelope. BeginTx opens it. Commit seals it and mails it. Rollback shreds it. Your error branch opens the envelope, then simply walks away — neither mailed nor shredded. Add tx.Rollback() on that branch so every opened envelope reaches one of its two endings.",
+    "/example":
+      "Here is the same bug in another shape. A money transfer debits one account, then errors before crediting the other, and returns. Without a rollback the debit can persist alone. The repair is identical — branch a tx.Rollback() so the half-finished work is discarded on the error path.",
+    "/stuck":
+      "Lighter still — only three lines. One: find the error branch that returns. Two: add tx.Rollback() just before it. Three: keep returning the original error. That single line is the whole fix; wrapping the rollback error is gentle polish you can add later."
+  };
+
+  /* ============================================================
+     /start — full-bleed reading takeover
+     ============================================================ */
+  async function openTakeover(){
+    body.classList.add("reading");
+    takeover.classList.add("show");
+    takeover.setAttribute("aria-hidden","false");
+    zen.classList.add("gone");
+    await wait(reduceMotion?0:120);
+  }
+
+  function readerStatus(srcText){
+    const wrap = document.createElement("div");
+    wrap.className = "reader-status";
+    wrap.innerHTML =
+      `<span class="spin"></span><span class="check">✓</span>`+
+      `<span>generating from <span class="src">TutorInstruction · ${srcText}</span></span>`;
+    return wrap;
+  }
+  function resolveStatus(statusEl, finalText, badge){
+    statusEl.classList.add("done");
+    statusEl.querySelector("span:last-child").innerHTML =
+      `resolved · <span class="src">${finalText}</span> ${badge}`;
+  }
+
+  async function renderLLMPractice(isRegen){
+    busy = true;
+    reader.innerHTML = "";
+    const status = readerStatus("claude · temp 0.2");
+    reader.appendChild(status);
+
+    const head = document.createElement("div");
+    head.innerHTML =
+      `<span class="badge llm reader-badge"><span class="dot"></span>LLM generated · claude</span>`+
+      `<span class="scenario-label">scenario · persistence / forgot-tx-rollback</span>`;
+    reader.appendChild(head);
+
+    await wait(reduceMotion?0:720);
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "reader-body";
+    bodyEl.innerHTML = `<p class="p1"></p><p class="p2"></p><div class="codeslot"></div><p class="p3"></p>`;
+    reader.appendChild(bodyEl);
+
+    if(isRegen){
+      await streamWords(bodyEl.querySelector(".p1"), "Same repair, re-summoned in the same calm. " + LLM_P2, {speed:46});
+      bodyEl.querySelector(".p2").remove();
+    } else {
+      await streamWords(bodyEl.querySelector(".p1"), LLM_P1, {speed:48});
+      await wait(reduceMotion?0:260);
+      await streamWords(bodyEl.querySelector(".p2"), LLM_P2, {speed:46});
+    }
+    await streamReveal(bodyEl.querySelector(".codeslot"), CODE_HTML, 120);
+    await wait(reduceMotion?0:220);
+    await streamWords(bodyEl.querySelector(".p3"), LLM_P3, {speed:45});
+
+    resolveStatus(status, "claude · temp 0.2", `<span class="badge llm">llm generated</span>`);
+    mountReaderFoot();
+    practiceShown = true; busy = false;
+  }
+
+  async function renderFallbackPractice(){
+    busy = true;
+    reader.innerHTML = "";
+    const status = readerStatus("runtime author · instruction_only");
+    reader.appendChild(status);
+
+    const head = document.createElement("div");
+    head.innerHTML =
+      `<span class="badge fallbk reader-badge"><span class="dot"></span>instruction-only · runtime authored</span>`+
+      `<span class="scenario-label">scaffold · persistence / forgot-tx-rollback · no LLM</span>`;
+    reader.appendChild(head);
+
+    await wait(reduceMotion?0:640);
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "reader-body";
+    bodyEl.innerHTML = `<p class="lead"></p><ol class="scaffold"></ol>`;
+    reader.appendChild(bodyEl);
+
+    await streamWords(bodyEl.querySelector(".lead"),
+      "The tutor LLM is off for you tonight (override: instruction_only). The runtime still authors a calm, numbered repair scaffold — no prose, no model, the same restful light.", {speed:45});
+
+    const ol = bodyEl.querySelector(".scaffold");
+    for(let i=0;i<FALLBACK_STEPS.length;i++){
+      const li = document.createElement("li");
+      li.style.opacity="0"; li.style.transform="translateY(6px)"; li.style.transition="opacity .45s, transform .45s";
+      li.innerHTML = FALLBACK_STEPS[i];
+      ol.appendChild(li);
+      await wait(reduceMotion?0:140);
+      li.style.opacity="1"; li.style.transform="none"; followStream();
+      await wait(reduceMotion?0:200);
+    }
+
+    resolveStatus(status, "instruction_only", `<span class="badge fallbk">runtime authored</span>`);
+    mountReaderFoot();
+    practiceShown = true; busy = false;
+  }
+
+  /* ---------- reader foot: moves + evidence ---------- */
+  function mountReaderFoot(){
+    if(footShown) return;
+    footShown = true;
+    const foot = document.createElement("div");
+    foot.className = "reader-foot";
+    foot.id = "readerFoot";
+    foot.innerHTML =
+      `<div class="reader-moves">`+
+        `<span class="gl">sanctioned moves</span>`+
+        `<button class="gesture" data-cmd="/explain-differently"><span class="g">/</span>explain differently</button>`+
+        `<button class="gesture" data-cmd="/example"><span class="g">/</span>another example</button>`+
+        `<button class="gesture danger" data-cmd="/stuck"><span class="g">/</span>I’m stuck</button>`+
+        `<button class="gesture" data-cmd="/why"><span class="g">/</span>why this?</button>`+
+        `<button class="gesture" data-cmd="/regenerate"><span class="g">/</span>regenerate</button>`+
+        `<button class="gesture" data-cmd="/fallback" id="footFallback"><span class="g">/</span>fallback</button>`+
+      `</div>`+
+      `<div class="evidence">`+
+        `<div class="evidence-head"><span>your fix · evidence</span><span>persistence · attempt ${attempts+1}</span></div>`+
+        `<div class="evidence-row">`+
+          `<span class="glyph">&rsaquo;</span>`+
+          `<textarea id="evField" rows="2" spellcheck="false" placeholder="describe or paste the rollback fix you would add…"></textarea>`+
+        `</div>`+
+        `<div class="evidence-foot">`+
+          `<span class="hint">runtime scores this against BKT + the active misconception</span>`+
+          `<button class="submit" id="evSubmit">submit evidence <kbd>⌘⏎</kbd></button>`+
+        `</div>`+
+      `</div>`;
+    reader.appendChild(foot);
+
+    foot.querySelectorAll(".gesture").forEach(b=>{
+      b.addEventListener("click",()=> runCommand(b.dataset.cmd));
+    });
+    if(mode==="fallback"){ const ff = foot.querySelector("#footFallback"); if(ff) ff.disabled = true; }
+
+    const ef = foot.querySelector("#evField");
+    const sb = foot.querySelector("#evSubmit");
+    ef.value = "if err := InsertEnrollment(ctx, tx, e); err != nil {\n    tx.Rollback()\n    return err\n}";
+    autoGrow(ef);
+    ef.addEventListener("input",()=>{ autoGrow(ef); sb.disabled = ef.value.trim().length < 3; });
+    ef.addEventListener("keydown",(ev)=>{
+      if((ev.metaKey||ev.ctrlKey) && ev.key==="Enter"){ ev.preventDefault(); if(!sb.disabled) submitEvidence(); }
+    });
+    sb.addEventListener("click", submitEvidence);
+
+    requestAnimationFrame(()=>{ foot.classList.add("show"); });
+    setTimeout(()=>{ if(!reduceMotion) ef.focus(); }, reduceMotion?0:480);
+  }
+
+  /* ---------- inline gesture / why responses ---------- */
+  async function renderGesture(key){
+    busy = true;
+    const foot = document.getElementById("readerFoot");
+    const resp = document.createElement("div");
+    resp.className = "inline-resp " + (mode==="fallback"?"fallbk-resp":"");
+    const tag = mode==="fallback"
+      ? `<span class="rtag badge fallbk"><span class="dot"></span>instruction-only · ${key}</span>`
+      : `<span class="rtag badge llm"><span class="dot"></span>LLM generated · ${key}</span>`;
+    resp.innerHTML = tag + `<span class="rbody"></span>`;
+    if(foot) reader.insertBefore(resp, foot); else reader.appendChild(resp);
+    await wait(reduceMotion?0:440);
+    await streamWords(resp.querySelector(".rbody"), GESTURE_TEXT[key], {speed:45});
+    busy = false;
+  }
+
+  const WHY_TEXT =
+    "The runtime selected persistence over advancing because retention fell to 0.38 with a spaced review two days overdue (FSRS), mastery is 0.41 and declining (BKT), and one misconception — forgot-tx-rollback — is still active. In the concept DAG, ‘transactions’ depends on persistence, so it stays locked until this is repaired. This rationale is runtime-owned and authoritative; the reading above is the disposable, regenerable part.";
+
+  async function renderWhy(){
+    busy = true;
+    const foot = document.getElementById("readerFoot");
+    const resp = document.createElement("div");
+    resp.className = "inline-resp runtime-resp";
+    resp.innerHTML = `<span class="rtag badge runtime"><span class="dot"></span>runtime decided · /why</span><span class="rbody"></span>`;
+    if(foot) reader.insertBefore(resp, foot); else reader.appendChild(resp);
+    await wait(reduceMotion?0:320);
+    await streamWords(resp.querySelector(".rbody"), WHY_TEXT, {speed:44});
+    busy = false;
+  }
+
+  /* ============================================================
+     submit evidence -> state delta -> collapse -> next intent
+     ============================================================ */
+  async function submitEvidence(){
+    if(busy) return;
+    busy = true;
+    reader.querySelectorAll(".evidence textarea, .evidence .submit, .reader-moves .gesture").forEach(el=> el.disabled = true);
+
+    deltaBox.innerHTML =
+      `<div class="delta-head"><span class="ico"></span>state delta · runtime committed</div>`+
+      `<div class="reader-status" id="deltaStatus" style="margin-bottom:18px"><span class="spin"></span><span class="check">✓</span>`+
+        `<span>generating from <span class="src">runtime · BKT update + FSRS reschedule</span></span></div>`+
+      `<div class="delta-rows" id="deltaRows"></div>`+
+      `<div class="delta-foot"><span id="deltaNote"></span>`+
+        `<button class="continue" id="continueBtn">accept &amp; next intent</button></div>`;
+    deltaVeil.classList.add("show");
+    deltaVeil.setAttribute("aria-hidden","false");
+
+    await wait(reduceMotion?0:680);
+
+    const prevM = mastery, prevR = retention;
+    mastery = Math.min(0.66, +(mastery + 0.06).toFixed(2));
+    retention = Math.min(0.7, +(retention + 0.14).toFixed(2));
+    cleared++;
+
+    const dStatus = deltaBox.querySelector("#deltaStatus");
+    resolveStatus(dStatus, "runtime committed", `<span class="badge runtime">runtime decided</span>`);
+
+    const stillLocked = mastery < 0.6;
+    const rows = deltaBox.querySelector("#deltaRows");
+    const deltas = [
+      `<span class="dk">mastery · persistence</span><span class="dv"><span class="from">${prevM.toFixed(2)}</span><span class="arr">→</span><span class="to">${mastery.toFixed(2)}</span><span class="note">partial credit — rollback present, error not wrapped</span></span>`,
+      `<span class="dk">misconception</span><span class="dv"><span class="to bad">forgot-tx-rollback</span><span class="note">still active — Rollback() error unhandled</span></span>`,
+      `<span class="dk">retention (FSRS)</span><span class="dv"><span class="from">${prevR.toFixed(2)}</span><span class="arr">→</span><span class="to">${retention.toFixed(2)}</span><span class="note">review rescheduled +1d (was overdue 2d)</span></span>`,
+      `<span class="dk">load state</span><span class="dv"><span class="to">overload recovery</span><span class="note">held — one clean attempt before lifting</span></span>`,
+      `<span class="dk">gate · transactions</span><span class="dv"><span class="to ${stillLocked?'bad':''}">${stillLocked?'still locked':'unlocking'}</span><span class="note">unlocks at persistence ≥ 0.6</span></span>`,
+    ];
+    for(let i=0;i<deltas.length;i++){
+      const r = document.createElement("div");
+      r.className="drow"; r.innerHTML = deltas[i];
+      r.style.opacity="0"; r.style.transform="translateX(-8px)"; r.style.transition="opacity .42s, transform .42s";
+      rows.appendChild(r);
+      await wait(reduceMotion?0:160);
+      r.style.opacity="1"; r.style.transform="none";
+    }
+    await streamWords(deltaBox.querySelector("#deltaNote"),
+      "Evidence absorbed. Breathe out — the void resets to the runtime’s next chosen move.", {speed:40});
+    deltaBox.querySelector("#continueBtn").addEventListener("click", collapseToNextIntent);
+    busy = false;
+  }
+
+  async function collapseToNextIntent(){
+    if(busy) return;
+    busy = true;
+
+    deltaVeil.classList.remove("show");
+    deltaVeil.setAttribute("aria-hidden","true");
+    await wait(reduceMotion?0:360);
+    takeover.classList.remove("show");
+    takeover.setAttribute("aria-hidden","true");
+    body.classList.remove("reading");
+
+    breath.textContent = "void cleared · runtime selecting next move…";
+    breath.classList.add("show");
+    await wait(reduceMotion?0:900);
+    breath.classList.remove("show");
+
+    reader.innerHTML = ""; footShown = false; practiceShown = false; attempts = 0;
+
+    const il = document.getElementById("intentLine");
+    if(cleared >= 1){
+      il.innerHTML =
+        `Now — softly <em>tighten the rollback</em> on persistence. `+
+        `<span class="neg">mastery ${mastery.toFixed(2)}</span> · misconception still active`;
+    }
+    const mm = document.getElementById("mMastery");
+    mm.textContent = mastery.toFixed(2) + " ↑";
+    mm.classList.remove("bad");
+    mm.classList.add("warn");
+    document.getElementById("recovery").innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/></svg>overload recovery — one clean attempt away from lifting`;
+
+    zen.classList.remove("gone");
+    dimWorld(false);
+    field.value=""; autoGrow(field); updateCaret();
+    disarmMoves();
+    await wait(reduceMotion?0:220);
+    field.focus();
+    busy = false;
+  }
+
+  /* ============================================================
+     command dispatcher
+     ============================================================ */
+  async function runCommand(key){
+    if(busy) return;
+    disarmMoves();
+    field.value=""; autoGrow(field); updateCaret();
+
+    switch(key){
+      case "/start":
+        if(practiceShown) return;
+        dimWorld(true);
+        await openTakeover();
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(false);
+        break;
+
+      case "/fallback":
+        mode = "fallback";
+        body.classList.add("fallback");
+        modeLabel.textContent = "instruction_only";
+        dimWorld(true);
+        if(!takeover.classList.contains("show")) await openTakeover();
+        footShown = false;
+        await renderFallbackPractice();
+        break;
+
+      case "/regenerate":
+        if(!practiceShown) return;
+        attempts++;
+        footShown = false;
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(true);
+        break;
+
+      case "/explain-differently":
+      case "/example":
+      case "/stuck":
+        if(!practiceShown) return;
+        await renderGesture(key);
+        break;
+
+      case "/why":
+        if(practiceShown) await renderWhy();
+        else await renderWhyFromVoid();
+        break;
+    }
+  }
+
+  async function renderWhyFromVoid(){
+    busy = true;
+    dimWorld(true);
+    await openTakeover();
+    reader.innerHTML = "";
+    const head = document.createElement("div");
+    head.innerHTML = `<span class="badge runtime reader-badge"><span class="dot"></span>runtime decided · /why</span>`+
+      `<span class="scenario-label">runtime rationale · authoritative</span>`;
+    reader.appendChild(head);
+    const bodyEl = document.createElement("div");
+    bodyEl.className="reader-body";
+    bodyEl.innerHTML = `<p class="wp"></p>`;
+    reader.appendChild(bodyEl);
+    await wait(reduceMotion?0:320);
+    await streamWords(bodyEl.querySelector(".wp"),
+      WHY_TEXT + " Summon /start whenever you are ready; this rationale stays true regardless of the LLM.",
+      {speed:44});
+
+    const back = document.createElement("div");
+    back.className="reader-foot"; back.style.marginTop="36px";
+    back.innerHTML = `<button class="continue" id="whyBack">← back to the line</button>`;
+    reader.appendChild(back);
+    requestAnimationFrame(()=> back.classList.add("show"));
+    back.querySelector("#whyBack").addEventListener("click", async ()=>{
+      takeover.classList.remove("show"); takeover.setAttribute("aria-hidden","true");
+      body.classList.remove("reading");
+      zen.classList.remove("gone"); dimWorld(false);
+      await wait(reduceMotion?0:240); field.focus();
+    });
+    busy = false;
+  }
+
+  /* ============================================================
+     input wiring
+     ============================================================ */
+  function syncFromField(){
+    autoGrow(field); updateCaret();
+    const v = field.value;
+    if(v.startsWith("/")){
+      const items = renderMoves(v);
+      if(items.length) armMoves(); else disarmMoves();
+    } else if(v===""){
+      renderMoves("");
+    } else {
+      disarmMoves();
+    }
+  }
+  field.addEventListener("input", syncFromField);
+  field.addEventListener("click", updateCaret);
+  field.addEventListener("keyup", updateCaret);
+
+  field.addEventListener("focus",()=>{
+    summon.classList.add("focused");
+    dimWorld(true);
+    renderMoves(field.value.startsWith("/")?field.value:"");
+    armMoves();
+    updateCaret();
+  });
+  field.addEventListener("blur",()=>{
+    summon.classList.remove("focused");
+    if(!takeover.classList.contains("show")) dimWorld(false);
+    setTimeout(disarmMoves,160);
+  });
+  summonLine.addEventListener("mousedown",(e)=>{ if(e.target!==field){ e.preventDefault(); field.focus(); } });
+
+  field.addEventListener("keydown",(e)=>{
+    const open = moves.classList.contains("armed") && summon.classList.contains("focused");
+    const items = [...moveList.querySelectorAll(".move")];
+
+    if(e.key==="/" && field.value===""){ setTimeout(()=>{ renderMoves("/"); armMoves(); },0); return; }
+    if(open && e.key==="ArrowDown"){ e.preventDefault(); selIdx=Math.min(items.length-1,selIdx+1); paintSel(); return; }
+    if(open && e.key==="ArrowUp"){ e.preventDefault(); selIdx=Math.max(0,selIdx-1); paintSel(); return; }
+    if(e.key==="Escape"){ disarmMoves(); field.blur(); return; }
+
+    if(e.key==="Enter" && !e.shiftKey){
+      e.preventDefault();
+      const v = field.value.trim();
+      if(open && v.startsWith("/") && items[selIdx]){
+        if(items[selIdx].dataset.disabled==="1") return;
+        runCommand(items[selIdx].dataset.key); return;
+      }
+      if(v.startsWith("/")){
+        const match = COMMANDS.find(c=>c.key===v) || COMMANDS.find(c=>c.key.startsWith(v));
+        if(match){ runCommand(match.key); return; }
+      }
+      if(v==="" && !practiceShown){ runCommand("/start"); return; }
+    }
+  });
+
+  /* ---------- helpers / boot ---------- */
+  function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  window.addEventListener("resize", updateCaret);
+
+  renderMoves("");
+  setTimeout(()=>{ updateCaret(); }, 260);
+  setTimeout(()=>{ if(!reduceMotion) field.focus(); }, reduceMotion?0:1900);
+})();
+</script>
+</body>
+</html>

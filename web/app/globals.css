@@ -1,0 +1,109 @@
+/* LECTURE design system — warm-paper, editorial, runtime-first.
+   Fonts are injected as CSS variables by app/layout.tsx (next/font). */
+:root {
+  --paper: #f6f2ea;
+  --paper-2: #efe9dc;
+  --card: #fbf8f1;
+  --ink: #23211b;
+  --ink-soft: #4b4639;
+  --muted: #6f6a5c;
+  --quiet: #908a79;
+  --line: #ddd5c4;
+  --line-2: #c9bfa9;
+  --accent: #2a4f3e;       /* ink-green — runtime / authoritative */
+  --accent-soft: #e0ebe2;
+  --alarm: #7c2531;        /* oxblood — risk / alarm */
+  --alarm-soft: #f3dcdc;
+  --amber: #9a6a16;        /* instruction-only / fallback */
+  --amber-soft: #f3e6c9;
+  --llm: #3f7a5a;          /* llm-generated (soft green, disposable) */
+  --shadow: 0 14px 40px rgba(31, 33, 27, 0.10);
+  --shadow-sm: 0 4px 14px rgba(31, 33, 27, 0.06);
+  --measure: 62ch;
+  --serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
+  --display: var(--font-fraunces), Georgia, serif;
+  --mono: var(--font-spline-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 600px at 85% -10%, rgba(42, 79, 62, 0.05), transparent 60%),
+    var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+/* Typography */
+h1, h2, h3 { font-family: var(--display); font-weight: 430; letter-spacing: -0.01em; line-height: 1.08; margin: 0; }
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--quiet); }
+.dek { color: var(--muted); font-size: 15px; }
+.standfirst { font-family: var(--display); font-style: italic; font-size: clamp(22px, 3vw, 30px); line-height: 1.25; color: var(--ink); }
+.prose { max-width: var(--measure); font-size: 20px; line-height: 1.72; }
+.prose p { margin: 0 0 1.1em; }
+.mono { font-family: var(--mono); }
+.measure { max-width: var(--measure); }
+
+/* Runtime / LLM provenance marks */
+.mark { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-2); }
+.mark::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.mark.runtime { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.mark.llm { color: var(--llm); background: #e6f0e9; border-color: transparent; }
+.mark.fallbk { color: var(--amber); background: var(--amber-soft); border-color: transparent; }
+.mark.alarm { color: var(--alarm); background: var(--alarm-soft); border-color: transparent; }
+
+/* Surfaces */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+.hr { height: 1px; background: var(--line); border: 0; margin: 0; }
+.pill { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2); border-radius: 999px; padding: 4px 11px; color: var(--muted); white-space: nowrap; }
+.pill.on { color: var(--accent); border-color: rgba(42,79,62,.4); background: var(--accent-soft); }
+
+/* Buttons */
+.btn { font-family: var(--mono); font-size: 13px; border-radius: 10px; padding: 10px 18px; border: 1px solid var(--line-2);
+  background: transparent; color: var(--ink); cursor: pointer; transition: transform .15s ease, background .2s ease, border-color .2s ease; }
+.btn:hover { border-color: var(--accent); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); color: #f6f2ea; border-color: var(--accent); }
+.btn.primary:hover { background: #20402f; }
+.btn.ghost { border-color: transparent; color: var(--muted); }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* Code block — airy, never cramped */
+.code { font-family: var(--mono); font-size: 14px; line-height: 1.85; background: #1c1a15; color: #e8e1cf;
+  border-radius: 12px; padding: 22px 24px; overflow-x: auto; }
+.code .kw { color: #d9b25e; } .code .fn { color: #8fc4a3; } .code .err { color: #e79088; }
+
+/* Code inline */
+code:not(.code) { font-family: var(--mono); font-size: 0.86em; background: var(--paper-2); padding: 1px 6px; border-radius: 5px; }
+
+/* Metrics */
+.metric { font-family: var(--mono); }
+.metric .v { font-size: 22px; color: var(--ink); }
+.metric .k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--quiet); }
+
+/* Layout helpers */
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+.row { display: flex; gap: 14px; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.grid { display: grid; gap: 16px; }
+.quiet { color: var(--quiet); }
+.soft { color: var(--muted); }
+
+/* Reveal */
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.reveal { animation: fade-up .6s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto; }
+}

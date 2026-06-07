@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Zen / Projecteur — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#0e1311;            /* PROJECTEUR is a darkened reading room — the spotlight reads against near-dark */
+    --paper-deep:#0a0f0d;
+    --card:#161d1a;
+    --card-soft:#1b2420;
+    --ink:#f3efe6;             /* fully-lit text */
+    --ink-read:#6f7a73;        /* already-read, receded text */
+    --ink-soft:#b9c0b8;
+    --ink-faint:#7e887f;
+    --ink-ghost:#566058;
+    --line:#27322d;
+    --line-soft:#1f2823;
+    --accent:#7fc9a6;
+    --accent-deep:#a7e4c4;
+    --accent-soft:#16241d;
+    --oxblood:#e09098;
+    --oxblood-soft:#2a1a1d;
+    --amber:#e0b86a;
+    --amber-soft:#2a2113;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 40px 100px -50px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,[role="option"]:focus-visible,textarea:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(120% 70% at 50% -8%, #14201a 0%, rgba(20,32,26,0) 58%),
+      radial-gradient(80% 60% at 50% 120%, #101813 0%, rgba(16,24,19,0) 60%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Spectral", Georgia, serif;
+    font-size:19px; line-height:1.7;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    min-height:100vh; overflow-x:hidden;
+  }
+  ::selection{background:var(--accent);color:#0e1311}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,monospace}
+
+  /* ---- ambient chrome, all dimmable ---- */
+  .chrome{transition:opacity .6s ease, filter .6s ease}
+  body.dim .chrome{opacity:.1; filter:blur(1.5px); pointer-events:none}
+  body.dim .chrome.keep{opacity:.36; filter:none}
+  body.reading .chrome:not(.keep){opacity:.06}
+
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:300;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(22,29,26,.7);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn .8s .2s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:300;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn .8s .3s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #4d9a78, #2c6249);
+    color:#0e1311;display:grid;place-items:center;
+    font-family:"Spectral",serif;font-weight:600;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink-soft)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:200;
+    font-family:"Spectral",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn .9s .45s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:500;color:var(--accent)}
+
+  .mode-pill{
+    position:fixed;bottom:16px;right:20px;z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;
+    opacity:0;animation:chromeIn .9s .5s ease both;
+  }
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .mode-dot{background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+  .mode-pill .lbl b{color:var(--ink-soft);font-weight:600}
+
+  /* ================= STAGE / VOID ================= */
+  .stage{
+    min-height:100vh; position:relative;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:120px 24px;
+  }
+  .zen{
+    width:100%;max-width:640px;margin:0 auto;text-align:center;
+    transition:opacity .55s ease, transform .55s ease;
+  }
+  .zen.gone{opacity:0;transform:translateY(-18px);pointer-events:none}
+
+  .eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.24em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:22px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    opacity:0;animation:riseIn 1s .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .eyebrow .rl{flex:0 0 36px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
+  .eyebrow .rl.r{background:linear-gradient(90deg,var(--line),transparent)}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;white-space:nowrap;
+  }
+  .badge.runtime{background:var(--accent);color:#0e1311}
+  .badge.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #2f4a3b}
+  .badge.fallbk{background:var(--amber-soft);color:var(--amber);border:1px solid #4a3a18}
+  .badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  .intent-line{
+    font-family:"Spectral",serif;font-weight:300;font-size:33px;line-height:1.4;
+    letter-spacing:-.012em;color:var(--ink);margin:0 auto;max-width:600px;
+    opacity:0;animation:riseIn 1.1s .65s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .intent-line em{font-style:italic;color:var(--accent);font-weight:400}
+  .intent-line .neg{color:var(--oxblood);font-style:normal;font-weight:500;
+    font-family:"Spline Sans Mono",monospace;font-size:.6em;letter-spacing:-.01em}
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .intent-meta{
+    margin-top:34px;display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;align-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+    opacity:0;animation:riseInHalf 1.1s .8s cubic-bezier(.2,.7,.2,1) both;
+    transition:opacity .5s ease;
+  }
+  /* at rest the metrics recede so the single intent line is the one lit idea;
+     they lift to full presence only when the learner deliberately reads them */
+  @keyframes riseInHalf{from{opacity:0;transform:translateY(14px)}to{opacity:.5;transform:none}}
+  #intentMeta:hover,#intentMeta:focus-within{opacity:1}
+  .metric{display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px}
+  .metric .k{letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--oxblood)}
+  .metric .v.warn{color:var(--amber)}
+
+  .recovery{
+    margin-top:20px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.04em;color:var(--amber);display:inline-flex;align-items:center;gap:7px;
+    background:var(--amber-soft);border:1px solid #4a3a18;border-radius:999px;padding:4px 13px;
+    opacity:0;animation:riseIn 1.1s .95s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .recovery svg{width:12px;height:12px}
+
+  /* ---- the single expanding field (void summon) ---- */
+  .summon{
+    margin-top:48px;position:relative;width:100%;max-width:440px;margin-left:auto;margin-right:auto;
+    opacity:0;animation:riseIn 1.1s 1.1s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .summon-line{
+    display:flex;align-items:baseline;gap:12px;justify-content:center;
+    border-bottom:1px solid var(--line);padding:10px 4px 12px;cursor:text;
+    transition:border-color .35s ease;position:relative;
+  }
+  .summon.focused .summon-line{border-color:var(--accent)}
+  body.fallback .summon.focused .summon-line{border-color:var(--amber)}
+  .summon .glyph{
+    font-family:"Spline Sans Mono",monospace;font-size:20px;font-weight:600;color:var(--accent);
+    flex:0 0 auto;user-select:none;transition:color .3s;line-height:1;align-self:center;
+  }
+  body.fallback .summon .glyph{color:var(--amber)}
+  .field-wrap{flex:1 1 auto;position:relative;min-height:30px;text-align:left;display:flex;align-items:center}
+  .field{
+    width:100%;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:17px;line-height:1.5;
+    color:var(--ink);padding:0;margin:0;overflow:hidden;caret-color:transparent;
+  }
+  .field::placeholder{color:var(--ink-ghost)}
+  .caret{
+    position:absolute;width:9px;height:22px;background:var(--accent);border-radius:1px;
+    top:50%;transform:translateY(-50%);left:0;pointer-events:none;opacity:0;
+    transition:left .05s linear;animation:blink 1.05s steps(1) infinite;
+  }
+  body.fallback .caret{background:var(--amber)}
+  .summon.focused .caret{opacity:1}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+  .whisper-hint{
+    margin-top:18px;text-align:center;font-family:"Spline Sans Mono",monospace;
+    font-size:10.5px;letter-spacing:.06em;color:var(--ink-ghost);
+    transition:opacity .35s ease;
+  }
+  .whisper-hint kbd{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;background:var(--card);
+    border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink-soft);
+  }
+  .summon.focused .whisper-hint{opacity:0;pointer-events:none}
+
+  /* ---- bounded sanctioned moves: quiet inline list revealed on focus ---- */
+  .moves{
+    margin-top:20px;display:flex;flex-direction:column;gap:1px;
+    max-height:0;overflow:hidden;opacity:0;
+    transition:max-height .4s ease, opacity .35s ease;
+  }
+  .summon.focused .moves.armed{max-height:380px;opacity:1}
+  .moves-head{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-ghost);padding:4px 6px 8px;text-align:left;
+    display:flex;justify-content:space-between;
+  }
+  .moves-head .ct{color:var(--accent)}
+  .move{
+    display:flex;align-items:baseline;gap:14px;padding:8px 8px;border-radius:8px;cursor:pointer;
+    text-align:left;transition:background .14s;
+  }
+  .move[aria-selected="true"],.move:hover{background:var(--accent-soft)}
+  .move-key{font-family:"Spline Sans Mono",monospace;font-size:13px;font-weight:600;color:var(--accent);
+    flex:0 0 auto;min-width:168px}
+  .move-desc{font-family:"Spectral",serif;font-size:15px;color:var(--ink-soft);flex:1 1 auto;line-height:1.3}
+  .move-tag{font-family:"Spline Sans Mono",monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-ghost);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+  .move.is-disabled{opacity:.3;cursor:not-allowed}
+  .move.is-disabled:hover{background:transparent}
+
+  /* ================= FULL-BLEED SPOTLIGHT READER ================= */
+  .takeover{
+    position:fixed;inset:0;z-index:150;
+    background:
+      radial-gradient(110% 65% at 50% 42%, #16201b 0%, rgba(14,19,17,0) 62%),
+      var(--paper-deep);
+    display:flex;flex-direction:column;align-items:center;
+    padding:96px 24px 140px;overflow-y:auto;
+    opacity:0;pointer-events:none;transition:opacity .6s ease;
+  }
+  .takeover.show{opacity:1;pointer-events:auto}
+  body.reading{overflow:hidden}
+  .reader{width:100%;max-width:660px;margin:0 auto;
+    opacity:0;transform:translateY(16px);
+    transition:opacity .7s ease, transform .7s ease;}
+  .takeover.show .reader{opacity:1;transform:none}
+
+  .reader-status{
+    display:flex;align-items:center;gap:11px;margin-bottom:26px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.04em;color:var(--ink-faint);
+  }
+  .reader-status .spin{
+    width:13px;height:13px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .7s linear infinite;
+  }
+  body.fallback .reader-status .spin{border-top-color:var(--amber)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .reader-status.done .spin{display:none}
+  .reader-status .check{display:none}
+  .reader-status.done .check{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);color:#0e1311;font-size:9px}
+  body.fallback .reader-status.done .check{background:var(--amber)}
+  .reader-status .src{color:var(--ink-soft);font-weight:600}
+
+  .scenario-label{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-ghost);display:block;margin-bottom:18px}
+  .reader-badge{margin-bottom:18px}
+
+  /* ---- THE SPOTLIGHT BODY: sentences are units, one lit at a time ---- */
+  .spotlight{
+    font-family:"Spectral",serif;font-size:21px;line-height:1.78;color:var(--ink);
+    /* measure ~62ch for optimal readability */
+    max-width:62ch;margin:0 auto;
+  }
+  .sentence{
+    display:inline;
+    color:var(--ink-read);                 /* default: receded (already-read) */
+    opacity:.34;filter:blur(.4px);
+    transition:opacity .65s ease, color .65s ease, filter .65s ease;
+  }
+  .sentence.lit{
+    color:var(--ink);opacity:1;filter:none;
+  }
+  .sentence.upcoming{                       /* not yet shown — absent */
+    display:none;
+  }
+  .sentence strong{font-weight:600;color:inherit}
+  .sentence.lit strong{color:var(--accent-deep)}
+  .spot-para{margin:0 0 1.15em}
+  .spot-para:last-child{margin-bottom:0}
+
+  /* sentence reveal pulse */
+  .sentence.justlit{animation:litIn .6s ease}
+  @keyframes litIn{from{opacity:.2;filter:blur(3px)}to{opacity:1;filter:none}}
+
+  /* ---- CODE under the same spotlight: line-by-line ---- */
+  pre.code{
+    margin:26px auto;background:#0a100d;border:1px solid #1c2a23;border-radius:14px;
+    padding:22px 24px;overflow-x:auto;max-width:62ch;
+    font-family:"Spline Sans Mono",monospace;font-size:14px;line-height:1.9;color:#cdd8d0;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.03), 0 30px 70px -40px rgba(0,0,0,.8);
+  }
+  pre.code .cline{
+    display:block;color:#525e57;opacity:.4;filter:blur(.4px);
+    transition:opacity .55s ease, color .55s ease, filter .55s ease, background .3s ease;
+    border-radius:5px;padding:0 6px;margin:0 -6px;
+  }
+  pre.code .cline.lit{color:#cdd8d0;opacity:1;filter:none;background:rgba(127,201,166,.06)}
+  pre.code .cline.upcoming{display:none}
+  pre.code .kw{color:#9ed8b3}
+  pre.code .fn{color:#e6c98a}
+  pre.code .str{color:#c9a98a}
+  pre.code .cm{color:#5f706a;font-style:italic}
+  pre.code .err{color:#e09098}
+
+  /* ---- fallback numbered scaffold under spotlight ---- */
+  ol.scaffold{margin:14px auto 0;padding-left:0;list-style:none;counter-reset:step;max-width:62ch}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:13px 0 13px 50px;
+    font-family:"Spline Sans Mono",monospace;font-size:15px;line-height:1.6;color:var(--ink-read);
+    border-bottom:1px dashed var(--line-soft);
+    opacity:.32;filter:blur(.4px);
+    transition:opacity .6s ease, color .6s ease, filter .6s ease;
+  }
+  ol.scaffold li.lit{opacity:1;filter:none;color:var(--ink-soft)}
+  ol.scaffold li.upcoming{display:none}
+  ol.scaffold li:last-child{border-bottom:none}
+  ol.scaffold li::before{
+    content:counter(step,decimal-leading-zero);position:absolute;left:0;top:12px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;font-weight:700;color:var(--amber);
+    background:var(--amber-soft);border:1px solid #4a3a18;border-radius:6px;
+    width:32px;height:24px;display:grid;place-items:center;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:600}
+
+  /* ---- thin reading-progress line (no vanity numbers) ---- */
+  .progress-rail{
+    position:fixed;left:0;right:0;bottom:0;height:2px;z-index:170;
+    background:transparent;pointer-events:none;opacity:0;transition:opacity .5s ease;
+  }
+  body.reading .progress-rail{opacity:1}
+  .progress-fill{
+    height:100%;width:0%;
+    background:linear-gradient(90deg, var(--accent-soft), var(--accent));
+    transition:width .55s cubic-bezier(.2,.7,.2,1);
+  }
+  body.fallback .progress-fill{background:linear-gradient(90deg, var(--amber-soft), var(--amber))}
+
+  /* ---- spotlight pacing control: gentle, low-effort advance ---- */
+  .pacer{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:30px;z-index:180;
+    display:flex;align-items:center;gap:14px;
+    background:rgba(14,19,17,.82);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:999px;padding:9px 16px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+    opacity:0;pointer-events:none;transition:opacity .5s ease;box-shadow:var(--shadow);
+  }
+  .pacer.show{opacity:1;pointer-events:auto}
+  .pacer .pbtn{
+    appearance:none;cursor:pointer;background:transparent;border:1px solid var(--line);
+    color:var(--ink-soft);border-radius:8px;padding:5px 11px;font-family:inherit;font-size:11px;
+    transition:.16s ease;display:inline-flex;align-items:center;gap:7px;
+  }
+  .pacer .pbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .pacer .pbtn kbd{font-family:inherit;font-size:9.5px;background:var(--card);border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px;color:var(--ink-faint)}
+  .pacer .auto-state{display:inline-flex;align-items:center;gap:7px;letter-spacing:.04em}
+  .pacer .auto-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);transition:.3s}
+  .pacer.paused .auto-dot{background:var(--ink-ghost);box-shadow:0 0 0 3px var(--line)}
+  .pacer .frac{color:var(--ink-soft)}
+
+  /* reader footer: moves + evidence, revealed after spotlight resolves */
+  .reader-foot{
+    margin-top:40px;opacity:0;transform:translateY(10px);max-width:62ch;
+    margin-left:auto;margin-right:auto;
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  .reader-foot.show{opacity:1;transform:none}
+
+  .reader-moves{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:26px}
+  .reader-moves .gl{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-right:4px}
+  .gesture{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .gesture:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  .gesture .g{color:var(--accent);font-weight:600}
+  .gesture.danger:hover{border-color:var(--oxblood);color:var(--oxblood)}
+  .gesture.danger .g{color:var(--oxblood)}
+  .gesture:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  .inline-resp{
+    margin:0 auto 26px;max-width:62ch;border-left:2px solid var(--accent-soft);padding:4px 0 4px 18px;
+    font-family:"Spectral",serif;font-size:19px;line-height:1.7;color:var(--ink);
+  }
+  .inline-resp.runtime-resp{border-left-color:var(--accent)}
+  .inline-resp.fallbk-resp{border-left-color:#4a3a18}
+  .inline-resp .rtag{display:block;margin-bottom:10px}
+  /* gesture responses are ALSO spotlit sentence-by-sentence */
+  .inline-resp .sentence{font-size:19px}
+
+  .evidence{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;
+    position:relative;max-width:62ch;margin:0 auto;
+  }
+  .evidence-head{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .evidence-q{
+    font-family:"Spectral",serif;font-size:20px;line-height:1.55;color:var(--ink);margin:0 0 18px;
+    font-weight:400;
+  }
+  .evidence-q b{color:var(--accent-deep);font-weight:600}
+  .evidence-row{display:flex;align-items:flex-start;gap:11px}
+  .evidence .glyph{font-family:"Spline Sans Mono",monospace;font-size:17px;color:var(--ink-faint)}
+  .evidence textarea{
+    flex:1 1 auto;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:14.5px;line-height:1.6;color:var(--ink);
+    min-height:48px;overflow:hidden;
+  }
+  .evidence textarea::placeholder{color:var(--ink-ghost)}
+  .evidence-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:12px}
+  .evidence-foot .hint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+  .submit{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.04em;color:#0e1311;background:var(--accent);border:1px solid var(--accent-deep);
+    border-radius:9px;padding:8px 16px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .submit:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .submit kbd{font-family:inherit;font-size:10px;background:rgba(0,0,0,.18);border-radius:4px;padding:1px 5px}
+
+  /* ================= STATE DELTA — one line at a time under the spotlight ================= */
+  .delta-veil{
+    position:fixed;inset:0;z-index:220;
+    background:rgba(6,10,8,.66);backdrop-filter:blur(8px);
+    display:flex;align-items:center;justify-content:center;padding:40px 24px;
+    overflow-y:auto;
+    opacity:0;pointer-events:none;transition:opacity .5s ease;
+  }
+  .delta-veil.show{opacity:1;pointer-events:auto}
+  .delta{
+    width:100%;max-width:560px;background:var(--card);border:1px solid var(--line);
+    border-radius:18px;padding:28px 30px;box-shadow:var(--shadow);
+    transform:translateY(18px) scale(.985);transition:transform .55s cubic-bezier(.2,.7,.2,1);
+  }
+  .delta-veil.show .delta{transform:none}
+  .delta-head{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:18px;display:flex;align-items:center;gap:9px;
+  }
+  .delta-head .ico{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .delta-rows{display:flex;flex-direction:column;gap:12px}
+  .drow{display:flex;align-items:baseline;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px;flex-wrap:wrap}
+  /* delta rows also spotlit: only the freshest is fully lit */
+  .drow{opacity:.32;filter:blur(.3px);transition:opacity .5s ease, filter .5s ease}
+  .drow.lit{opacity:1;filter:none}
+  .drow .dk{flex:0 0 152px;color:var(--ink-faint);letter-spacing:.03em}
+  .drow .dv{display:flex;align-items:baseline;gap:9px;color:var(--ink);flex:1 1 auto;flex-wrap:wrap}
+  .drow .from{color:var(--ink-ghost)}
+  .drow .arr{color:var(--accent)}
+  .drow .to{font-weight:700;color:var(--accent)}
+  .drow .to.warn{color:var(--amber)}
+  .drow .to.bad{color:var(--oxblood)}
+  .drow .note{font-family:"Spectral",serif;font-style:italic;font-size:13.5px;color:var(--ink-faint)}
+  .delta-foot{
+    margin-top:22px;padding-top:18px;border-top:1px dashed var(--line);
+    font-family:"Spectral",serif;font-size:15px;color:var(--ink-soft);font-style:italic;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .delta-foot .continue{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11.5px;font-weight:600;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:transparent;
+    border:1px solid var(--accent);border-radius:999px;padding:8px 16px;transition:.18s ease;font-style:normal;
+  }
+  .delta-foot .continue:hover{background:var(--accent);color:#0e1311}
+
+  /* breath flash between intents */
+  .breath{
+    position:fixed;inset:0;z-index:160;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;opacity:0;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-ghost);
+  }
+  .breath.show{opacity:1;transition:opacity .5s ease}
+
+  @media (max-width:640px){
+    body{font-size:18px}
+    .intent-line{font-size:26px}
+    .spotlight{font-size:19px}
+    .stage{padding:96px 18px}
+    .drow .dk{flex-basis:120px}
+    .move-key{min-width:130px;font-size:12px}
+    .brand-whisper,.mode-pill{display:none}
+    .pacer{bottom:20px;gap:9px;padding:8px 12px}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+    .caret{animation:none;opacity:1}
+    /* reduced motion: receded text is dimmed but un-blurred for comfort */
+    .sentence,.cline,ol.scaffold li,.drow{filter:none !important}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge chrome keep" href="../">&larr; gallery index</a>
+
+  <div class="ident chrome" aria-label="Learner identity">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar" aria-hidden="true">AO</div>
+  </div>
+
+  <div class="brand-whisper chrome" aria-hidden="true"><b>LORE</b> · learning runtime · projecteur</div>
+
+  <div class="mode-pill chrome keep" role="status" aria-live="polite">
+    <span class="mode-dot" aria-hidden="true"></span>
+    <span class="lbl">tutor · <b id="modeLabel">anthropic/claude</b></span>
+  </div>
+
+  <main class="stage">
+    <section class="zen" id="zen">
+      <div class="eyebrow chrome">
+        <span class="rl"></span>
+        <span class="badge runtime"><span class="dot"></span>runtime decided</span>
+        <span class="rl r"></span>
+      </div>
+      <h1 class="intent-line" id="intentLine">
+        Now — repair <em>persistence</em> before advancing.
+      </h1>
+
+      <div class="intent-meta chrome" id="intentMeta">
+        <span class="metric"><span class="k">mastery</span><span class="v bad" id="mMastery">0.41 ↓</span></span>
+        <span class="metric"><span class="k">retention</span><span class="v bad">0.38</span></span>
+        <span class="metric"><span class="k">misconception</span><span class="v warn">forgot-tx-rollback</span></span>
+        <span class="metric"><span class="k">gate</span><span class="v">transactions · locked</span></span>
+      </div>
+
+      <div class="chrome" style="margin-top:0">
+        <span class="recovery" id="recovery" title="The runtime deliberately lowered load after 2 failed attempts.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/>
+          </svg>
+          overload recovery — load lowered after 2 failed attempts
+        </span>
+      </div>
+
+      <section class="summon" id="summon" aria-label="Runtime command — summon">
+        <div class="summon-line" id="summonLine">
+          <span class="glyph" aria-hidden="true" id="glyph">&rsaquo;</span>
+          <div class="field-wrap">
+            <span class="caret" id="caret"></span>
+            <textarea class="field" id="field" rows="1" spellcheck="false" autocomplete="off"
+              aria-label="Summon a runtime move, or type your answer"
+              placeholder="press / or ⏎ to summon"></textarea>
+          </div>
+        </div>
+
+        <div class="whisper-hint" id="whisperHint">
+          one intention waits in the dark · press <kbd>/</kbd> to reveal the sanctioned moves, or <kbd>⏎</kbd> to /start
+        </div>
+
+        <div class="moves" id="moves" role="listbox" aria-label="Sanctioned runtime moves">
+          <div class="moves-head"><span>sanctioned runtime moves</span><span class="ct" id="movesCount">7</span></div>
+          <div id="moveList"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- FULL-BLEED spotlight reader -->
+  <div class="takeover" id="takeover" aria-live="polite" aria-hidden="true">
+    <div class="reader" id="reader"></div>
+  </div>
+
+  <!-- spotlight pacing control -->
+  <div class="pacer" id="pacer" role="group" aria-label="Reading spotlight pace">
+    <span class="auto-state" id="autoState"><span class="auto-dot" aria-hidden="true"></span><span id="autoLabel">auto-pacing</span></span>
+    <span class="frac" id="pacerFrac">·</span>
+    <button class="pbtn" id="backBtn" type="button" aria-label="Dim the current line, return to previous">&uarr; back</button>
+    <button class="pbtn" id="nextBtn" type="button" aria-label="Advance the spotlight">next <kbd>space</kbd></button>
+  </div>
+
+  <!-- thin reading-progress rail -->
+  <div class="progress-rail" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+
+  <!-- STATE DELTA overlay -->
+  <div class="delta-veil" id="deltaVeil" role="dialog" aria-modal="true" aria-label="State delta" aria-hidden="true">
+    <div class="delta" id="delta"></div>
+  </div>
+
+  <!-- breath flash -->
+  <div class="breath" id="breath" aria-hidden="true"></div>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- elements ---------- */
+  const body = document.body;
+  const zen = document.getElementById("zen");
+  const summon = document.getElementById("summon");
+  const summonLine = document.getElementById("summonLine");
+  const field = document.getElementById("field");
+  const caret = document.getElementById("caret");
+  const moves = document.getElementById("moves");
+  const moveList = document.getElementById("moveList");
+  const movesCount = document.getElementById("movesCount");
+  const takeover = document.getElementById("takeover");
+  const reader = document.getElementById("reader");
+  const deltaVeil = document.getElementById("deltaVeil");
+  const deltaBox = document.getElementById("delta");
+  const breath = document.getElementById("breath");
+  const modeLabel = document.getElementById("modeLabel");
+  const pacer = document.getElementById("pacer");
+  const autoState = document.getElementById("autoState");
+  const autoLabel = document.getElementById("autoLabel");
+  const pacerFrac = document.getElementById("pacerFrac");
+  const backBtn = document.getElementById("backBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const progressFill = document.getElementById("progressFill");
+
+  /* ---------- state ---------- */
+  let mode = "llm";          // "llm" | "fallback"
+  let practiceShown = false;
+  let busy = false;          // hard locks (open/regenerate/submit)
+  let selIdx = 0;
+  let mastery = 0.41;
+  let retention = 0.38;
+  let attempts = 0;
+  let cleared = 0;
+  let footShown = false;
+
+  /* ---------- SPOTLIGHT runtime ---------- */
+  // ordered list of "units" (sentence spans / code lines / scaffold items)
+  let units = [];            // [{el, type}]
+  let spotIdx = -1;          // index of the currently-lit unit
+  let autoTimer = null;
+  let autoPlaying = false;
+  let spotlightActive = false; // true while a spotlight reveal owns the keyboard
+  let pendingWhyBack = false;  // true when a /why-from-void run should resolve to a "back" button
+
+  /* ---------- sanctioned command set ---------- */
+  const COMMANDS = [
+    { key:"/start",               desc:"Summon the repair practice for ‘persistence’", tag:"generate", needsPractice:false },
+    { key:"/explain-differently", desc:"Reframe the current task another way",          tag:"gesture",  needsPractice:true  },
+    { key:"/example",             desc:"Light one more worked example",                 tag:"gesture",  needsPractice:true  },
+    { key:"/stuck",               desc:"Ask the runtime for a lighter scaffold",        tag:"gesture",  needsPractice:true  },
+    { key:"/why",                 desc:"Why did the runtime choose this move?",          tag:"meta",     needsPractice:false },
+    { key:"/fallback",            desc:"Flip tutor off — instruction-only scaffold",     tag:"runtime",  needsPractice:false },
+    { key:"/regenerate",          desc:"Discard & re-summon this content",               tag:"generate", needsPractice:true  },
+  ];
+
+  /* ---------- custom caret over transparent textarea ---------- */
+  const mirror = document.createElement("div");
+  Object.assign(mirror.style,{position:"absolute",visibility:"hidden",whiteSpace:"pre",left:"0",top:"0",pointerEvents:"none"});
+  field.parentNode.appendChild(mirror);
+  function syncMirrorFont(){ const cs = getComputedStyle(field); mirror.style.font = cs.font; mirror.style.letterSpacing = cs.letterSpacing; }
+  function updateCaret(){ syncMirrorFont(); mirror.textContent = field.value.substring(0, field.selectionEnd) || ""; caret.style.left = mirror.offsetWidth + "px"; }
+  function autoGrow(el){ el.style.height="auto"; el.style.height = el.scrollHeight + "px"; }
+
+  /* ---------- moves list ---------- */
+  function renderMoves(filter){
+    moveList.innerHTML = "";
+    const f = (filter||"").toLowerCase();
+    const items = COMMANDS.filter(c => !f || c.key.toLowerCase().startsWith(f));
+    movesCount.textContent = items.length;
+    items.forEach((c,i)=>{
+      const disabled = c.needsPractice && !practiceShown;
+      const el = document.createElement("div");
+      el.className = "move" + (disabled ? " is-disabled":"");
+      el.setAttribute("role","option");
+      el.dataset.key = c.key; el.dataset.disabled = disabled ? "1":"0"; el.tabIndex = -1;
+      el.innerHTML =
+        `<span class="move-key">${c.key}</span>`+
+        `<span class="move-desc">${c.desc}</span>`+
+        `<span class="move-tag">${c.tag}</span>`;
+      el.addEventListener("mousedown",(e)=>{ e.preventDefault(); if(!disabled) runCommand(c.key); });
+      el.addEventListener("mouseenter",()=>{ selIdx=i; paintSel(); });
+      moveList.appendChild(el);
+    });
+    selIdx = Math.min(selIdx, Math.max(0, items.length-1));
+    paintSel();
+    return items;
+  }
+  function paintSel(){
+    [...moveList.children].forEach((el,i)=> el.setAttribute("aria-selected", i===selIdx ? "true":"false"));
+    const cur = moveList.children[selIdx];
+    if(cur) cur.scrollIntoView({block:"nearest"});
+  }
+  function armMoves(){ moves.classList.add("armed"); }
+  function disarmMoves(){ moves.classList.remove("armed"); }
+  function dimWorld(on){ body.classList.toggle("dim", !!on); }
+
+  /* ============================================================
+     CONTENT FIXTURES (Amara / persistence / forgot-tx-rollback)
+     ============================================================ */
+  // The intro is authored as discrete SENTENCES — each one is a spotlight unit.
+  const LLM_INTRO_SENTENCES = [
+    "A teammate wrote this Go function to record a new enrollment.",
+    "It opens a database transaction, inserts one row, and then meets an error on its way out.",
+    "Read it slowly — the bug is not in what it does, but in what it forgets to do.",
+  ];
+  const LLM_QUESTION_SENTENCES = [
+    "When <strong>InsertEnrollment</strong> fails, the function returns the error and walks away.",
+    "The transaction it opened is never closed, so the half-written row can leak or commit under load.",
+    "Your task is small and exact: add the rollback path so persistence stays consistent on the error branch.",
+  ];
+
+  // Code lines — each is a spotlight unit, lit one at a time.
+  const CODE_LINES = [
+    `<span class="kw">func</span> <span class="fn">RecordEnrollment</span>(ctx context.Context, db *sql.DB, e Enrollment) <span class="kw">error</span> {`,
+    `    tx, err := db.BeginTx(ctx, <span class="kw">nil</span>)`,
+    `    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }`,
+    ``,
+    `    <span class="cm">// inserts the enrollment row inside the tx</span>`,
+    `    <span class="kw">if</span> err := <span class="fn">InsertEnrollment</span>(ctx, tx, e); err != <span class="kw">nil</span> {`,
+    `        <span class="err">return err   // ← leaks the tx: no tx.Rollback()</span>`,
+    `    }`,
+    `    <span class="kw">return</span> tx.<span class="fn">Commit</span>()`,
+    `}`,
+  ];
+
+  const FALLBACK_LEAD_SENTENCES = [
+    "Tutor LLM is off for learner-1 (override: instruction_only).",
+    "The runtime still authors a usable, numbered repair scaffold — no prose, no model.",
+  ];
+  const FALLBACK_STEPS = [
+    "Open the failing function <b>RecordEnrollment</b>; locate the error branch after <b>InsertEnrollment</b>.",
+    "On that branch the code does <b>return err</b> directly — the open transaction is never closed.",
+    "Before returning the error, call <b>tx.Rollback()</b> so the partial write is discarded.",
+    "Handle the rollback’s own error: log or join it, but still return the <b>original</b> insert error.",
+    "Confirm the success path still ends in <b>tx.Commit()</b> — Commit and Rollback are mutually exclusive.",
+    "State the invariant in one line: every BeginTx path must reach exactly one of Commit or Rollback.",
+  ];
+
+  const EVIDENCE_QUESTION = "On the error branch, what single line must run <b>before</b> <code>return err</code> so the open transaction does not leak?";
+
+  // Gesture text authored as sentences too — they spotlight just like the practice.
+  const GESTURE_SENTENCES = {
+    "/explain-differently":[
+      "Think of a transaction as a sealed envelope.",
+      "BeginTx opens it; Commit seals and mails it; Rollback shreds it.",
+      "Your error branch opens the envelope and then walks away — neither mailed nor shredded.",
+      "Add <strong>tx.Rollback()</strong> on that branch so every opened envelope reaches one of its two endings.",
+    ],
+    "/example":[
+      "Another shape of the same bug: a transfer that debits one account, then errors before crediting the other and returns.",
+      "Without Rollback the debit can persist alone, leaving money out of balance.",
+      "The repair is identical — branch or defer a <strong>tx.Rollback()</strong> so the half-done work is discarded on the error path.",
+    ],
+    "/stuck":[
+      "Lighter scaffold, three lines.",
+      "One: find the error branch that returns.",
+      "Two: add <strong>tx.Rollback()</strong> just before it.",
+      "Three: keep returning the original error — wrapping the rollback error is optional polish.",
+    ],
+  };
+  const WHY_SENTENCES = [
+    "The runtime selected persistence over advancing for three measured reasons.",
+    "Retention fell to 0.38 with a spaced review two days overdue (FSRS), and mastery sits at 0.41 and declining (BKT).",
+    "One misconception — <strong>forgot-tx-rollback</strong> — is still active from the last two attempts.",
+    "Because ‘transactions’ depends on persistence in the concept DAG, it stays locked until persistence is repaired.",
+    "This rationale is runtime-owned and authoritative; the reading above is the disposable, regenerable part.",
+  ];
+
+  /* ============================================================
+     SPOTLIGHT ENGINE
+     The hero: only ONE unit fully lit; read units recede; unseen are absent.
+     ============================================================ */
+  const AUTO_BASE = 1500;     // calm reading pace per unit (ms), tuned per unit length
+
+  function clearAuto(){ if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; } }
+
+  function paceFor(unit){
+    // humane reading-paced: longer units linger longer
+    if(!unit) return AUTO_BASE;
+    const txt = (unit.el.textContent||"").trim();
+    if(unit.type==="code"){
+      return txt.length < 2 ? 650 : 950;     // blank/short code lines pass quickly
+    }
+    const words = txt.split(/\s+/).filter(Boolean).length;
+    return Math.max(1200, Math.min(4200, 520 + words * 230));
+  }
+
+  function updateProgress(){
+    const total = units.length;
+    const done = spotIdx + 1;
+    progressFill.style.width = total ? (Math.max(0,done)/total*100)+"%" : "0%";
+    if(spotlightActive){
+      pacerFrac.textContent = total ? (Math.min(done,total)) + " / " + total : "·";
+    }
+  }
+
+  function applySpot(){
+    units.forEach((u,i)=>{
+      const el = u.el;
+      el.classList.remove("upcoming","lit","justlit");
+      if(i < spotIdx){ /* already read → receded default */ }
+      else if(i === spotIdx){ el.classList.add("lit"); }
+      else { el.classList.add("upcoming"); }
+    });
+    const cur = units[spotIdx] && units[spotIdx].el;
+    if(cur){
+      if(!reduceMotion) cur.classList.add("justlit");
+      cur.scrollIntoView({block:"center", behavior: reduceMotion?"auto":"smooth"});
+    }
+    updateProgress();
+  }
+
+  // advance the spotlight by one unit. returns false if at the end.
+  function spotNext(){
+    if(spotIdx >= units.length-1){ return false; }
+    spotIdx++;
+    applySpot();
+    return true;
+  }
+  function spotBack(){
+    if(spotIdx <= 0){ return false; }
+    spotIdx--;
+    applySpot();
+    return true;
+  }
+
+  function setAutoUI(){
+    pacer.classList.toggle("paused", !autoPlaying);
+    autoLabel.textContent = autoPlaying ? "auto-pacing" : "paused — you pace";
+  }
+
+  function scheduleAuto(){
+    clearAuto();
+    if(!autoPlaying || reduceMotion) return;
+    const unit = units[spotIdx];
+    autoTimer = setTimeout(()=>{
+      const moved = spotNext();
+      if(moved) scheduleAuto();
+      else finishSpotlight();
+    }, paceFor(unit));
+  }
+
+  function startAuto(){ autoPlaying = true; setAutoUI(); scheduleAuto(); }
+  function pauseAuto(){ autoPlaying = false; setAutoUI(); clearAuto(); }
+  function toggleAuto(){ autoPlaying ? pauseAuto() : startAuto(); }
+
+  // user-driven advance (Space/Enter/next button): pauses auto and steps forward
+  function manualNext(){
+    if(!spotlightActive) return;
+    pauseAuto();
+    const moved = spotNext();
+    if(!moved) finishSpotlight();
+  }
+  function manualBack(){
+    if(!spotlightActive) return;
+    pauseAuto();
+    spotBack();
+  }
+
+  // when the last unit is lit, resolve the spotlight and reveal the foot
+  function finishSpotlight(){
+    if(!spotlightActive) return;
+    spotlightActive = false;
+    clearAuto();
+    pacer.classList.remove("show");
+    // mark the final unit as still lit (it's the current idea) but allow the foot to appear
+    updateProgress();
+    onSpotlightResolved();
+  }
+
+  // builder: registers a sentence/code/step element as a spotlight unit
+  function registerUnit(el, type){ units.push({el, type}); el.classList.add("upcoming"); }
+
+  // begin a spotlight run from the first registered unit
+  function beginSpotlight(){
+    spotIdx = -1;
+    spotlightActive = true;
+    pacer.classList.add("show");
+    setAutoUI();
+    // light the first unit, then auto-pace
+    spotNext();
+    if(reduceMotion){
+      // reduced motion: reveal all units at once, no timed pacing
+      units.forEach((u,i)=>{ u.el.classList.remove("upcoming"); if(i!==units.length-1) u.el.classList.remove("lit"); });
+      spotIdx = units.length-1; applySpot();
+      finishSpotlight();
+      return;
+    }
+    startAuto();
+  }
+
+  /* helper: build a <span class="sentence"> for a unit of prose (may contain <strong>) */
+  function makeSentence(html){
+    const s = document.createElement("span");
+    s.className = "sentence";
+    s.innerHTML = html + " ";
+    return s;
+  }
+
+  /* ============================================================
+     /start — full-bleed spotlight takeover
+     ============================================================ */
+  async function openTakeover(){
+    body.classList.add("reading");
+    takeover.classList.add("show");
+    takeover.setAttribute("aria-hidden","false");
+    zen.classList.add("gone");
+    await wait(reduceMotion?0:80);
+  }
+
+  function readerStatus(srcText){
+    const wrap = document.createElement("div");
+    wrap.className = "reader-status";
+    wrap.innerHTML = `<span class="spin"></span><span class="check">✓</span>`+
+      `<span>generating from <span class="src">TutorInstruction · ${srcText}</span></span>`;
+    return wrap;
+  }
+  function resolveStatus(statusEl, finalText, badge){
+    statusEl.classList.add("done");
+    statusEl.querySelector("span:last-child").innerHTML = `resolved · <span class="src">${finalText}</span> ${badge}`;
+  }
+
+  // build the full LLM practice DOM, registering every sentence + code line as a unit
+  async function renderLLMPractice(isRegen){
+    busy = true; clearAuto();
+    reader.innerHTML = ""; units = []; footShown = false;
+    const status = readerStatus("claude · temp 0.2");
+    reader.appendChild(status);
+
+    const head = document.createElement("div");
+    head.innerHTML =
+      `<span class="badge llm reader-badge"><span class="dot"></span>LLM generated · claude · temp 0.2</span>`+
+      `<span class="scenario-label">scenario · persistence / forgot-tx-rollback</span>`;
+    reader.appendChild(head);
+
+    await wait(reduceMotion?0:560);
+
+    const sl = document.createElement("div");
+    sl.className = "spotlight";
+    reader.appendChild(sl);
+
+    // intro paragraph
+    const p1 = document.createElement("p"); p1.className="spot-para"; sl.appendChild(p1);
+    const intro = (isRegen ? ["Same repair, re-summoned — read it once more."] : []).concat(LLM_INTRO_SENTENCES);
+    intro.forEach(htm=>{ const s = makeSentence(htm); p1.appendChild(s); registerUnit(s,"prose"); });
+
+    // code block — each line a unit
+    const pre = document.createElement("pre");
+    pre.className = "code"; pre.setAttribute("aria-label","Go function with a missing rollback");
+    CODE_LINES.forEach(line=>{
+      const c = document.createElement("span");
+      c.className = "cline"; c.innerHTML = line.length ? line : "​";
+      pre.appendChild(c); registerUnit(c,"code");
+    });
+    sl.appendChild(pre);
+
+    // question paragraph
+    const p2 = document.createElement("p"); p2.className="spot-para"; sl.appendChild(p2);
+    LLM_QUESTION_SENTENCES.forEach(htm=>{ const s = makeSentence(htm); p2.appendChild(s); registerUnit(s,"prose"); });
+
+    resolveStatus(status, "claude · temp 0.2", `<span class="badge llm">llm generated</span>`);
+    practiceShown = true; busy = false;
+
+    beginSpotlight();
+  }
+
+  async function renderFallbackPractice(){
+    busy = true; clearAuto();
+    reader.innerHTML = ""; units = []; footShown = false;
+    const status = readerStatus("runtime author · instruction_only");
+    reader.appendChild(status);
+
+    const head = document.createElement("div");
+    head.innerHTML =
+      `<span class="badge fallbk reader-badge"><span class="dot"></span>instruction-only · runtime authored</span>`+
+      `<span class="scenario-label">scaffold · persistence / forgot-tx-rollback · no LLM</span>`;
+    reader.appendChild(head);
+
+    await wait(reduceMotion?0:520);
+
+    const sl = document.createElement("div");
+    sl.className = "spotlight";
+    reader.appendChild(sl);
+
+    const lead = document.createElement("p"); lead.className="spot-para"; sl.appendChild(lead);
+    FALLBACK_LEAD_SENTENCES.forEach(htm=>{ const s = makeSentence(htm); lead.appendChild(s); registerUnit(s,"prose"); });
+
+    const ol = document.createElement("ol"); ol.className="scaffold"; sl.appendChild(ol);
+    FALLBACK_STEPS.forEach(htm=>{
+      const li = document.createElement("li"); li.innerHTML = htm;
+      ol.appendChild(li); registerUnit(li,"step");
+    });
+
+    resolveStatus(status, "instruction_only", `<span class="badge fallbk">runtime authored</span>`);
+    practiceShown = true; busy = false;
+
+    beginSpotlight();
+  }
+
+  /* ---------- when spotlight finishes: route to the right resolution ---------- */
+  function onSpotlightResolved(){
+    if(pendingWhyBack){ mountWhyBack(); return; }   // /why-from-void run
+    mountReaderFoot();                              // practice / gesture / why run
+  }
+
+  function mountReaderFoot(){
+    if(footShown) return;
+    footShown = true;
+    const foot = document.createElement("div");
+    foot.className = "reader-foot";
+    foot.id = "readerFoot";
+    foot.innerHTML =
+      `<div class="reader-moves">`+
+        `<span class="gl">sanctioned moves</span>`+
+        `<button class="gesture" data-cmd="/explain-differently"><span class="g">/</span>explain differently</button>`+
+        `<button class="gesture" data-cmd="/example"><span class="g">/</span>another example</button>`+
+        `<button class="gesture danger" data-cmd="/stuck"><span class="g">/</span>I’m stuck</button>`+
+        `<button class="gesture" data-cmd="/why"><span class="g">/</span>why this?</button>`+
+        `<button class="gesture" data-cmd="/regenerate"><span class="g">/</span>regenerate</button>`+
+        `<button class="gesture" data-cmd="/fallback" id="footFallback"><span class="g">/</span>fallback</button>`+
+      `</div>`+
+      `<div class="evidence">`+
+        `<div class="evidence-head"><span>your fix · evidence</span><span>persistence · attempt ${attempts+1}</span></div>`+
+        `<p class="evidence-q">${EVIDENCE_QUESTION}</p>`+
+        `<div class="evidence-row">`+
+          `<span class="glyph">&rsaquo;</span>`+
+          `<textarea id="evField" rows="2" spellcheck="false" placeholder="describe or paste the rollback fix you'd add…"></textarea>`+
+        `</div>`+
+        `<div class="evidence-foot">`+
+          `<span class="hint">runtime scores this against BKT + the active misconception</span>`+
+          `<button class="submit" id="evSubmit">submit evidence <kbd>⌘⏎</kbd></button>`+
+        `</div>`+
+      `</div>`;
+    reader.appendChild(foot);
+
+    foot.querySelectorAll(".gesture").forEach(b=> b.addEventListener("click",()=> runCommand(b.dataset.cmd)));
+    if(mode==="fallback"){ const ff = foot.querySelector("#footFallback"); if(ff) ff.disabled = true; }
+
+    const ef = foot.querySelector("#evField");
+    const sb = foot.querySelector("#evSubmit");
+    ef.value = "if err := InsertEnrollment(ctx, tx, e); err != nil {\n    tx.Rollback()\n    return err\n}";
+    autoGrow(ef);
+    ef.addEventListener("input",()=>{ autoGrow(ef); sb.disabled = ef.value.trim().length < 3; });
+    ef.addEventListener("keydown",(ev)=>{
+      if((ev.metaKey||ev.ctrlKey) && ev.key==="Enter"){ ev.preventDefault(); if(!sb.disabled) submitEvidence(); }
+    });
+    sb.addEventListener("click", submitEvidence);
+
+    requestAnimationFrame(()=> foot.classList.add("show"));
+    setTimeout(()=>{ if(!reduceMotion) ef.focus(); }, reduceMotion?0:420);
+  }
+
+  /* ---------- gesture / why: a fresh spotlight run that supersedes the practice ---------- */
+  async function renderGesture(key){
+    busy = true; clearAuto();
+    const foot = document.getElementById("readerFoot");
+    const resp = document.createElement("div");
+    resp.className = "inline-resp " + (mode==="fallback"?"fallbk-resp":"");
+    const tag = mode==="fallback"
+      ? `<span class="rtag badge fallbk"><span class="dot"></span>instruction-only · ${key}</span>`
+      : `<span class="rtag badge llm"><span class="dot"></span>LLM generated · ${key}</span>`;
+    resp.innerHTML = tag;
+    const span = document.createElement("span"); span.className="rbody"; resp.appendChild(span);
+    if(foot) reader.insertBefore(resp, foot); else reader.appendChild(resp);
+
+    await wait(reduceMotion?0:300);
+    // re-arm the spotlight for just these sentences
+    units = [];
+    GESTURE_SENTENCES[key].forEach(htm=>{ const s = makeSentence(htm); span.appendChild(s); registerUnit(s,"prose"); });
+    busy = false;
+    beginSpotlight();
+  }
+
+  async function renderWhy(){
+    busy = true; clearAuto();
+    const foot = document.getElementById("readerFoot");
+    const resp = document.createElement("div");
+    resp.className = "inline-resp runtime-resp";
+    resp.innerHTML = `<span class="rtag badge runtime"><span class="dot"></span>runtime decided · /why</span>`;
+    const span = document.createElement("span"); span.className="rbody"; resp.appendChild(span);
+    if(foot) reader.insertBefore(resp, foot); else reader.appendChild(resp);
+    await wait(reduceMotion?0:240);
+    units = [];
+    WHY_SENTENCES.forEach(htm=>{ const s = makeSentence(htm); span.appendChild(s); registerUnit(s,"prose"); });
+    busy = false;
+    beginSpotlight();
+  }
+
+  /* ---------- /why from the void: spotlight rationale, with a quiet return ---------- */
+  async function renderWhyFromVoid(){
+    busy = true; clearAuto();
+    dimWorld(true);
+    await openTakeover();
+    reader.innerHTML = ""; units = []; footShown = true; // suppress the evidence foot here
+    const head = document.createElement("div");
+    head.innerHTML = `<span class="badge runtime reader-badge"><span class="dot"></span>runtime decided · /why</span>`+
+      `<span class="scenario-label">runtime rationale · authoritative</span>`;
+    reader.appendChild(head);
+    const sl = document.createElement("div"); sl.className="spotlight"; reader.appendChild(sl);
+    const p = document.createElement("p"); p.className="spot-para"; sl.appendChild(p);
+    WHY_SENTENCES.forEach(htm=>{ const s = makeSentence(htm); p.appendChild(s); registerUnit(s,"prose"); });
+
+    // a quiet return appears once the rationale resolves
+    pendingWhyBack = true;
+    busy = false;
+    beginSpotlight();
+  }
+  function mountWhyBack(){
+    pendingWhyBack = false;
+    const back = document.createElement("div");
+    back.className="reader-foot"; back.style.marginTop="36px";
+    back.innerHTML = `<button class="continue" id="whyBack" style="font-family:'Spline Sans Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:transparent;border:1px solid var(--accent);border-radius:999px;padding:8px 16px;cursor:pointer;">← back to the line</button>`;
+    reader.appendChild(back);
+    requestAnimationFrame(()=> back.classList.add("show"));
+    back.querySelector("#whyBack").addEventListener("click", async ()=>{
+      takeover.classList.remove("show"); takeover.setAttribute("aria-hidden","true");
+      pacer.classList.remove("show");
+      body.classList.remove("reading");
+      zen.classList.remove("gone"); dimWorld(false); footShown=false;
+      await wait(reduceMotion?0:200); field.focus();
+    });
+  }
+
+  /* ============================================================
+     submit evidence -> state delta (one row lit at a time) -> collapse -> next intent
+     ============================================================ */
+  async function submitEvidence(){
+    if(busy) return;
+    busy = true; clearAuto();
+    reader.querySelectorAll(".evidence textarea, .evidence .submit, .reader-moves .gesture").forEach(el=> el.disabled = true);
+
+    deltaBox.innerHTML =
+      `<div class="delta-head"><span class="ico"></span>state delta · runtime committed</div>`+
+      `<div class="reader-status" id="deltaStatus" style="margin-bottom:16px"><span class="spin"></span><span class="check">✓</span>`+
+        `<span>generating from <span class="src">runtime · BKT update + FSRS reschedule</span></span></div>`+
+      `<div class="delta-rows" id="deltaRows"></div>`+
+      `<div class="delta-foot"><span id="deltaNote"></span>`+
+        `<button class="continue" id="continueBtn">accept &amp; next intent</button></div>`;
+    deltaVeil.classList.add("show");
+    deltaVeil.setAttribute("aria-hidden","false");
+
+    await wait(reduceMotion?0:560);
+
+    const prevM = mastery, prevR = retention;
+    mastery = Math.min(0.66, +(mastery + 0.06).toFixed(2));
+    retention = Math.min(0.7, +(retention + 0.14).toFixed(2));
+    cleared++;
+
+    resolveStatus(deltaBox.querySelector("#deltaStatus"), "runtime committed", `<span class="badge runtime">runtime decided</span>`);
+
+    const stillLocked = mastery < 0.6;
+    const rows = deltaBox.querySelector("#deltaRows");
+    const deltas = [
+      `<span class="dk">mastery · persistence</span><span class="dv"><span class="from">${prevM.toFixed(2)}</span><span class="arr">→</span><span class="to">${mastery.toFixed(2)}</span><span class="note">partial credit — rollback present, error not wrapped</span></span>`,
+      `<span class="dk">misconception</span><span class="dv"><span class="to warn">forgot-tx-rollback</span><span class="note">still active — Rollback() error unhandled</span></span>`,
+      `<span class="dk">retention (FSRS)</span><span class="dv"><span class="from">${prevR.toFixed(2)}</span><span class="arr">→</span><span class="to">${retention.toFixed(2)}</span><span class="note">review rescheduled +1d (was overdue 2d)</span></span>`,
+      `<span class="dk">load state</span><span class="dv"><span class="to">overload recovery</span><span class="note">held — one clean attempt before lifting</span></span>`,
+      `<span class="dk">gate · transactions</span><span class="dv"><span class="to ${stillLocked?'bad':''}">${stillLocked?'still locked':'unlocking'}</span><span class="note">unlocks at persistence ≥ 0.6</span></span>`,
+    ];
+    // spotlight the delta: light one row, recede the previous
+    const rowEls = [];
+    deltas.forEach(htm=>{ const r=document.createElement("div"); r.className="drow"; r.innerHTML=htm; rows.appendChild(r); rowEls.push(r); });
+    for(let i=0;i<rowEls.length;i++){
+      rowEls.forEach((r,j)=> r.classList.toggle("lit", j===i));
+      await wait(reduceMotion?0:560);
+    }
+    // leave all rows readable (receded) at the end so the picture is whole
+    rowEls.forEach(r=> r.classList.add("lit"));
+
+    // closing line, spotlit as a single sentence
+    const note = deltaBox.querySelector("#deltaNote");
+    note.textContent = "Evidence absorbed. Breathe out — the void resets to the runtime’s next chosen move.";
+    deltaBox.querySelector("#continueBtn").addEventListener("click", collapseToNextIntent);
+    busy = false;
+  }
+
+  async function collapseToNextIntent(){
+    if(busy) return;
+    busy = true; clearAuto();
+
+    deltaVeil.classList.remove("show");
+    deltaVeil.setAttribute("aria-hidden","true");
+    await wait(reduceMotion?0:300);
+    takeover.classList.remove("show");
+    takeover.setAttribute("aria-hidden","true");
+    pacer.classList.remove("show");
+    body.classList.remove("reading");
+
+    breath.textContent = "spotlight dimmed · runtime selecting next move…";
+    breath.classList.add("show");
+    await wait(reduceMotion?0:760);
+    breath.classList.remove("show");
+
+    reader.innerHTML = ""; footShown=false; practiceShown=false; attempts=0; units=[]; spotIdx=-1;
+
+    const il = document.getElementById("intentLine");
+    if(cleared >= 1){
+      il.innerHTML = `Now — <em>tighten the rollback</em> on persistence.`;
+    }
+    const mm = document.getElementById("mMastery");
+    mm.textContent = mastery.toFixed(2) + " ↑"; mm.classList.remove("bad"); mm.classList.add("warn");
+    document.getElementById("recovery").innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/></svg>overload recovery — one clean attempt away from lifting`;
+    progressFill.style.width = "0%";
+
+    zen.classList.remove("gone");
+    dimWorld(false);
+    field.value=""; autoGrow(field); updateCaret();
+    disarmMoves();
+    await wait(reduceMotion?0:180);
+    field.focus();
+    busy = false;
+  }
+
+  /* ============================================================
+     command dispatcher
+     ============================================================ */
+  async function runCommand(key){
+    if(busy) return;
+    disarmMoves();
+    field.value=""; autoGrow(field); updateCaret();
+
+    switch(key){
+      case "/start":
+        if(practiceShown) return;
+        dimWorld(true);
+        await openTakeover();
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(false);
+        break;
+
+      case "/fallback":
+        mode = "fallback";
+        body.classList.add("fallback");
+        modeLabel.textContent = "instruction_only";
+        dimWorld(true);
+        if(!takeover.classList.contains("show")) await openTakeover();
+        await renderFallbackPractice();
+        break;
+
+      case "/regenerate":
+        if(!practiceShown) return;
+        attempts++;
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(true);
+        break;
+
+      case "/explain-differently":
+      case "/example":
+      case "/stuck":
+        if(!practiceShown) return;
+        await renderGesture(key);
+        break;
+
+      case "/why":
+        if(practiceShown) await renderWhy();
+        else await renderWhyFromVoid();
+        break;
+    }
+  }
+
+  /* ============================================================
+     input wiring (void summon)
+     ============================================================ */
+  function syncFromField(){
+    autoGrow(field); updateCaret();
+    const v = field.value;
+    if(v.startsWith("/")){ const items = renderMoves(v); if(items.length) armMoves(); else disarmMoves(); }
+    else if(v===""){ renderMoves(""); }
+    else { disarmMoves(); }
+  }
+  field.addEventListener("input", syncFromField);
+  field.addEventListener("click", updateCaret);
+  field.addEventListener("keyup", updateCaret);
+
+  field.addEventListener("focus",()=>{
+    summon.classList.add("focused");
+    if(!takeover.classList.contains("show")) dimWorld(true);
+    renderMoves(field.value.startsWith("/")?field.value:"");
+    armMoves(); updateCaret();
+  });
+  field.addEventListener("blur",()=>{
+    summon.classList.remove("focused");
+    if(!takeover.classList.contains("show")) dimWorld(false);
+    setTimeout(disarmMoves,140);
+  });
+  summonLine.addEventListener("mousedown",(e)=>{ if(e.target!==field){ e.preventDefault(); field.focus(); } });
+
+  field.addEventListener("keydown",(e)=>{
+    const open = moves.classList.contains("armed") && summon.classList.contains("focused");
+    const items = [...moveList.querySelectorAll(".move")];
+    if(e.key==="/" && field.value===""){ setTimeout(()=>{ renderMoves("/"); armMoves(); },0); return; }
+    if(open && e.key==="ArrowDown"){ e.preventDefault(); selIdx=Math.min(items.length-1,selIdx+1); paintSel(); return; }
+    if(open && e.key==="ArrowUp"){ e.preventDefault(); selIdx=Math.max(0,selIdx-1); paintSel(); return; }
+    if(e.key==="Escape"){ disarmMoves(); field.blur(); return; }
+    if(e.key==="Enter" && !e.shiftKey){
+      e.preventDefault();
+      const v = field.value.trim();
+      if(open && v.startsWith("/") && items[selIdx]){
+        if(items[selIdx].dataset.disabled==="1") return;
+        runCommand(items[selIdx].dataset.key); return;
+      }
+      if(v.startsWith("/")){
+        const match = COMMANDS.find(c=>c.key===v) || COMMANDS.find(c=>c.key.startsWith(v));
+        if(match){ runCommand(match.key); return; }
+      }
+      if(v==="" && !practiceShown){ runCommand("/start"); return; }
+    }
+  });
+
+  /* ---------- spotlight pacing: keyboard + buttons ---------- */
+  nextBtn.addEventListener("click", manualNext);
+  backBtn.addEventListener("click", manualBack);
+  autoState.addEventListener("click", toggleAuto);
+  autoState.style.cursor = "pointer";
+  autoState.setAttribute("role","button");
+  autoState.setAttribute("tabindex","0");
+  autoState.setAttribute("aria-label","Toggle auto-pacing");
+  autoState.addEventListener("keydown",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleAuto(); } });
+
+  // global keys while a spotlight is active — Space/Enter advance, ArrowUp goes back,
+  // P toggles auto. We do not steal keys when the learner is typing in a field.
+  document.addEventListener("keydown",(e)=>{
+    const typing = e.target && (e.target.tagName==="TEXTAREA" || e.target.tagName==="INPUT");
+    if(!spotlightActive) return;
+    if(typing) return;
+    if(e.key===" " || e.key==="Enter"){ e.preventDefault(); manualNext(); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); manualBack(); }
+    else if(e.key==="ArrowDown"){ e.preventDefault(); manualNext(); }
+    else if(e.key==="p" || e.key==="P"){ e.preventDefault(); toggleAuto(); }
+  });
+
+  /* ---------- helpers / boot ---------- */
+  function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  window.addEventListener("resize", updateCaret);
+
+  renderMoves("");
+  setTimeout(()=>{ updateCaret(); }, 220);
+  setTimeout(()=>{ if(!reduceMotion) field.focus(); }, reduceMotion?0:1700);
+})();
+</script>
+</body>
+</html>

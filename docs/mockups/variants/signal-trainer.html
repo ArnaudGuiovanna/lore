@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SIGNAL · LORE Trainer Console — Go-Spring-24</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0b0d;
+    --panel:#101216;
+    --panel-2:#15181d;
+    --panel-3:#1b1f25;
+    --line:#23282f;
+    --line-bright:#313842;
+    --ink:#e7ecf2;
+    --ink-2:#9aa4b2;
+    --ink-3:#5e6773;
+    --ink-4:#3d444e;
+    /* signal colors */
+    --risk:#ff4d4d;
+    --review:#ffb020;
+    --mastered:#36d399;
+    --miscon:#a78bfa;
+    --overload:#ff7849;
+    --info:#4cc4ff;
+    --risk-bg:rgba(255,77,77,.12);
+    --review-bg:rgba(255,176,32,.12);
+    --mastered-bg:rgba(54,211,153,.12);
+    --miscon-bg:rgba(167,139,250,.12);
+    --overload-bg:rgba(255,120,73,.12);
+    --info-bg:rgba(76,196,255,.12);
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --disp:'Archivo',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    background-image:
+      radial-gradient(circle at 12% -10%, rgba(76,196,255,.05), transparent 40%),
+      radial-gradient(circle at 90% 0%, rgba(167,139,250,.04), transparent 38%);
+  }
+  ::selection{background:rgba(76,196,255,.3);color:#fff}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer}
+
+  /* ---- gallery badge ---- */
+  .gallery-badge{
+    position:fixed;top:10px;right:12px;z-index:200;
+    font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink-3);
+    border:1px solid var(--line);background:rgba(16,18,22,.85);
+    backdrop-filter:blur(6px);padding:5px 9px;border-radius:3px;
+    transition:.18s;
+  }
+  .gallery-badge:hover{color:var(--info);border-color:var(--info);box-shadow:0 0 0 1px var(--info-bg)}
+
+  /* ---- shell ---- */
+  .shell{display:flex;flex-direction:column;min-height:100vh}
+
+  /* ---- top bar ---- */
+  header.topbar{
+    display:flex;align-items:center;gap:18px;
+    padding:0 18px;height:52px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    position:sticky;top:0;z-index:100;
+  }
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .mark{
+    width:26px;height:26px;border:1px solid var(--line-bright);border-radius:4px;
+    display:grid;place-items:center;position:relative;background:#0d0f13;
+    overflow:hidden;
+  }
+  .brand .mark::before{
+    content:"";position:absolute;inset:0;
+    background:repeating-linear-gradient(90deg,transparent 0 3px,rgba(76,196,255,.14) 3px 4px);
+    animation:scan 4s linear infinite;
+  }
+  @keyframes scan{to{transform:translateX(8px)}}
+  .brand .mark span{font-family:var(--disp);font-weight:900;font-size:14px;color:var(--info);position:relative;z-index:1}
+  .brand .name{font-family:var(--disp);font-weight:800;letter-spacing:.16em;font-size:15px}
+  .brand .name b{color:var(--info)}
+  .brand .sub{font-size:10px;color:var(--ink-3);letter-spacing:.14em;text-transform:uppercase;margin-top:-2px}
+
+  .ctx{display:flex;align-items:center;gap:8px;margin-left:6px}
+  .ctx .chip{
+    font-size:10.5px;letter-spacing:.05em;color:var(--ink-2);
+    border:1px solid var(--line);border-radius:3px;padding:3px 8px;background:var(--panel-3);
+  }
+  .ctx .chip b{color:var(--ink)}
+  .ctx .sep{color:var(--ink-4)}
+
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .runtime-pill{
+    display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.06em;
+    color:var(--ink-2);border:1px solid var(--line);border-radius:20px;padding:4px 11px 4px 9px;
+    background:var(--panel-3);
+  }
+  .led{width:7px;height:7px;border-radius:50%;flex:none;position:relative}
+  .led.green{background:var(--mastered);box-shadow:0 0 7px var(--mastered)}
+  .led.green::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1px solid var(--mastered);opacity:.5;animation:pulse 2s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.6);opacity:.6}100%{transform:scale(1.8);opacity:0}}
+  .clock{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .who{display:flex;align-items:center;gap:8px}
+  .who .av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#2a3340,#1a2028);border:1px solid var(--line-bright);display:grid;place-items:center;font-weight:700;font-size:11px;color:var(--info)}
+  .who .meta{line-height:1.25}
+  .who .meta .n{font-size:11px;font-weight:600}
+  .who .meta .r{font-size:9.5px;color:var(--ink-3);letter-spacing:.08em;text-transform:uppercase}
+
+  /* ---- tabs ---- */
+  nav.tabs{
+    display:flex;gap:2px;padding:0 14px;height:42px;align-items:flex-end;
+    border-bottom:1px solid var(--line);background:var(--panel);
+    overflow-x:auto;scrollbar-width:none;
+  }
+  nav.tabs::-webkit-scrollbar{display:none}
+  .tab{
+    display:flex;align-items:center;gap:8px;
+    padding:8px 15px;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;
+    font-weight:600;color:var(--ink-3);border:1px solid transparent;border-bottom:none;
+    border-radius:5px 5px 0 0;position:relative;white-space:nowrap;transition:.16s;background:transparent;
+  }
+  .tab .num{font-size:9px;color:var(--ink-4);font-weight:700}
+  .tab:hover{color:var(--ink-2);background:var(--panel-2)}
+  .tab.active{color:var(--ink);background:var(--panel-2);border-color:var(--line);border-bottom:1px solid var(--panel-2)}
+  .tab.active::after{content:"";position:absolute;top:-1px;left:0;right:0;height:2px;background:var(--info);box-shadow:0 0 8px var(--info)}
+  .tab .badge{font-size:9px;background:var(--risk);color:#1a0505;border-radius:9px;padding:1px 5px;font-weight:700}
+  .tab:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+
+  /* ---- main ---- */
+  main{flex:1;padding:18px;max-width:1480px;width:100%;margin:0 auto}
+  .screen{display:none;animation:fade .4s ease}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+  .screen-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:16px;flex-wrap:wrap}
+  .screen-head h1{font-family:var(--disp);font-weight:800;font-size:21px;letter-spacing:.01em;margin:0;display:flex;align-items:center;gap:10px}
+  .screen-head h1 .tag{font-size:10px;font-family:var(--mono);font-weight:600;color:var(--ink-3);letter-spacing:.14em;border:1px solid var(--line);padding:3px 7px;border-radius:3px}
+  .screen-head .desc{font-size:11.5px;color:var(--ink-3);margin-top:4px;max-width:560px}
+  .head-actions{display:flex;gap:8px}
+  .btn{
+    font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;
+    border:1px solid var(--line-bright);background:var(--panel-3);color:var(--ink-2);
+    padding:7px 12px;border-radius:4px;transition:.16s;display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{border-color:var(--info);color:var(--ink);background:var(--panel-2)}
+  .btn.primary{background:var(--info-bg);border-color:var(--info);color:#bfe8ff}
+  .btn:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+
+  /* ---- KPI strip ---- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi{
+    border:1px solid var(--line);border-radius:6px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    padding:13px 15px;position:relative;overflow:hidden;
+  }
+  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--info))}
+  .kpi .lab{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .kpi .val{font-family:var(--disp);font-weight:800;font-size:30px;line-height:1.05;margin-top:8px;font-variant-numeric:tabular-nums}
+  .kpi .delta{font-size:10.5px;margin-top:5px;display:flex;align-items:center;gap:5px;color:var(--ink-3)}
+  .kpi .delta b{font-weight:600}
+  .up{color:var(--mastered)}.down{color:var(--risk)}.warn{color:var(--review)}
+  .kpi.k-risk{--accent:var(--risk)} .kpi.k-review{--accent:var(--review)}
+  .kpi.k-mis{--accent:var(--miscon)} .kpi.k-mastery{--accent:var(--mastered)}
+
+  /* ---- panels ---- */
+  .panel{border:1px solid var(--line);border-radius:7px;background:var(--panel);overflow:hidden}
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2);
+  }
+  .panel-head h2{font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--ink)}
+  .panel-head .meta{font-size:10.5px;color:var(--ink-3);letter-spacing:.05em}
+
+  /* ---- roster table ---- */
+  .tbl-wrap{overflow-x:auto}
+  table.roster{width:100%;border-collapse:collapse;font-size:12px;min-width:920px}
+  table.roster thead th{
+    text-align:left;font-weight:600;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-3);padding:9px 13px;border-bottom:1px solid var(--line);background:var(--panel-2);
+    position:sticky;top:0;white-space:nowrap;
+  }
+  table.roster tbody tr{border-bottom:1px solid var(--line);transition:background .14s;cursor:pointer}
+  table.roster tbody tr:hover{background:var(--panel-2)}
+  table.roster tbody tr:focus-visible{outline:2px solid var(--info);outline-offset:-2px;background:var(--panel-2)}
+  table.roster tbody tr:last-child{border-bottom:none}
+  table.roster td{padding:10px 13px;vertical-align:middle;white-space:nowrap}
+  .lrn{display:flex;align-items:center;gap:10px}
+  .lrn .av{width:28px;height:28px;border-radius:5px;display:grid;place-items:center;font-weight:700;font-size:11px;border:1px solid var(--line-bright);flex:none}
+  .lrn .nm{font-weight:600;color:var(--ink);font-size:12.5px}
+  .lrn .id{font-size:9.5px;color:var(--ink-4);letter-spacing:.04em}
+  .mono-num{font-variant-numeric:tabular-nums;font-weight:600}
+
+  /* mastery bar cell */
+  .mbar{display:flex;align-items:center;gap:8px}
+  .mbar .track{width:60px;height:5px;border-radius:3px;background:var(--panel-3);overflow:hidden;position:relative}
+  .mbar .fill{height:100%;border-radius:3px}
+  /* sparkline */
+  .spark{display:flex;align-items:flex-end;gap:2px;height:22px}
+  .spark i{width:4px;background:var(--ink-4);border-radius:1px;display:block;min-height:2px}
+  .spark.dn i:last-child{background:var(--risk)}
+  .spark.up i:last-child{background:var(--mastered)}
+  .spark.flat i:last-child{background:var(--review)}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.05em;font-weight:600;padding:3px 9px;border-radius:20px;text-transform:uppercase;border:1px solid transparent;white-space:nowrap}
+  .chip .dot{width:6px;height:6px;border-radius:50%;flex:none}
+  .c-risk{color:#ffb3b3;background:var(--risk-bg);border-color:rgba(255,77,77,.35)} .c-risk .dot{background:var(--risk)}
+  .c-review{color:#ffdca0;background:var(--review-bg);border-color:rgba(255,176,32,.32)} .c-review .dot{background:var(--review)}
+  .c-mastered{color:#a8f0d2;background:var(--mastered-bg);border-color:rgba(54,211,153,.3)} .c-mastered .dot{background:var(--mastered)}
+  .c-mis{color:#d4c5ff;background:var(--miscon-bg);border-color:rgba(167,139,250,.32)} .c-mis .dot{background:var(--miscon)}
+  .c-overload{color:#ffc4ab;background:var(--overload-bg);border-color:rgba(255,120,73,.32)} .c-overload .dot{background:var(--overload)}
+  .c-ready{color:#bfe8ff;background:var(--info-bg);border-color:rgba(76,196,255,.32)} .c-ready .dot{background:var(--info)}
+  .c-plateau{color:#cdd3db;background:rgba(120,130,145,.12);border-color:var(--line-bright)} .c-plateau .dot{background:var(--ink-2)}
+
+  .overdue{color:var(--risk);font-weight:700}
+  .ok-dim{color:var(--ink-4)}
+
+  /* ---- alerts ---- */
+  .alert-groups{display:flex;flex-direction:column;gap:18px}
+  .ag-head{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .ag-head .ico{width:24px;height:24px;border-radius:5px;display:grid;place-items:center;font-size:12px;border:1px solid var(--line-bright)}
+  .ag-head h3{font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:.05em;text-transform:uppercase;margin:0}
+  .ag-head .ct{font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
+  .ag-head .hr{flex:1;height:1px;background:var(--line)}
+
+  .alert-row{
+    display:grid;grid-template-columns:5px 1.6fr 2.4fr auto;gap:0;
+    border:1px solid var(--line);border-radius:6px;background:var(--panel);
+    margin-bottom:9px;overflow:hidden;transition:.16s;
+  }
+  .alert-row:hover{border-color:var(--line-bright);background:var(--panel-2)}
+  .alert-row .sev{width:5px}
+  .ar-who{padding:12px 14px;display:flex;align-items:center;gap:11px;border-right:1px solid var(--line)}
+  .ar-who .av{width:30px;height:30px;border-radius:6px;display:grid;place-items:center;font-weight:700;font-size:12px;border:1px solid var(--line-bright);flex:none}
+  .ar-who .nm{font-weight:600;font-size:12.5px}
+  .ar-who .ty{font-size:9.5px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;margin-top:2px}
+  .ar-reason{padding:12px 16px;display:flex;flex-direction:column;justify-content:center;gap:6px}
+  .ar-reason .rsn{font-size:12px;color:var(--ink);line-height:1.5}
+  .ar-reason .rsn .hl{color:var(--review);font-weight:600}
+  .ar-reason .rsn .hl-r{color:var(--risk);font-weight:600}
+  .ar-reason .src{font-size:9.5px;color:var(--ink-4);letter-spacing:.05em;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .ar-reason .src .pin{border:1px solid var(--line);border-radius:3px;padding:1px 6px;color:var(--ink-3)}
+  .ar-actions{padding:12px 14px;display:flex;align-items:center;gap:7px;border-left:1px solid var(--line)}
+  .mini{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;border:1px solid var(--line-bright);background:var(--panel-3);color:var(--ink-2);padding:6px 10px;border-radius:4px;transition:.14s;white-space:nowrap}
+  .mini:hover{border-color:var(--info);color:var(--ink)}
+  .mini.ack:hover{border-color:var(--mastered);color:var(--mastered)}
+  .mini.go{background:var(--info-bg);border-color:rgba(76,196,255,.4);color:#bfe8ff}
+  .mini.go:hover{background:rgba(76,196,255,.2)}
+  .alert-row.acked{opacity:.5}
+  .alert-row.acked .ar-reason .rsn{text-decoration:line-through;text-decoration-color:var(--ink-4)}
+
+  /* sev borders */
+  .sev-high{background:var(--risk)} .sev-med{background:var(--review)} .sev-low{background:var(--info)}
+  .sev-mis{background:var(--miscon)} .sev-ready{background:var(--mastered)}
+
+  /* ---- misconception board ---- */
+  .mis-board{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+  .mis-col{display:flex;flex-direction:column;gap:11px}
+  .mis-col-head{display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding:0 2px;font-weight:600}
+  .mis-col-head .n{background:var(--panel-3);border:1px solid var(--line);border-radius:20px;padding:1px 8px;color:var(--ink-2)}
+  .mis-card{
+    border:1px solid var(--line);border-left:3px solid var(--miscon);border-radius:6px;
+    background:var(--panel);padding:13px;transition:.16s;
+  }
+  .mis-card:hover{border-color:var(--line-bright);border-left-color:var(--miscon);transform:translateY(-1px)}
+  .mis-card:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+  .gallery-badge:focus-visible{outline:2px solid var(--info);outline-offset:2px;color:var(--info)}
+  .mis-card .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .mis-card .err{font-size:11px;font-weight:700;color:var(--miscon);background:var(--miscon-bg);border-radius:4px;padding:3px 8px;letter-spacing:.02em}
+  .mis-card .lrn-tag{font-size:10px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .mis-card .lrn-tag .av{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:8px;font-weight:700;border:1px solid var(--line-bright)}
+  .mis-card .concept{font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px}
+  .mis-card .model{font-size:12px;color:var(--ink);line-height:1.5;margin-bottom:10px}
+  .mis-card .coach{font-size:10.5px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:8px 10px;line-height:1.5}
+  .mis-card .coach b{color:var(--info);font-weight:600;display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
+  .mis-card .foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:9.5px;color:var(--ink-4);letter-spacing:.04em}
+
+  /* ---- timeline ---- */
+  .tl-grid{display:grid;grid-template-columns:1fr 320px;gap:16px}
+  @media(max-width:1080px){.tl-grid{grid-template-columns:1fr}}
+  .learner-banner{
+    border:1px solid var(--line);border-radius:7px;background:linear-gradient(110deg,var(--panel-2),var(--panel));
+    padding:15px 17px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    position:relative;overflow:hidden;
+  }
+  .learner-banner::after{content:"";position:absolute;right:0;top:0;bottom:0;width:200px;background:linear-gradient(270deg,var(--risk-bg),transparent)}
+  .learner-banner .av{width:48px;height:48px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:18px;border:1px solid var(--line-bright);flex:none;font-family:var(--disp)}
+  .lb-id .nm{font-family:var(--disp);font-weight:800;font-size:18px;display:flex;align-items:center;gap:10px}
+  .lb-id .sub{font-size:10.5px;color:var(--ink-3);letter-spacing:.05em;margin-top:2px}
+  .lb-stats{display:flex;gap:22px;margin-left:auto;z-index:1;flex-wrap:wrap}
+  .lb-stat{text-align:right}
+  .lb-stat .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .lb-stat .v{font-family:var(--disp);font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;margin-top:1px}
+
+  .timeline{position:relative;padding-left:26px}
+  .timeline::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:1px;background:var(--line-bright)}
+  .snap{position:relative;margin-bottom:16px}
+  .snap::before{content:"";position:absolute;left:-22px;top:6px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:2px solid var(--ink-3);z-index:1}
+  .snap.s-risk::before{border-color:var(--risk);box-shadow:0 0 8px var(--risk-bg)}
+  .snap.s-review::before{border-color:var(--review)}
+  .snap.s-mis::before{border-color:var(--miscon)}
+  .snap-card{border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow:hidden}
+  .snap-card .sh{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .snap-card .sh .ttl{font-weight:600;font-size:11.5px;letter-spacing:.04em;display:flex;align-items:center;gap:9px}
+  .snap-card .sh .ts{font-size:9.5px;color:var(--ink-4);letter-spacing:.04em}
+  .baor{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line)}
+  @media(max-width:560px){.baor{grid-template-columns:1fr}}
+  .baor .cell{background:var(--panel);padding:10px 13px}
+  .baor .cell .k{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-4);margin-bottom:5px;display:flex;align-items:center;gap:6px}
+  .baor .cell .v{font-size:11.5px;color:var(--ink);line-height:1.5}
+  .baor .cell.before .k{color:var(--ink-3)}
+  .baor .cell.after .v b{font-variant-numeric:tabular-nums}
+  .delta-pill{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;font-variant-numeric:tabular-nums}
+  .delta-pill.dn{background:var(--risk-bg);color:#ffb3b3}
+  .delta-pill.up{background:var(--mastered-bg);color:#a8f0d2}
+  .rationale{padding:11px 13px;background:var(--panel-2);border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--ink-2)}
+  .rationale .lab{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--info);font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:7px}
+  .rationale .lab .src-badge{margin-left:auto}
+
+  .src-badge{font-size:8px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;padding:2px 7px;border-radius:3px;border:1px solid}
+  .src-runtime{color:var(--info);border-color:rgba(76,196,255,.4);background:var(--info-bg)}
+  .src-llm{color:var(--miscon);border-color:rgba(167,139,250,.4);background:var(--miscon-bg)}
+  .src-fallback{color:var(--overload);border-color:rgba(255,120,73,.4);background:var(--overload-bg)}
+
+  /* right rail */
+  .rail{display:flex;flex-direction:column;gap:14px}
+  .rail .panel-head h2{font-size:11px}
+  .evidence{padding:13px}
+  .ev-item{border:1px solid var(--line);border-radius:5px;background:var(--panel-2);padding:10px 12px;margin-bottom:9px}
+  .ev-item:last-child{margin-bottom:0}
+  .ev-item .eh{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .ev-item .eh .q{font-size:10px;color:var(--ink-3);letter-spacing:.05em}
+  .ev-item .verdict{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.05em}
+  .verdict.fail{background:var(--risk-bg);color:#ffb3b3}
+  .verdict.pass{background:var(--mastered-bg);color:#a8f0d2}
+  .ev-item .body{font-size:11px;color:var(--ink-2);line-height:1.5;font-family:var(--mono)}
+  .ev-item .body code{color:var(--review);background:rgba(255,176,32,.08);padding:1px 4px;border-radius:3px;font-size:10.5px}
+
+  /* event feed */
+  .feed{max-height:340px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line-bright) transparent}
+  .feed-row{display:flex;gap:10px;padding:8px 13px;border-bottom:1px solid var(--line);font-size:10.5px;align-items:flex-start}
+  .feed-row:last-child{border-bottom:none}
+  .feed-row .t{color:var(--ink-4);font-variant-numeric:tabular-nums;flex:none;font-size:9.5px;padding-top:1px}
+  .feed-row .ev-dot{width:6px;height:6px;border-radius:50%;flex:none;margin-top:5px}
+  .feed-row .msg{color:var(--ink-2);line-height:1.45}
+  .feed-row .msg b{color:var(--ink);font-weight:600}
+  .ev-type{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-4);font-weight:600}
+
+  /* ---- ticker ---- */
+  .ticker{
+    border-top:1px solid var(--line);background:var(--panel);
+    height:30px;display:flex;align-items:center;overflow:hidden;
+    position:sticky;bottom:0;z-index:90;
+  }
+  .ticker .lab{flex:none;font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--info);padding:0 14px;height:100%;display:flex;align-items:center;border-right:1px solid var(--line);background:var(--panel-2);gap:7px}
+  .ticker .track{display:flex;gap:36px;white-space:nowrap;animation:tick 38s linear infinite;padding-left:24px}
+  .ticker:hover .track{animation-play-state:paused}
+  @keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .ticker .item{font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px;flex:none}
+  .ticker .item b{color:var(--ink-2)}
+  .ticker .item .d{width:5px;height:5px;border-radius:50%}
+
+  /* toast */
+  #toast{position:fixed;bottom:46px;left:50%;transform:translateX(-50%) translateY(20px);z-index:300;
+    background:var(--panel-3);border:1px solid var(--info);color:var(--ink);font-size:11.5px;
+    padding:10px 16px;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+    transition:.3s;letter-spacing:.03em;display:flex;align-items:center;gap:10px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast .led{width:8px;height:8px}
+
+  @media(max-width:980px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .mis-board{grid-template-columns:1fr}
+    .alert-row{grid-template-columns:5px 1fr}
+    .ar-who{border-right:none;border-bottom:1px solid var(--line)}
+    .ar-reason{grid-column:1/-1;border-top:1px solid var(--line)}
+    .ar-actions{grid-column:1/-1;border-left:none;border-top:1px solid var(--line)}
+    .ctx{display:none}
+  }
+  @media(max-width:620px){
+    .kpis{grid-template-columns:1fr}
+    .topbar-right .clock,.brand .sub{display:none}
+    .lb-stats{margin-left:0;width:100%}
+  }
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+  /* ---- page-load reveal ---- */
+  .reveal{opacity:0;transform:translateY(10px);transition:opacity .55s cubic-bezier(.2,.7,.2,1),transform .55s cubic-bezier(.2,.7,.2,1)}
+  body.loaded .reveal{opacity:1;transform:none}
+  body.loaded .reveal.d1{transition-delay:.06s}
+  body.loaded .reveal.d2{transition-delay:.13s}
+  body.loaded .reveal.d3{transition-delay:.2s}
+  body.loaded .reveal.d4{transition-delay:.27s}
+  @media(prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none}
+    .screen,.brand .mark::before,.led.green::after,.ticker .track{animation:none!important}
+  }
+</style>
+</head>
+<body>
+<a class="gallery-badge" href="../" aria-label="Back to mockup gallery index">&larr; gallery index</a>
+
+<div class="shell">
+  <!-- TOP BAR -->
+  <header class="topbar reveal d1">
+    <div class="brand">
+      <div class="mark"><span>S</span></div>
+      <div>
+        <div class="name"><b>SIGNAL</b></div>
+        <div class="sub">LORE · Trainer Ops</div>
+      </div>
+    </div>
+    <div class="ctx" aria-label="Active context">
+      <span class="chip">tenant <b>Acme Learning</b></span>
+      <span class="sep">/</span>
+      <span class="chip">program <b>Backend Eng 2026</b></span>
+      <span class="sep">/</span>
+      <span class="chip">cohort <b>Go-Spring-24</b></span>
+    </div>
+    <div class="topbar-right">
+      <div class="runtime-pill"><span class="led green"></span> RUNTIME · ONLINE</div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="who">
+        <div class="av">RK</div>
+        <div class="meta"><div class="n">R. Köhler</div><div class="r">Cohort Lead</div></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <nav class="tabs reveal d2" role="tablist" aria-label="Console views">
+    <button class="tab active" role="tab" aria-selected="true" data-screen="cohort"><span class="num">01</span> Cohort Health</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="alerts"><span class="num">02</span> Alerts <span class="badge">6</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="misconceptions"><span class="num">03</span> Misconceptions</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="timeline"><span class="num">04</span> Learner Timeline</button>
+  </nav>
+
+  <main class="reveal d3">
+    <!-- ============ SCREEN 1 · COHORT HEALTH ============ -->
+    <section class="screen active" id="screen-cohort" role="tabpanel">
+      <div class="screen-head">
+        <div>
+          <h1>Cohort Health <span class="tag">GO-SPRING-24</span></h1>
+          <div class="desc">18 learners · Domain <b style="color:var(--ink-2)">Go Backend</b> · State pulled live from runtime. Sort by signal, not by name.</div>
+        </div>
+        <div class="head-actions">
+          <button class="btn">Export snapshot</button>
+          <button class="btn primary">Run cohort sweep</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi k-mastery">
+          <div class="lab">Avg Mastery</div>
+          <div class="val">0.63</div>
+          <div class="delta down">▼ <b>0.04</b> 7d &nbsp;·&nbsp; persistence drag</div>
+        </div>
+        <div class="kpi k-review">
+          <div class="lab">Review Debt</div>
+          <div class="val">31</div>
+          <div class="delta warn">⚠ <b>9</b> overdue &gt;48h across 6 learners</div>
+        </div>
+        <div class="kpi k-mis">
+          <div class="lab">Active Misconceptions</div>
+          <div class="val">4</div>
+          <div class="delta up">▲ 1 new · <b>forgot-tx-rollback</b></div>
+        </div>
+        <div class="kpi k-risk">
+          <div class="lab">At-Risk Learners</div>
+          <div class="val">3</div>
+          <div class="delta down">1 high · 2 emerging · sweep due</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Learner Roster</h2>
+          <span class="meta">sorted by risk priority · click row → timeline</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="roster">
+            <thead>
+              <tr>
+                <th>Learner</th>
+                <th>Focus Concept</th>
+                <th>Mastery</th>
+                <th>30d Trend</th>
+                <th>Retention</th>
+                <th>Overdue Reviews</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="roster-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN 2 · ALERTS ============ -->
+    <section class="screen" id="screen-alerts" role="tabpanel">
+      <div class="screen-head">
+        <div>
+          <h1>Alert Inbox <span class="tag">6 OPEN</span></h1>
+          <div class="desc">Grouped by required action — not severity. Each alert carries the runtime's human-language reason. Triage in place: acknowledge, inspect, or assign an intervention.</div>
+        </div>
+        <div class="head-actions">
+          <button class="btn" id="ack-all">Acknowledge all</button>
+        </div>
+      </div>
+      <div class="alert-groups" id="alert-groups"></div>
+    </section>
+
+    <!-- ============ SCREEN 3 · MISCONCEPTIONS ============ -->
+    <section class="screen" id="screen-misconceptions" role="tabpanel">
+      <div class="screen-head">
+        <div>
+          <h1>Misconception Board <span class="tag">4 ACTIVE</span></h1>
+          <div class="desc">Active wrong-models detected by the runtime, by repair status. Each carries an <b>error_type</b>, the captured wrong model, and coaching context for the intervention.</div>
+        </div>
+      </div>
+      <div class="mis-board" id="mis-board"></div>
+    </section>
+
+    <!-- ============ SCREEN 4 · LEARNER TIMELINE ============ -->
+    <section class="screen" id="screen-timeline" role="tabpanel">
+      <div class="screen-head">
+        <div>
+          <h1>Learner Timeline</h1>
+          <div class="desc">Pedagogical snapshots in reverse-chronological order. Each shows <b>BEFORE → OBSERVATION → AFTER</b> and the runtime's decision rationale. <span class="src-badge src-runtime" style="vertical-align:middle">runtime</span> = deterministic decision · <span class="src-badge src-llm" style="vertical-align:middle">llm</span> = generated content.</div>
+        </div>
+        <div class="head-actions">
+          <button class="btn" id="prev-learner">‹ Diego</button>
+          <button class="btn primary">Amara Okafor</button>
+          <button class="btn" id="next-learner">Liam ›</button>
+        </div>
+      </div>
+
+      <div class="learner-banner">
+        <div class="av" style="color:var(--overload)">AO</div>
+        <div class="lb-id">
+          <div class="nm">Amara Okafor <span class="chip c-overload"><span class="dot"></span>Overload Recovery</span></div>
+          <div class="sub">learner-1 · joined 2026-02-03 · last active 14m ago · 2 failed attempts on persistence</div>
+        </div>
+        <div class="lb-stats">
+          <div class="lb-stat"><div class="l">Persistence Mastery</div><div class="v down">0.41</div></div>
+          <div class="lb-stat"><div class="l">Retention</div><div class="v down">0.38</div></div>
+          <div class="lb-stat"><div class="l">Reviews Overdue</div><div class="v" style="color:var(--review)">2d</div></div>
+          <div class="lb-stat"><div class="l">Misconceptions</div><div class="v" style="color:var(--miscon)">1</div></div>
+        </div>
+      </div>
+
+      <div class="tl-grid">
+        <!-- timeline column -->
+        <div>
+          <div class="panel" style="margin-bottom:14px">
+            <div class="panel-head"><h2>Snapshot Timeline</h2><span class="meta">PedagogicalSnapshot · audit trail</span></div>
+            <div style="padding:16px 18px 4px">
+              <div class="timeline" id="timeline"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- right rail -->
+        <div class="rail">
+          <div class="panel">
+            <div class="panel-head"><h2>Evidence Drawer</h2><span class="meta">last submission</span></div>
+            <div class="evidence">
+              <div class="ev-item">
+                <div class="eh"><span class="q">Q3 · transaction rollback</span><span class="verdict fail">FAILED</span></div>
+                <div class="body">Used <code>defer tx.Commit()</code> with no rollback on the error path; partial write persisted after panic in <code>UpdateBalance</code>.</div>
+              </div>
+              <div class="ev-item">
+                <div class="eh"><span class="q">Q2 · prepared statements</span><span class="verdict fail">FAILED</span></div>
+                <div class="body">Re-prepared inside the loop; never closed <code>*sql.Stmt</code> — leak flagged.</div>
+              </div>
+              <div class="ev-item">
+                <div class="eh"><span class="q">Q1 · connection pooling</span><span class="verdict pass">PASS</span></div>
+                <div class="body">Correctly set <code>SetMaxOpenConns</code> and reused the pool.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Event Feed</h2><span class="meta">outbox · learner-1</span></div>
+            <div class="feed" id="learner-feed"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- TICKER -->
+  <div class="ticker" aria-hidden="true">
+    <div class="lab"><span class="led green"></span>OUTBOX</div>
+    <div class="track" id="ticker-track"></div>
+  </div>
+</div>
+
+<div id="toast"><span class="led green"></span><span id="toast-msg">Done</span></div>
+
+<script>
+/* ============================ DATA ============================ */
+const avColor = {
+  AO:'var(--overload)', LC:'var(--ink-2)', NH:'var(--info)', DS:'var(--risk)',
+  PV:'var(--mastered)', YT:'var(--ink-2)', KM:'var(--mastered)', SR:'var(--review)'
+};
+function spark(arr,dir){
+  const max=Math.max(...arr), min=Math.min(...arr);
+  return `<div class="spark ${dir}" aria-hidden="true">`+arr.map(v=>{
+    const h = 3 + ((v-min)/((max-min)||1))*18;
+    return `<i style="height:${h}px"></i>`;
+  }).join('')+`</div>`;
+}
+function mfill(v){
+  let c = v>=0.75?'var(--mastered)': v>=0.5?'var(--review)':'var(--risk)';
+  return `<div class="mbar"><div class="track"><div class="fill" style="width:${Math.round(v*100)}%;background:${c}"></div></div><span class="mono-num" style="color:${c}">${v.toFixed(2)}</span></div>`;
+}
+
+const roster = [
+  {init:'DS',nm:'Diego Santos',id:'learner-7',concept:'auth-jwt',mastery:0.49,trend:[.62,.6,.58,.55,.52,.5,.49],dir:'dn',ret:0.29,overdue:3,status:['c-risk','At Risk · HIGH']},
+  {init:'AO',nm:'Amara Okafor',id:'learner-1',concept:'persistence',mastery:0.41,trend:[.66,.63,.6,.55,.5,.45,.41],dir:'dn',ret:0.38,overdue:1,status:['c-overload','Overload Recovery']},
+  {init:'LC',nm:'Liam Chen',id:'learner-3',concept:'auth-jwt',mastery:0.58,trend:[.57,.58,.58,.57,.58,.58,.58],dir:'flat',ret:0.61,overdue:1,status:['c-plateau','Plateau · 9d']},
+  {init:'NH',nm:'Noor Haddad',id:'learner-2',concept:'http-handlers',mastery:0.91,trend:[.78,.82,.85,.87,.89,.9,.91],dir:'up',ret:0.84,overdue:0,status:['c-ready','Mastery-Ready']},
+  {init:'KM',nm:'Kofi Mensah',id:'learner-9',concept:'middleware',mastery:0.79,trend:[.7,.72,.74,.76,.77,.78,.79],dir:'up',ret:0.77,overdue:0,status:['c-mastered','On Track']},
+  {init:'PV',nm:'Priya Varma',id:'learner-5',concept:'transactions',mastery:0.83,trend:[.75,.78,.8,.81,.82,.82,.83],dir:'up',ret:0.8,overdue:1,status:['c-mastered','On Track']},
+  {init:'YT',nm:'Yuki Tanaka',id:'learner-11',concept:'concurrency',mastery:0.66,trend:[.6,.62,.63,.64,.65,.65,.66],dir:'up',ret:0.7,overdue:2,status:['c-review','Review Due']},
+  {init:'SR',nm:'Sara Rossi',id:'learner-14',concept:'migrations',mastery:0.54,trend:[.5,.52,.53,.53,.54,.54,.54],dir:'flat',ret:0.49,overdue:2,status:['c-review','Review Due']},
+];
+
+function renderRoster(){
+  document.getElementById('roster-body').innerHTML = roster.map(r=>`
+    <tr tabindex="0" data-goto="${r.id}">
+      <td><div class="lrn"><div class="av" style="color:${avColor[r.init]||'var(--ink-2)'}">${r.init}</div>
+        <div><div class="nm">${r.nm}</div><div class="id">${r.id}</div></div></div></td>
+      <td><span style="font-size:11.5px;color:var(--ink-2)">${r.concept}</span></td>
+      <td>${mfill(r.mastery)}</td>
+      <td>${spark(r.trend,r.dir)}</td>
+      <td><span class="mono-num" style="color:${r.ret<0.4?'var(--risk)':r.ret<0.6?'var(--review)':'var(--ink-2)'}">${r.ret.toFixed(2)}</span></td>
+      <td>${r.overdue>0?`<span class="overdue">${r.overdue} ▲</span>`:`<span class="ok-dim">0</span>`}</td>
+      <td><span class="chip ${r.status[0]}"><span class="dot"></span>${r.status[1]}</span></td>
+    </tr>`).join('');
+  document.querySelectorAll('#roster-body tr').forEach(tr=>{
+    tr.addEventListener('click',()=>{ switchScreen('timeline'); toast('Opened timeline · '+tr.querySelector('.nm').textContent); });
+    tr.addEventListener('keydown',e=>{ if(e.key==='Enter'){tr.click();} });
+  });
+}
+
+/* ---- ALERTS grouped by action ---- */
+const alertGroups = [
+  { action:'Escalate now', ico:'⚑', accent:'var(--risk)', alerts:[
+    {sev:'sev-high',init:'DS',av:'var(--risk)',nm:'Diego Santos',type:'LearnerAtRisk · HIGH',
+     reason:`Retention on <span class="hl-r">auth-jwt collapsed to 0.29</span> with <span class="hl-r">3 reviews overdue &gt;72h</span>. Runtime projects mastery loss within 48h if no retrieval. No session in 4 days.`,
+     src:['ALERT id=al-031','LearnerAtRisk','runtime']},
+  ]},
+  { action:'Schedule review session', ico:'↻', accent:'var(--review)', alerts:[
+    {sev:'sev-med',init:'YT',av:'var(--ink-2)',nm:'Yuki Tanaka',type:'ReviewDue',
+     reason:`<span class="hl">2 ReviewCards on concurrency are due</span> (FSRS due_at passed 11h ago). Retention still 0.70 — a single retrieval pass will hold mastery.`,
+     src:['ALERT id=al-028','ReviewDue','runtime']},
+    {sev:'sev-med',init:'SR',av:'var(--review)',nm:'Sara Rossi',type:'ReviewDue',
+     reason:`<span class="hl">migrations review overdue 36h</span>; retention sliding to 0.49. Bundle with Yuki into a cohort retrieval block.`,
+     src:['ALERT id=al-029','ReviewDue','runtime']},
+  ]},
+  { action:'Repair misconception', ico:'⊘', accent:'var(--miscon)', alerts:[
+    {sev:'sev-mis',init:'AO',av:'var(--overload)',nm:'Amara Okafor',type:'Misconception',
+     reason:`Active wrong-model on persistence: <b style="color:var(--miscon)">error_type=forgot-tx-rollback</b>. Learner commits on the happy path but never rolls back on error. Detected across 2 consecutive failed attempts → entered overload recovery.`,
+     src:['ALERT id=al-033','Misconception','runtime + llm']},
+  ]},
+  { action:'Unblock plateau', ico:'≈', accent:'var(--ink-2)', alerts:[
+    {sev:'sev-low',init:'LC',av:'var(--ink-2)',nm:'Liam Chen',type:'Plateau',
+     reason:`auth-jwt mastery <b>flat at 0.58 for 9 days</b> — inside ZPD but no movement. Runtime suspects under-challenge; recommends a transfer task at diff 0.6.`,
+     src:['ALERT id=al-022','Plateau','runtime']},
+  ]},
+  { action:'Promote to assessment', ico:'✦', accent:'var(--mastered)', alerts:[
+    {sev:'sev-ready',init:'NH',av:'var(--info)',nm:'Noor Haddad',type:'MasteryReadiness',
+     reason:`http-handlers mastery <b style="color:var(--mastered)">0.91</b>, retention 0.84, 4 clean attempts. Runtime flags <b>ready for summative assessment</b> — plan the http-handlers assessment.`,
+     src:['ALERT id=al-019','MasteryReadiness','runtime']},
+  ]},
+];
+
+function renderAlerts(){
+  document.getElementById('alert-groups').innerHTML = alertGroups.map((g,gi)=>`
+    <div class="alert-group">
+      <div class="ag-head">
+        <div class="ico" style="color:${g.accent};border-color:${g.accent}">${g.ico}</div>
+        <h3 style="color:${g.accent}">${g.action}</h3>
+        <span class="ct">${g.alerts.length}</span>
+        <div class="hr"></div>
+      </div>
+      ${g.alerts.map((a,ai)=>`
+        <div class="alert-row" data-g="${gi}" data-a="${ai}">
+          <div class="sev ${a.sev}"></div>
+          <div class="ar-who">
+            <div class="av" style="color:${a.av}">${a.init}</div>
+            <div><div class="nm">${a.nm}</div><div class="ty">${a.type}</div></div>
+          </div>
+          <div class="ar-reason">
+            <div class="rsn">${a.reason}</div>
+            <div class="src">${a.src.map(s=>`<span class="pin">${s}</span>`).join('')}</div>
+          </div>
+          <div class="ar-actions">
+            <button class="mini ack" data-act="ack">Ack</button>
+            <button class="mini go" data-act="inspect">Inspect</button>
+            <button class="mini" data-act="assign">Assign</button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+
+  document.querySelectorAll('.alert-row .mini').forEach(b=>{
+    b.addEventListener('click',e=>{
+      e.stopPropagation();
+      const row=b.closest('.alert-row');
+      const nm=row.querySelector('.nm').textContent;
+      const act=b.dataset.act;
+      if(act==='ack'){ row.classList.toggle('acked'); toast((row.classList.contains('acked')?'Acknowledged · ':'Reopened · ')+nm); }
+      else if(act==='inspect'){ switchScreen('timeline'); toast('Inspecting evidence · '+nm); }
+      else { toast('Intervention assigned · '+nm+' → R. Köhler'); }
+    });
+  });
+}
+
+document.getElementById('ack-all')?.addEventListener('click',()=>{
+  document.querySelectorAll('.alert-row').forEach(r=>r.classList.add('acked'));
+  toast('All 6 alerts acknowledged');
+});
+
+/* ---- MISCONCEPTIONS board ---- */
+const misBoard = [
+  { col:'Detected', alerts:[
+    {err:'forgot-tx-rollback',init:'AO',av:'var(--overload)',nm:'Amara Okafor',concept:'persistence',
+     model:'Believes <code style="color:var(--review)">defer tx.Commit()</code> is sufficient; treats rollback as redundant since "Commit only runs at the end". No mental model for the error path.',
+     coach:'Contrast happy-path vs panic-path traces. Force a failing UPDATE mid-transaction and have them observe the partial write. Concrete &gt; abstract.',
+     age:'2h ago',ev:'2 failed attempts'},
+  ]},
+  { col:'In Repair', alerts:[
+    {err:'jwt-no-exp-check',init:'LC',av:'var(--ink-2)',nm:'Liam Chen',concept:'auth-jwt',
+     model:'Validates JWT signature but <code>never checks the exp claim</code> — assumes the library rejects expired tokens automatically.',
+     coach:'Repair task assigned 2d ago. Replay a known-expired token; show it passing his handler. Awaiting next attempt.',
+     age:'2d ago',ev:'repair task sent'},
+    {err:'goroutine-leak-noctx',init:'YT',av:'var(--ink-2)',nm:'Yuki Tanaka',concept:'concurrency',
+     model:'Spawns goroutines without a <code>context.Context</code> cancel path; assumes they "finish on their own" when the handler returns.',
+     coach:'Mid-repair. Showed pprof goroutine count climbing. Next: introduce ctx cancellation, re-measure.',
+     age:'1d ago',ev:'1 retrieval done'},
+  ]},
+  { col:'Resolved', alerts:[
+    {err:'nil-map-write',init:'PV',av:'var(--mastered)',nm:'Priya Varma',concept:'persistence',
+     model:'Wrote to a nil map result-set without <code>make()</code> — panicked at runtime, thought it was a DB driver bug.',
+     coach:'Resolved. 3 consecutive clean attempts after a guided fix. Misconception cleared by runtime; retention rebuilt to 0.80.',
+     age:'cleared 5d ago',ev:'mastery 0.83'},
+  ]},
+];
+function renderMisBoard(){
+  document.getElementById('mis-board').innerHTML = misBoard.map(c=>`
+    <div class="mis-col">
+      <div class="mis-col-head"><span>${c.col}</span><span class="n">${c.alerts.length}</span></div>
+      ${c.alerts.map(m=>`
+        <div class="mis-card" tabindex="0" style="${c.col==='Resolved'?'border-left-color:var(--mastered);opacity:.82':''}">
+          <div class="top">
+            <span class="err" ${c.col==='Resolved'?'style="color:var(--mastered);background:var(--mastered-bg)"':''}>${m.err}</span>
+            <span class="lrn-tag"><span class="av" style="color:${m.av}">${m.init}</span>${m.nm.split(' ')[0]}</span>
+          </div>
+          <div class="concept">▸ ${m.concept}</div>
+          <div class="model">${m.model}</div>
+          <div class="coach"><b>Coaching context</b>${m.coach}</div>
+          <div class="foot"><span>${m.ev}</span><span>${m.age}</span></div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+/* ---- TIMELINE (Amara) ---- */
+const snapshots = [
+  { cls:'s-risk', tone:'var(--risk)', ttl:'Overload detected · activity gated',
+    chip:'<span class="chip c-overload"><span class="dot"></span>Overload</span>', ts:'2026-06-06 09:14',
+    before:{k:'persistence mastery',v:'0.45 · retention 0.41 · 1 prior failure'},
+    obs:{k:'observation',v:'2nd consecutive failed attempt on tx-rollback within 18 min. Confidence high, correctness low → affective overload signal.'},
+    after:{k:'persistence mastery',v:'<b>0.41</b> <span class="delta-pill dn">−0.04</span> · retention <b>0.38</b> <span class="delta-pill dn">−0.03</span>'},
+    rationale:'Runtime suspended new high-difficulty activities and routed learner into <b>overload recovery</b>: a single low-stakes retrieval on the prerequisite (http-handlers, mastered) to restore confidence before re-attempting persistence. No mastery penalty applied for overload-context failures.',
+    src:'runtime'},
+  { cls:'s-mis', tone:'var(--miscon)', ttl:'Misconception raised · forgot-tx-rollback',
+    chip:'<span class="chip c-mis"><span class="dot"></span>Misconception</span>', ts:'2026-06-06 09:11',
+    before:{k:'error pattern',v:'no active misconception on persistence'},
+    obs:{k:'observation',v:'Submitted code commits on success but omits rollback on the error path — same structural error as attempt 1. Pattern confirmed, not noise.'},
+    after:{k:'misconception',v:'<b style="color:var(--miscon)">forgot-tx-rollback</b> opened <span class="delta-pill dn">ACTIVE</span> · linked to persistence'},
+    rationale:'Runtime classified the repeated error as a stable wrong-model and created a Misconception record. TutorInstruction emitted to generate a contrastive happy-path vs error-path explanation.',
+    src:'runtime + llm'},
+  { cls:'s-mis', tone:'var(--miscon)', ttl:'TutorInstruction → content generated',
+    chip:'<span class="src-badge src-llm">llm generated</span>', ts:'2026-06-06 09:11',
+    before:{k:'instruction',v:'generate contrastive rollback explanation · audience=overloaded · tone=low-stakes'},
+    obs:{k:'provider',v:'tenant default anthropic/claude (temp 0.2). learner-1 has an instruction_only override → fallback path exercised.'},
+    after:{k:'output',v:'<span class="src-badge src-fallback">instruction-only fallback</span> shown — structured steps, no prose generation'},
+    rationale:'LLM generation was scoped OUT for learner-1 (override = instruction_only). The runtime\'s TutorInstruction was rendered directly as a checklist so the learner still received guidance. Progression decisions were unaffected — the runtime never depends on the LLM.',
+    src:'llm'},
+  { cls:'s-review', tone:'var(--review)', ttl:'Review came due · retention drop',
+    chip:'<span class="chip c-review"><span class="dot"></span>ReviewDue</span>', ts:'2026-06-04 08:00',
+    before:{k:'retention',v:'persistence retention 0.52 · review due 2026-06-04'},
+    obs:{k:'observation',v:'FSRS schedule elapsed; no retrieval logged. Forgetting curve crossed the 0.40 intervention threshold.'},
+    after:{k:'retention',v:'<b>0.38</b> <span class="delta-pill dn">−0.14</span> · review now <b>2d overdue</b>'},
+    rationale:'Runtime queued a ReviewCard and emitted a ReviewDue alert. Because retention fell below 0.40 while a misconception was forming, the card was prioritized over new-concept progression.',
+    src:'runtime'},
+  { cls:'', tone:'var(--mastered)', ttl:'Concept mastered · http-handlers',
+    chip:'<span class="chip c-mastered"><span class="dot"></span>Mastered</span>', ts:'2026-05-28 15:42',
+    before:{k:'http-handlers mastery',v:'0.79 · 3 clean attempts'},
+    obs:{k:'observation',v:'4th consecutive correct submission on routing + error handling. BKT P(mastery) crossed 0.85.'},
+    after:{k:'http-handlers mastery',v:'<b style="color:var(--mastered)">0.86</b> <span class="delta-pill up">+0.07</span> · unlocked persistence'},
+    rationale:'Runtime marked http-handlers mastered and advanced the frontier to persistence (next concept in the DAG, diff 0.7). This is the prerequisite Amara is now struggling with — context for the current overload.',
+    src:'runtime'},
+];
+function renderTimeline(){
+  document.getElementById('timeline').innerHTML = snapshots.map(s=>{
+    const srcBadge = s.src==='runtime' ? '<span class="src-badge src-runtime">runtime decided</span>'
+      : s.src==='llm' ? '<span class="src-badge src-llm">llm generated</span>'
+      : '<span class="src-badge src-runtime">runtime</span> <span class="src-badge src-llm">+ llm</span>';
+    return `
+    <div class="snap ${s.cls}">
+      <div class="snap-card">
+        <div class="sh">
+          <span class="ttl"><span style="width:7px;height:7px;border-radius:50%;background:${s.tone};display:inline-block"></span>${s.ttl}</span>
+          <span class="ts">${s.ts}</span>
+        </div>
+        <div class="baor">
+          <div class="cell before"><div class="k">◂ before · ${s.before.k}</div><div class="v">${s.before.v}</div></div>
+          <div class="cell"><div class="k">⊙ ${s.obs.k}</div><div class="v">${s.obs.v}</div></div>
+          <div class="cell after" style="grid-column:1/-1"><div class="k">▸ after · ${s.after.k}</div><div class="v">${s.after.v}</div></div>
+        </div>
+        <div class="rationale">
+          <div class="lab">decision rationale <span class="src-badge-wrap">${srcBadge}</span></div>
+          ${s.rationale}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---- learner event feed ---- */
+const learnerFeed = [
+  {t:'09:14:02',c:'var(--overload)',ty:'OverloadEntered',m:'<b>Amara</b> routed to recovery · activity gated'},
+  {t:'09:11:48',c:'var(--miscon)',ty:'MisconceptionDetected',m:'<b>forgot-tx-rollback</b> opened on persistence'},
+  {t:'09:11:40',c:'var(--miscon)',ty:'ContentGenerated',m:'instruction-only fallback rendered (override)'},
+  {t:'09:11:31',c:'var(--risk)',ty:'InteractionScored',m:'attempt #2 persistence → <b>FAIL</b> (Q3 rollback)'},
+  {t:'08:55:10',c:'var(--risk)',ty:'InteractionScored',m:'attempt #1 persistence → <b>FAIL</b> (Q2 stmt leak)'},
+  {t:'08:54:02',c:'var(--info)',ty:'ActivityPlanned',m:'RuntimeDecision → persistence drill (diff 0.7)'},
+  {t:'Jun 04',c:'var(--review)',ty:'ReviewDue',m:'persistence ReviewCard overdue'},
+  {t:'May 28',c:'var(--mastered)',ty:'MasteryReached',m:'http-handlers mastered → 0.86'},
+];
+function renderFeed(){
+  document.getElementById('learner-feed').innerHTML = learnerFeed.map(f=>`
+    <div class="feed-row">
+      <span class="t">${f.t}</span>
+      <span class="ev-dot" style="background:${f.c}"></span>
+      <span class="msg"><span class="ev-type">${f.ty}</span><br>${f.m}</span>
+    </div>`).join('');
+}
+
+/* ---- TICKER ---- */
+const tickerItems = [
+  ['var(--overload)','OverloadEntered','Amara Okafor · learner-1'],
+  ['var(--miscon)','MisconceptionDetected','forgot-tx-rollback · persistence'],
+  ['var(--risk)','LearnerAtRisk','Diego Santos · retention 0.29'],
+  ['var(--review)','ReviewDue','Yuki Tanaka · concurrency ×2'],
+  ['var(--info)','ActivityPlanned','RuntimeDecision · 6 learners'],
+  ['var(--mastered)','MasteryReached','Noor Haddad · http-handlers 0.91'],
+  ['var(--ink-2)','PlateauFlagged','Liam Chen · auth-jwt 9d'],
+  ['var(--review)','ReviewScheduled','Sara Rossi · migrations'],
+];
+function renderTicker(){
+  const one = tickerItems.map(([c,ty,m])=>`<span class="item"><span class="d" style="background:${c}"></span><b>${ty}</b> · ${m}</span>`).join('');
+  document.getElementById('ticker-track').innerHTML = one+one;
+}
+
+/* ============================ NAV ============================ */
+function switchScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('active');t.setAttribute('aria-selected','false');});
+  document.getElementById('screen-'+name).classList.add('active');
+  const tab=document.querySelector(`.tab[data-screen="${name}"]`);
+  tab.classList.add('active'); tab.setAttribute('aria-selected','true');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchScreen(t.dataset.screen)));
+
+/* learner banner nav (demo) */
+document.getElementById('prev-learner')?.addEventListener('click',()=>toast('Switched to Diego Santos · learner-7'));
+document.getElementById('next-learner')?.addEventListener('click',()=>toast('Switched to Liam Chen · learner-3'));
+
+/* ---- toast ---- */
+let toastT;
+function toast(msg){
+  const el=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+/* ---- clock ---- */
+function tickClock(){
+  const d=new Date();
+  const p=n=>String(n).padStart(2,'0');
+  document.getElementById('clock').textContent=`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} UTC`;
+}
+setInterval(tickClock,1000); tickClock();
+
+/* ---- init ---- */
+renderRoster(); renderAlerts(); renderMisBoard(); renderTimeline(); renderFeed(); renderTicker();
+
+/* mis-card keyboard affordance (focusable cards) */
+document.querySelectorAll('.mis-card').forEach(card=>{
+  card.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();
+      const nm=card.querySelector('.lrn-tag').textContent.trim();
+      const err=card.querySelector('.err').textContent.trim();
+      switchScreen('timeline');
+      toast('Inspecting misconception · '+err+' · '+nm);
+    }
+  });
+});
+
+/* page-load reveal */
+requestAnimationFrame(()=>requestAnimationFrame(()=>document.body.classList.add('loaded')));
+window.addEventListener('load',()=>document.body.classList.add('loaded'));
+
+/* keyboard tab nav 1-4 */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  const map={'1':'cohort','2':'alerts','3':'misconceptions','4':'timeline'};
+  if(map[e.key]) switchScreen(map[e.key]);
+});
+</script>
+</body>
+</html>

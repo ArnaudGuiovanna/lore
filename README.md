@@ -1,15 +1,30 @@
 # LORE
 
-Learning Orchestration Runtime Engine. LORE is a headless LMS where the
-pedagogical runtime owns progression, review scheduling, assessment readiness,
-learner state, traces, and audit decisions. LLM providers generate content from
-runtime instructions only.
+**Learning Orchestration Runtime Engine** — an open-source, **AI-first LMS** for
+training organizations. A deterministic pedagogical *runtime* owns progression,
+review scheduling, mastery, misconceptions, alerts, audit traces and events; LLM
+providers only generate content from runtime instructions. LORE ships as a **Go
+backend** (the headless runtime + REST API) **and a Next.js frontend** (the
+`LECTURE` design language) with real authentication, role-based access, and the
+essential LMS management an organization needs — all self-hostable.
+
+> Not a content-first Moodle clone. Instead of authoring courses, resources, SCORM
+> and quizzes, a trainer **authors a syllabus** (intent + outcomes) and **attaches a
+> cohort**; the runtime and the LLM **generate each learner's path**. The runtime is
+> always the source of truth — the UI and the LLM never own progression.
+
+- **Backend** — `cmd/lore`, `internal/` (Go, stdlib router). Headless runtime + REST API.
+- **Frontend** — [`web/`](web/) (Next.js + TypeScript, the LECTURE design). Real login,
+  roles derived from membership, RBAC, and management surfaces for learner / trainer /
+  admin. **Self-host guide: [`web/README.md`](web/README.md).**
+- **Design research** — [`docs/product-design/`](docs/product-design/) and the static
+  mockups in [`docs/mockups/`](docs/mockups/) that the frontend realizes.
 
 ## What LORE Does
 
-LORE is not a content-first LMS. It is a learning orchestration backend: clients
-bring the UI, while LORE owns the pedagogical state machine, runtime decisions,
-tenant isolation, persistence, and events.
+LORE owns the pedagogical state machine, runtime decisions, tenant isolation,
+persistence, and events. The frontend consumes API state and never re-implements
+pedagogy.
 
 ```txt
                     REST API + Auth + Events
@@ -56,7 +71,44 @@ runtime-created `TutorInstruction` and returns content only; LORE remains the
 source of truth for mastery, retention, review timing, assessment completion,
 alerts, and progression.
 
-## Run
+## Frontend (LECTURE) — quick start
+
+The [`web/`](web/) app is a real, backend-connected frontend with working auth. The
+fastest way to run the whole product:
+
+```bash
+# 1) backend in JWT mode (real auth on tenant routes)
+go build -o /tmp/lore-server ./cmd/lore
+JWT_SECRET=$(openssl rand -hex 32) LORE_BOOTSTRAP_TOKEN=$(openssl rand -hex 24) \
+  PORT=8080 STORE_DRIVER=memory /tmp/lore-server &
+
+# 2) seed real users, memberships (roles) and fixtures
+LORE_BOOTSTRAP_TOKEN=<same-as-above> bash web/scripts/seed.sh
+
+# 3) frontend
+cd web && cp .env.example .env.local   # set LORE_BOOTSTRAP_TOKEN + SESSION_SECRET
+npm install && npm run dev             # http://localhost:3001
+```
+
+Or run everything in containers: `docker compose -f deploy/docker-compose.web.yml up --build`
+(also `make docker-up`). Full instructions, default accounts and security notes are in
+[`web/README.md`](web/README.md). The `Makefile` exposes `run-backend`, `seed`, `web-dev`,
+`web-build`, `web-start`, `docker-up`.
+
+### Authentication & roles
+
+Identity is verified against the LORE backend. The Next server checks a password, then
+**mints a per-user LORE JWT** via the bootstrap-protected `/v1/auth/token`, stores it in a
+signed httpOnly session cookie, and attaches it to every backend call — so the **backend
+enforces role/tenant access** (a learner can only reach their own routes). Roles
+(`TENANT_ADMIN` / `TRAINER` / `LEARNER`) are **derived from membership**, never requested by
+the client, and middleware routes each role to its own surface.
+
+For frontend product thinking, see the
+[Front Product Design Workflow](docs/front-product-design-workflow.md) and
+[`docs/product-design/`](docs/product-design/).
+
+## Run (backend only)
 
 ```bash
 go test ./...

@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Command — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Spline+Sans+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#efe8dc;
+    --card:#fbf8f2;
+    --ink:#23211c;
+    --ink-soft:#4a463d;
+    --ink-faint:#7d776a;
+    --ink-ghost:#a89f8d;
+    --line:#ddd4c3;
+    --line-soft:#e7dfd1;
+    --accent:#1f4a3a;        /* deep ink-green */
+    --accent-deep:#143229;
+    --accent-soft:#e3ece5;
+    --oxblood:#7a2230;
+    --oxblood-soft:#f1dfe0;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,28,.05), 0 18px 50px -26px rgba(35,33,28,.34);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,[role="option"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(135% 90% at 50% -8%, #faf6ee 0%, rgba(250,246,238,0) 52%),
+      radial-gradient(90% 70% at 92% 108%, #efe7d8 0%, rgba(239,231,216,0) 55%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:18px;
+    line-height:1.58;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    min-height:100vh;
+  }
+  ::selection{background:var(--accent);color:#f4efe6}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono", ui-monospace, monospace}
+  .ser{font-family:"Fraunces", serif}
+
+  /* gallery link */
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.7);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn .7s .15s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+
+  /* identity tag, top-right — near-zero chrome */
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:200;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn .7s .25s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #356c54, #1f4a3a);
+    color:#f4efe6;display:grid;place-items:center;
+    font-family:"Fraunces",serif;font-weight:600;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  /* brand whisper, bottom-left */
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:120;
+    font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn .8s .4s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:500;color:var(--accent)}
+
+  /* mode pill, bottom-right */
+  .mode-pill{
+    position:fixed;bottom:16px;right:20px;z-index:120;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;
+    opacity:0;animation:chromeIn .8s .45s ease both;
+  }
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .mode-dot{background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+  .mode-pill .lbl b{color:var(--ink-soft);font-weight:600}
+
+  /* ====== stage ====== */
+  .stage{
+    min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;
+    justify-content:center;
+    padding:96px 24px 84px;
+    transition:justify-content .5s ease;
+  }
+  body.engaged .stage{justify-content:flex-start;padding-top:108px}
+  .console{width:100%;max-width:760px;margin:0 auto}
+
+  /* intent line — RUNTIME decided, the seed of the void */
+  .intent-wrap{
+    text-align:center;margin-bottom:38px;
+    opacity:0;animation:intentIn 1s .55s cubic-bezier(.2,.7,.2,1) both;
+  }
+  @keyframes intentIn{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+  .intent-eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:16px;
+    display:flex;align-items:center;justify-content:center;gap:11px;
+  }
+  .intent-eyebrow .rl{flex:0 0 38px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
+  .intent-eyebrow .rl.r{background:linear-gradient(90deg,var(--line),transparent)}
+  .intent-line{
+    font-family:"Fraunces",serif;font-weight:340;font-size:30px;line-height:1.32;
+    letter-spacing:-.012em;color:var(--ink);
+    font-variation-settings:"opsz" 72;max-width:620px;margin:0 auto;
+  }
+  .intent-line em{font-style:italic;color:var(--accent);font-weight:420}
+  .intent-line .neg{color:var(--oxblood);font-style:normal;font-weight:500;
+    font-family:"Spline Sans Mono",monospace;font-size:.74em;letter-spacing:-.01em}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;
+    white-space:nowrap;
+  }
+  .badge.runtime{background:var(--accent);color:#f4efe6}
+  .badge.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .badge.fallbk{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  .badge.gen{background:transparent;color:var(--ink-faint);border:1px dashed var(--line)}
+  .badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  .intent-meta{
+    margin-top:18px;display:flex;flex-wrap:wrap;gap:9px 12px;justify-content:center;align-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+  }
+  .metric{display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px}
+  .metric .k{letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--oxblood)}
+  .metric .v.warn{color:var(--amber)}
+
+  /* overload recovery whisper */
+  .recovery{
+    margin-top:14px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.05em;color:var(--amber);display:inline-flex;align-items:center;gap:7px;
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:999px;padding:4px 12px;
+  }
+  .recovery svg{width:12px;height:12px}
+
+  /* ====== composer — the prompt ====== */
+  .composer{
+    position:relative;margin-top:6px;
+    opacity:0;animation:intentIn 1s .8s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .composer-rule{
+    height:1px;background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);
+    margin-bottom:0;
+  }
+  .prompt{
+    display:flex;align-items:flex-start;gap:13px;padding:18px 4px 16px;
+    cursor:text;position:relative;
+  }
+  .glyph{
+    font-family:"Spline Sans Mono",monospace;font-size:21px;line-height:1.2;font-weight:600;
+    color:var(--accent);flex:0 0 auto;user-select:none;padding-top:1px;
+    transition:color .3s;
+  }
+  body.fallback .glyph{color:var(--amber)}
+  .field-wrap{flex:1 1 auto;position:relative;min-height:30px}
+  .field{
+    width:100%;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:17.5px;line-height:1.55;
+    color:var(--ink);padding:0;margin:0;overflow:hidden;
+    caret-color:transparent; /* custom caret */
+  }
+  .field::placeholder{color:var(--ink-ghost)}
+  /* custom blinking block caret */
+  .caret{
+    position:absolute;width:9px;height:21px;background:var(--accent);
+    border-radius:1px;top:2px;left:0;pointer-events:none;opacity:0;
+    transition:left .05s linear, top .05s linear;
+    animation:blink 1.05s steps(1) infinite;
+  }
+  body.fallback .caret{background:var(--amber)}
+  .composer.focused .caret{opacity:1}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+  .prompt-hint{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-ghost);
+    display:flex;gap:14px;align-items:center;padding:0 4px 4px 36px;flex-wrap:wrap;
+  }
+  .prompt-hint kbd{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;background:var(--card);
+    border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink-soft);
+  }
+  .prompt-hint .sep{width:1px;height:11px;background:var(--line)}
+
+  /* slash palette */
+  .palette{
+    position:absolute;left:30px;right:0;bottom:calc(100% + 6px);z-index:60;
+    background:var(--card);border:1px solid var(--line);border-radius:13px;
+    box-shadow:var(--shadow);padding:7px;
+    opacity:0;transform:translateY(8px) scale(.985);pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+    max-height:340px;overflow:auto;scrollbar-width:thin;
+  }
+  .palette.open{opacity:1;transform:none;pointer-events:auto}
+  .palette-head{
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-ghost);padding:7px 10px 9px;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .palette-head .ct{color:var(--accent)}
+  .cmd{
+    display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:9px;cursor:pointer;
+    transition:background .14s;
+  }
+  .cmd[aria-selected="true"],.cmd:hover{background:var(--accent-soft)}
+  .cmd-key{
+    font-family:"Spline Sans Mono",monospace;font-size:13px;font-weight:600;color:var(--accent);
+    flex:0 0 auto;min-width:148px;
+  }
+  body.fallback .cmd-key{color:var(--accent)}
+  .cmd-desc{font-family:"Newsreader",serif;font-size:15px;color:var(--ink-soft);flex:1 1 auto;line-height:1.3}
+  .cmd-tag{font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-ghost);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+  .cmd.is-disabled{opacity:.4;cursor:not-allowed}
+  .cmd.is-disabled:hover{background:transparent}
+
+  /* ====== output region — generation streams here ====== */
+  .output{margin-top:30px;display:flex;flex-direction:column;gap:18px}
+  .block{
+    opacity:0;transform:translateY(12px);
+    animation:blockIn .55s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  @keyframes blockIn{to{opacity:1;transform:none}}
+
+  .gen-status{
+    display:flex;align-items:center;gap:11px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.04em;color:var(--ink-faint);
+    padding:2px 0;
+  }
+  .gen-status .spin{
+    width:13px;height:13px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .7s linear infinite;
+  }
+  body.fallback .gen-status .spin{border-top-color:var(--amber)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .gen-status .src{color:var(--ink-soft);font-weight:600}
+  .gen-status.done .spin{display:none}
+  .gen-status.done .check{display:inline-grid;place-items:center;width:13px;height:13px;border-radius:50%;
+    background:var(--accent);color:#fff;font-size:9px}
+  body.fallback .gen-status.done .check{background:var(--amber)}
+  .gen-status .check{display:none}
+
+  .gen-card{
+    background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r);
+    padding:24px 26px 22px;box-shadow:0 1px 2px rgba(35,33,28,.04);position:relative;
+  }
+  .gen-card.fallbk{border-color:#e3cd9d;background:linear-gradient(180deg,#fcf7ea,#fbf8f2)}
+  .gen-card .card-badge{position:absolute;top:-9px;left:20px}
+  .gen-body{font-family:"Newsreader",serif;font-size:18px;line-height:1.62;color:var(--ink)}
+  .gen-body p{margin:0 0 12px}
+  .gen-body p:last-child{margin-bottom:0}
+  .gen-body strong{font-weight:600}
+  .gen-body .scenario-label{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);display:block;margin-bottom:9px}
+
+  /* code chunk */
+  pre.code{
+    margin:14px 0;background:#1c2420;border-radius:11px;padding:16px 18px;overflow-x:auto;
+    font-family:"Spline Sans Mono",monospace;font-size:13.5px;line-height:1.62;color:#d8e2da;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+  }
+  pre.code .kw{color:#9ec8ad}
+  pre.code .fn{color:#e6c98a}
+  pre.code .str{color:#c9a98a}
+  pre.code .cm{color:#6f8076;font-style:italic}
+  pre.code .err{color:#e08896}
+
+  /* fallback numbered scaffold */
+  ol.scaffold{margin:6px 0 0;padding-left:0;list-style:none;counter-reset:step}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:9px 0 9px 42px;
+    font-family:"Spline Sans Mono",monospace;font-size:14px;line-height:1.55;color:var(--ink-soft);
+    border-bottom:1px dashed var(--line-soft);
+  }
+  ol.scaffold li:last-child{border-bottom:none}
+  ol.scaffold li::before{
+    content:counter(step,decimal-leading-zero);position:absolute;left:0;top:9px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;font-weight:700;color:var(--amber);
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:6px;
+    width:28px;height:22px;display:grid;place-items:center;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:600}
+
+  /* gestures bar — sanctioned moves */
+  .gestures{
+    display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;align-items:center;
+  }
+  .gestures .gl{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-right:4px}
+  .gesture{
+    appearance:none;cursor:pointer;
+    font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .gesture:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  .gesture .g{color:var(--accent);font-weight:600}
+  .gesture.danger:hover{border-color:var(--oxblood);color:var(--oxblood)}
+  .gesture.danger .g{color:var(--oxblood)}
+
+  /* evidence answer line — reuses the composer style inline */
+  .evidence{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px 18px;position:relative;
+  }
+  .evidence-head{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .evidence-row{display:flex;align-items:flex-start;gap:11px}
+  .evidence .glyph{font-size:17px;color:var(--ink-faint)}
+  .evidence textarea{
+    flex:1 1 auto;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:14.5px;line-height:1.55;color:var(--ink);
+    min-height:48px;overflow:hidden;
+  }
+  .evidence textarea::placeholder{color:var(--ink-ghost)}
+  .evidence-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:12px}
+  .evidence-foot .hint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+  .submit{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.04em;color:#f4efe6;background:var(--accent);border:1px solid var(--accent-deep);
+    border-radius:9px;padding:8px 16px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .submit:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .submit kbd{font-family:inherit;font-size:10px;background:rgba(255,255,255,.16);border-radius:4px;padding:1px 5px}
+
+  /* ====== state delta ====== */
+  .delta{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:22px 24px;box-shadow:var(--shadow);position:relative;
+  }
+  .delta-head{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:16px;display:flex;align-items:center;gap:9px;
+  }
+  .delta-head .ico{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .delta-rows{display:flex;flex-direction:column;gap:11px}
+  .drow{display:flex;align-items:center;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px}
+  .drow .dk{flex:0 0 168px;color:var(--ink-faint);letter-spacing:.03em}
+  .drow .dv{display:flex;align-items:center;gap:9px;color:var(--ink)}
+  .drow .from{color:var(--ink-ghost)}
+  .drow .arr{color:var(--accent)}
+  .drow .to{font-weight:700;color:var(--accent)}
+  .drow .to.warn{color:var(--amber)}
+  .drow .to.bad{color:var(--oxblood)}
+  .drow .note{font-family:"Newsreader",serif;font-style:italic;font-size:14px;color:var(--ink-faint)}
+  .delta-foot{
+    margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);
+    font-family:"Newsreader",serif;font-size:15px;color:var(--ink-soft);font-style:italic;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .delta-foot .continue{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11.5px;font-weight:600;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:transparent;
+    border:1px solid var(--accent);border-radius:999px;padding:7px 15px;transition:.18s ease;font-style:normal;
+  }
+  .delta-foot .continue:hover{background:var(--accent);color:#f4efe6}
+
+  /* the streaming cursor that trails generated text */
+  .stream-cursor{
+    display:inline-block;width:8px;height:1.05em;background:var(--accent);
+    vertical-align:-2px;margin-left:1px;border-radius:1px;animation:blink 1s steps(1) infinite;
+  }
+  body.fallback .stream-cursor{background:var(--amber)}
+
+  /* reset flash */
+  .reset-flash{
+    text-align:center;font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-ghost);padding:14px 0;
+    opacity:0;animation:blockIn .5s forwards;
+  }
+
+  /* subtle word-fade for streamed words */
+  .w{opacity:0;animation:wordIn .26s ease forwards}
+  @keyframes wordIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+
+  @media (max-width:640px){
+    body{font-size:17px}
+    .intent-line{font-size:24px}
+    .stage{padding:88px 18px 80px}
+    .drow .dk{flex-basis:128px}
+    .cmd-key{min-width:120px;font-size:12px}
+    .brand-whisper,.mode-pill{display:none}
+    .palette{left:0}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+    .caret,.stream-cursor{animation:none;opacity:1}
+    .w{opacity:1;animation:none}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge" href="../">&larr; gallery index</a>
+
+  <div class="ident" aria-label="Learner identity">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar" aria-hidden="true">AO</div>
+  </div>
+
+  <div class="brand-whisper" aria-hidden="true"><b>LORE</b> · learning runtime</div>
+
+  <div class="mode-pill" role="status" aria-live="polite">
+    <span class="mode-dot" aria-hidden="true"></span>
+    <span class="lbl">tutor · <b id="modeLabel">anthropic/claude</b></span>
+  </div>
+
+  <main class="stage" id="stage">
+    <div class="console">
+
+      <!-- INTENT: runtime-seeded, single intention -->
+      <section class="intent-wrap" id="intentWrap" aria-live="polite">
+        <div class="intent-eyebrow">
+          <span class="rl"></span>
+          <span class="badge runtime"><span class="dot"></span>runtime decided</span>
+          <span class="rl r"></span>
+        </div>
+        <h1 class="intent-line" id="intentLine">
+          Now: repair <em>persistence</em> before advancing —
+          <span class="neg">retention&nbsp;0.38</span>, review overdue <span class="neg">2d</span>.
+        </h1>
+        <div class="intent-meta" id="intentMeta">
+          <span class="metric"><span class="k">mastery</span><span class="v bad" id="mMastery">0.41 ↓</span></span>
+          <span class="metric"><span class="k">retention</span><span class="v bad">0.38</span></span>
+          <span class="metric"><span class="k">misconception</span><span class="v warn">forgot-tx-rollback</span></span>
+          <span class="metric"><span class="k">gate</span><span class="v">transactions · locked</span></span>
+        </div>
+        <div style="margin-top:14px">
+          <span class="recovery" title="The runtime deliberately lowered load after 2 failed attempts.">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="4"/>
+            </svg>
+            overload recovery — load lowered after 2 failed attempts
+          </span>
+        </div>
+      </section>
+
+      <!-- COMPOSER: the prompt -->
+      <section class="composer" id="composer" aria-label="Runtime command composer">
+        <div class="composer-rule"></div>
+        <div class="palette" id="palette" role="listbox" aria-label="Sanctioned runtime commands">
+          <div class="palette-head"><span>sanctioned runtime moves</span><span class="ct" id="paletteCount">7</span></div>
+          <div id="cmdList"></div>
+        </div>
+        <div class="prompt" id="promptArea">
+          <span class="glyph" aria-hidden="true" id="glyph">&rsaquo;</span>
+          <div class="field-wrap">
+            <span class="caret" id="caret"></span>
+            <textarea class="field" id="field" rows="1" spellcheck="false" autocomplete="off"
+              aria-label="Type a slash command or your answer"
+              placeholder="press / for runtime moves, or ⏎ to begin"></textarea>
+          </div>
+        </div>
+        <div class="prompt-hint">
+          <span><kbd>/</kbd> commands</span><span class="sep"></span>
+          <span><kbd>⏎</kbd> /start</span><span class="sep"></span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> select</span><span class="sep"></span>
+          <span><kbd>esc</kbd> close</span>
+        </div>
+      </section>
+
+      <!-- OUTPUT: everything generated streams here -->
+      <section class="output" id="output" aria-live="polite"></section>
+
+    </div>
+  </main>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- elements ---------- */
+  const body = document.body;
+  const field = document.getElementById("field");
+  const caret = document.getElementById("caret");
+  const composer = document.getElementById("composer");
+  const palette = document.getElementById("palette");
+  const cmdList = document.getElementById("cmdList");
+  const promptArea = document.getElementById("promptArea");
+  const output = document.getElementById("output");
+  const modeLabel = document.getElementById("modeLabel");
+  const intentWrap = document.getElementById("intentWrap");
+  const paletteCount = document.getElementById("paletteCount");
+
+  /* ---------- state ---------- */
+  let mode = "llm";            // "llm" | "fallback"
+  let practiceShown = false;   // is a practice currently in the void
+  let busy = false;            // generation in progress
+  let selIdx = 0;              // palette selection
+  let mastery = 0.41;
+  let attempts = 0;            // regenerate counter for flavor
+
+  /* ---------- sanctioned command palette ---------- */
+  const COMMANDS = [
+    { key:"/start",               desc:"Summon the repair practice for ‘persistence’", tag:"generate", needsPractice:false },
+    { key:"/explain-differently", desc:"Reframe the current task another way",          tag:"gesture",  needsPractice:true  },
+    { key:"/example",             desc:"Stream one more worked example",                 tag:"gesture",  needsPractice:true  },
+    { key:"/stuck",               desc:"Ask the runtime for a lighter scaffold",         tag:"gesture",  needsPractice:true  },
+    { key:"/why",                 desc:"Why did the runtime choose this move?",          tag:"meta",     needsPractice:false },
+    { key:"/fallback",            desc:"Flip tutor off — instruction-only scaffold",     tag:"runtime",  needsPractice:false },
+    { key:"/regenerate",          desc:"Discard & re-summon this content",               tag:"generate", needsPractice:true  },
+  ];
+
+  /* ---------- caret positioning over a transparent textarea ---------- */
+  const mirror = document.createElement("div");
+  Object.assign(mirror.style,{
+    position:"absolute",visibility:"hidden",whiteSpace:"pre-wrap",wordWrap:"break-word",
+    font:getComputedStyle(field).font,lineHeight:getComputedStyle(field).lineHeight,
+    left:"0",top:"0",pointerEvents:"none"
+  });
+  field.parentNode.appendChild(mirror);
+  function updateCaret(){
+    mirror.style.width = field.clientWidth + "px";
+    const val = field.value.substring(0, field.selectionEnd);
+    mirror.textContent = val;
+    const tail = document.createElement("span");
+    tail.textContent = "​";
+    mirror.appendChild(tail);
+    caret.style.left = (tail.offsetLeft) + "px";
+    caret.style.top = (tail.offsetTop + 2) + "px";
+  }
+  function autoGrow(el){ el.style.height="auto"; el.style.height = el.scrollHeight + "px"; }
+
+  /* ---------- palette rendering ---------- */
+  function renderPalette(filter){
+    cmdList.innerHTML = "";
+    const f = (filter||"").toLowerCase();
+    const items = COMMANDS.filter(c => !f || c.key.toLowerCase().startsWith(f));
+    paletteCount.textContent = items.length;
+    items.forEach((c, i) => {
+      const disabled = c.needsPractice && !practiceShown;
+      const el = document.createElement("div");
+      el.className = "cmd" + (disabled ? " is-disabled":"");
+      el.setAttribute("role","option");
+      el.dataset.key = c.key;
+      el.dataset.disabled = disabled ? "1":"0";
+      el.tabIndex = -1;
+      el.innerHTML =
+        `<span class="cmd-key">${c.key}</span>`+
+        `<span class="cmd-desc">${c.desc}</span>`+
+        `<span class="cmd-tag">${c.tag}</span>`;
+      el.addEventListener("mousedown",(e)=>{ e.preventDefault(); if(!disabled) runCommand(c.key); });
+      el.addEventListener("mouseenter",()=>{ selIdx = i; paintSel(); });
+      cmdList.appendChild(el);
+    });
+    selIdx = Math.min(selIdx, Math.max(0, items.length-1));
+    paintSel();
+    return items;
+  }
+  function paintSel(){
+    [...cmdList.children].forEach((el,i)=> el.setAttribute("aria-selected", i===selIdx ? "true":"false"));
+    const cur = cmdList.children[selIdx];
+    if(cur) cur.scrollIntoView({block:"nearest"});
+  }
+  function openPalette(filter){ renderPalette(filter); palette.classList.add("open"); }
+  function closePalette(){ palette.classList.remove("open"); }
+  function paletteOpen(){ return palette.classList.contains("open"); }
+
+  /* ---------- streaming engine ---------- */
+  // streams `text` word-by-word into `target`; resolves a promise on done.
+  function streamWords(target, text, opts){
+    opts = opts || {};
+    const speed = opts.speed || 26;
+    const words = text.split(/(\s+)/); // keep whitespace
+    let i = 0;
+    const cursor = document.createElement("span");
+    cursor.className = "stream-cursor";
+    target.appendChild(cursor);
+    return new Promise(resolve=>{
+      if(reduceMotion){
+        cursor.remove();
+        target.insertAdjacentText("beforeend", text);
+        return resolve();
+      }
+      function tick(){
+        if(i >= words.length){ cursor.remove(); return resolve(); }
+        const span = document.createElement("span");
+        span.className = "w";
+        span.textContent = words[i];
+        target.insertBefore(span, cursor);
+        i++;
+        scrollLow();
+        const jitter = words[i-1] && /[.,;:]$/.test(words[i-1]) ? 120 : 0;
+        setTimeout(tick, speed + Math.random()*22 + jitter);
+      }
+      tick();
+    });
+  }
+  // stream pre-built HTML nodes by revealing children one by one (for code/lists)
+  function streamReveal(target, html, perDelay){
+    target.innerHTML = html;
+    const reveals = [...target.querySelectorAll("[data-reveal]")];
+    return new Promise(resolve=>{
+      if(reduceMotion){ reveals.forEach(r=>r.style.opacity=1); return resolve(); }
+      let i=0;
+      reveals.forEach(r=>{ r.style.opacity="0"; r.style.transform="translateY(6px)"; r.style.transition="opacity .3s, transform .3s"; });
+      function tick(){
+        if(i>=reveals.length) return resolve();
+        reveals[i].style.opacity="1"; reveals[i].style.transform="none";
+        i++; scrollLow();
+        setTimeout(tick, perDelay || 70);
+      }
+      tick();
+    });
+  }
+  function scrollLow(){
+    if(reduceMotion) return;
+    // follow the live stream cursor when present, else the last block
+    const cursor = output.querySelector(".stream-cursor");
+    const target = cursor || output.lastElementChild;
+    if(target) target.scrollIntoView({block:"nearest",behavior:"smooth"});
+  }
+  // Pin point: generated responses (gestures/why) belong ABOVE the sanctioned-moves
+  // bar and the evidence composer, which must stay anchored at the bottom of the void.
+  function placeResponse(node){
+    let anchor = null;
+    try{ anchor = output.querySelector(".block:has(.gestures), .block:has(.evidence)"); }
+    catch(_){ // :has() unsupported — fall back to a manual scan
+      anchor = [...output.children].find(c => c.querySelector(".gestures, .evidence")) || null;
+    }
+    if(anchor) output.insertBefore(node, anchor);
+    else output.appendChild(node);
+  }
+
+  /* ---------- block builders ---------- */
+  function genStatus(srcText, opts){
+    const wrap = document.createElement("div");
+    wrap.className = "block";
+    wrap.innerHTML =
+      `<div class="gen-status"><span class="spin"></span><span class="check">✓</span>`+
+      `<span>generating from <span class="src">TutorInstruction · ${srcText}</span></span></div>`;
+    if(opts && opts.before) placeResponse(wrap); else output.appendChild(wrap);
+    return wrap.querySelector(".gen-status");
+  }
+  function resolveStatus(statusEl, finalText, badge){
+    statusEl.classList.add("done");
+    statusEl.querySelector(".src").textContent = finalText;
+    statusEl.querySelector("span:last-child").innerHTML =
+      `resolved · <span class="src">${finalText}</span> ${badge}`;
+  }
+
+  /* ---------- content fixtures ---------- */
+  const LLM_INTRO = "Here’s the repair task. A teammate wrote this Go function to record a new enrollment. It opens a transaction, inserts a row, then hits an error path — and returns early. Read it closely:";
+  const LLM_QUESTION = "The problem: when InsertEnrollment fails, the function returns without rolling back, so the transaction leaks and the row may be half-committed under load. Fix it — add the rollback path so persistence stays consistent on the error branch.";
+
+  const CODE_HTML =
+`<pre class="code" aria-label="Go function with a missing rollback"><span data-reveal><span class="kw">func</span> <span class="fn">RecordEnrollment</span>(ctx context.Context, db *sql.DB, e Enrollment) <span class="kw">error</span> {</span>
+<span data-reveal>    tx, err := db.BeginTx(ctx, <span class="kw">nil</span>)</span>
+<span data-reveal>    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }</span>
+<span data-reveal>
+    <span class="cm">// inserts the enrollment row inside the tx</span></span>
+<span data-reveal>    <span class="kw">if</span> err := <span class="fn">InsertEnrollment</span>(ctx, tx, e); err != <span class="kw">nil</span> {</span>
+<span data-reveal>        <span class="err">return err   // ← leaks the tx: no tx.Rollback()</span></span>
+<span data-reveal>    }</span>
+<span data-reveal>    <span class="kw">return</span> tx.<span class="fn">Commit</span>()</span>
+<span data-reveal>}</span></pre>`;
+
+  const FALLBACK_STEPS = [
+    "Open the failing function <b>RecordEnrollment</b>; locate the error branch after <b>InsertEnrollment</b>.",
+    "On that branch the code does <b>return err</b> directly — the open transaction is never closed.",
+    "Before returning the error, call <b>tx.Rollback()</b> so the partial write is discarded.",
+    "Handle the rollback’s own error: log or join it, but still return the <b>original</b> insert error.",
+    "Confirm the success path still ends in <b>tx.Commit()</b> — Commit and Rollback are mutually exclusive.",
+    "State the invariant in one line: every BeginTx path must reach exactly one of Commit or Rollback."
+  ];
+
+  /* ---------- render the practice (LLM mode) ---------- */
+  async function renderLLMPractice(isRegen){
+    busy = true;
+    const status = genStatus("claude · temp 0.2");
+    await wait(reduceMotion?0:540);
+
+    const card = document.createElement("div");
+    card.className = "block";
+    card.innerHTML =
+      `<div class="gen-card" style="margin-top:6px">`+
+        `<span class="card-badge badge llm"><span class="dot"></span>LLM generated · claude</span>`+
+        `<div class="gen-body">`+
+          `<span class="scenario-label">scenario · persistence / forgot-tx-rollback</span>`+
+          `<p class="p1"></p>`+
+          `<div class="codeslot"></div>`+
+          `<p class="p2"></p>`+
+        `</div>`+
+      `</div>`;
+    output.appendChild(card);
+    const p1 = card.querySelector(".p1");
+    const p2 = card.querySelector(".p2");
+    const codeslot = card.querySelector(".codeslot");
+
+    await streamWords(p1, isRegen ? "Same repair, re-summoned. " + LLM_INTRO : LLM_INTRO, {speed:24});
+    await streamReveal(codeslot, CODE_HTML, 80);
+    await streamWords(p2, LLM_QUESTION, {speed:22});
+    resolveStatus(status, "claude · temp 0.2", `<span class="badge llm">llm generated</span>`);
+
+    appendGestures();
+    appendEvidence();
+    practiceShown = true; busy = false;
+  }
+
+  /* ---------- render the fallback scaffold (instruction-only) ---------- */
+  async function renderFallbackPractice(){
+    busy = true;
+    const status = genStatus("runtime author · instruction_only");
+    await wait(reduceMotion?0:500);
+
+    const card = document.createElement("div");
+    card.className = "block";
+    card.innerHTML =
+      `<div class="gen-card fallbk" style="margin-top:6px">`+
+        `<span class="card-badge badge fallbk"><span class="dot"></span>instruction-only · runtime authored</span>`+
+        `<div class="gen-body">`+
+          `<span class="scenario-label">scaffold · persistence / forgot-tx-rollback · no LLM</span>`+
+          `<p class="lead"></p>`+
+          `<ol class="scaffold"></ol>`+
+        `</div>`+
+      `</div>`;
+    output.appendChild(card);
+    const lead = card.querySelector(".lead");
+    const ol = card.querySelector(".scaffold");
+
+    await streamWords(lead, "Tutor LLM is off for learner-1 (override: instruction_only). The runtime still authors a usable, numbered repair scaffold — no prose, no model:", {speed:22});
+
+    for(let i=0;i<FALLBACK_STEPS.length;i++){
+      const li = document.createElement("li");
+      li.style.opacity="0"; li.style.transform="translateY(6px)";
+      li.style.transition="opacity .3s, transform .3s";
+      li.innerHTML = FALLBACK_STEPS[i];
+      ol.appendChild(li);
+      await wait(reduceMotion?0:90);
+      li.style.opacity="1"; li.style.transform="none";
+      scrollLow();
+      await wait(reduceMotion?0:120);
+    }
+    resolveStatus(status, "instruction_only", `<span class="badge fallbk">runtime authored</span>`);
+
+    appendGestures();
+    appendEvidence();
+    practiceShown = true; busy = false;
+  }
+
+  /* ---------- gestures bar ---------- */
+  function appendGestures(){
+    const g = document.createElement("div");
+    g.className = "block";
+    g.innerHTML =
+      `<div class="gestures">`+
+        `<span class="gl">sanctioned moves</span>`+
+        `<button class="gesture" data-cmd="/explain-differently"><span class="g">/</span>explain differently</button>`+
+        `<button class="gesture" data-cmd="/example"><span class="g">/</span>another example</button>`+
+        `<button class="gesture danger" data-cmd="/stuck"><span class="g">/</span>I’m stuck</button>`+
+        `<button class="gesture" data-cmd="/why"><span class="g">/</span>why this?</button>`+
+        `<button class="gesture" data-cmd="/regenerate"><span class="g">/</span>regenerate</button>`+
+      `</div>`;
+    output.appendChild(g);
+    g.querySelectorAll(".gesture").forEach(b=>{
+      b.addEventListener("click",()=> runCommand(b.dataset.cmd));
+    });
+  }
+
+  /* ---------- evidence composer ---------- */
+  function appendEvidence(){
+    const e = document.createElement("div");
+    e.className = "block";
+    e.innerHTML =
+      `<div class="evidence">`+
+        `<div class="evidence-head"><span>your fix · evidence</span><span>persistence · attempt ${attempts+1}</span></div>`+
+        `<div class="evidence-row">`+
+          `<span class="glyph">&rsaquo;</span>`+
+          `<textarea id="evField" rows="2" spellcheck="false" placeholder="describe or paste the rollback fix you'd add…"></textarea>`+
+        `</div>`+
+        `<div class="evidence-foot">`+
+          `<span class="hint">runtime scores this against BKT + the active misconception</span>`+
+          `<button class="submit" id="evSubmit" disabled>submit evidence <kbd>⌘⏎</kbd></button>`+
+        `</div>`+
+      `</div>`;
+    output.appendChild(e);
+    const ef = e.querySelector("#evField");
+    const sb = e.querySelector("#evSubmit");
+    // prefill a plausible-but-incomplete answer to make submit meaningful & non-dead
+    ef.value = "if err := InsertEnrollment(ctx, tx, e); err != nil {\n    tx.Rollback()\n    return err\n}";
+    sb.disabled = false;
+    autoGrow(ef);
+    ef.addEventListener("input",()=>{ autoGrow(ef); sb.disabled = ef.value.trim().length < 3; });
+    ef.addEventListener("keydown",(ev)=>{
+      if((ev.metaKey||ev.ctrlKey) && ev.key==="Enter"){ ev.preventDefault(); if(!sb.disabled) submitEvidence(); }
+    });
+    sb.addEventListener("click", submitEvidence);
+    setTimeout(()=>ef.focus(), reduceMotion?0:400);
+  }
+
+  /* ---------- submit -> state delta -> reset ---------- */
+  async function submitEvidence(){
+    if(busy) return;
+    busy = true;
+    // lock the evidence + gestures from further edits
+    output.querySelectorAll(".evidence textarea, .evidence .submit, .gesture").forEach(el=> el.disabled = true);
+
+    const status = genStatus("runtime · BKT update + FSRS reschedule");
+    await wait(reduceMotion?0:520);
+
+    const prev = mastery;
+    mastery = Math.min(0.62, +(mastery + 0.06).toFixed(2)); // 0.41 -> 0.47 first time
+    const delta = document.createElement("div");
+    delta.className = "block";
+    delta.innerHTML =
+      `<div class="delta">`+
+        `<div class="delta-head"><span class="ico"></span>state delta · runtime committed</div>`+
+        `<div class="delta-rows" id="deltaRows"></div>`+
+        `<div class="delta-foot">`+
+          `<span id="deltaNote"></span>`+
+          `<button class="continue" id="continueBtn">accept &amp; next intent</button>`+
+        `</div>`+
+      `</div>`;
+    output.appendChild(delta);
+    resolveStatus(status, "runtime committed", `<span class="badge runtime">runtime decided</span>`);
+
+    const rows = delta.querySelector("#deltaRows");
+    const deltas = [
+      `<span class="dk">mastery · persistence</span><span class="dv"><span class="from">${prev.toFixed(2)}</span><span class="arr">→</span><span class="to">${mastery.toFixed(2)}</span><span class="note">partial credit — rollback present, error not wrapped</span></span>`,
+      `<span class="dk">misconception</span><span class="dv"><span class="to warn">forgot-tx-rollback</span><span class="note">still active — Rollback() error unhandled</span></span>`,
+      `<span class="dk">retention (FSRS)</span><span class="dv"><span class="from">0.38</span><span class="arr">→</span><span class="to">0.52</span><span class="note">review rescheduled +1d (was overdue 2d)</span></span>`,
+      `<span class="dk">load state</span><span class="dv"><span class="to">overload recovery</span><span class="note">held — one clean attempt before lifting</span></span>`,
+      `<span class="dk">gate · transactions</span><span class="dv"><span class="to bad">still locked</span><span class="note">unlocks at persistence ≥ 0.6</span></span>`,
+    ];
+    for(let i=0;i<deltas.length;i++){
+      const r = document.createElement("div");
+      r.className = "drow"; r.innerHTML = deltas[i];
+      r.style.opacity="0"; r.style.transform="translateX(-8px)"; r.style.transition="opacity .32s, transform .32s";
+      rows.appendChild(r);
+      await wait(reduceMotion?0:140);
+      r.style.opacity="1"; r.style.transform="none"; scrollLow();
+    }
+    const note = delta.querySelector("#deltaNote");
+    await streamWords(note, "Evidence absorbed. The void will reset to the runtime’s next chosen move.", {speed:20});
+
+    delta.querySelector("#continueBtn").addEventListener("click", resetToNextIntent);
+    busy = false;
+  }
+
+  /* ---------- reset void to the next runtime intention ---------- */
+  async function resetToNextIntent(){
+    if(busy) return;
+    busy = true;
+    // fade output away
+    [...output.children].forEach(c=>{ c.style.transition="opacity .35s, transform .35s"; c.style.opacity="0"; c.style.transform="translateY(-8px)"; });
+    await wait(reduceMotion?0:380);
+    output.innerHTML = "";
+    practiceShown = false; attempts = 0;
+    body.classList.remove("engaged");
+
+    const flash = document.createElement("div");
+    flash.className = "reset-flash";
+    flash.textContent = "void cleared · runtime selecting next move…";
+    output.appendChild(flash);
+    await wait(reduceMotion?0:700);
+    output.innerHTML = "";
+
+    // new intent (still persistence repair — review the rollback error handling)
+    intentWrap.style.opacity="0";
+    await wait(reduceMotion?0:120);
+    document.getElementById("intentLine").innerHTML =
+      `Now: <em>tighten the rollback</em> on persistence — mastery <span class="neg">${mastery.toFixed(2)}</span>, misconception still active.`;
+    document.getElementById("mMastery").textContent = mastery.toFixed(2) + " ↑";
+    document.getElementById("mMastery").classList.remove("bad"); document.getElementById("mMastery").classList.add("warn");
+    intentWrap.querySelector(".recovery").innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/></svg>overload recovery — one clean attempt away from lifting`;
+    intentWrap.style.transition="opacity .5s"; intentWrap.style.opacity="1";
+
+    field.value=""; autoGrow(field); updateCaret(); field.focus();
+    busy = false;
+  }
+
+  /* ---------- command dispatcher ---------- */
+  async function runCommand(key){
+    if(busy) return;
+    closePalette();
+    field.value=""; autoGrow(field); updateCaret();
+
+    switch(key){
+      case "/start":
+        if(practiceShown) return; // already summoned
+        body.classList.add("engaged");
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(false);
+        break;
+
+      case "/fallback":
+        mode = "fallback";
+        body.classList.add("fallback");
+        modeLabel.textContent = "instruction_only";
+        // wipe any existing practice, re-summon as scaffold
+        clearOutput();
+        body.classList.add("engaged");
+        await renderFallbackPractice();
+        break;
+
+      case "/regenerate":
+        if(!practiceShown) return;
+        attempts++;
+        clearOutput();
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(true);
+        break;
+
+      case "/explain-differently":
+      case "/example":
+      case "/stuck":
+        if(!practiceShown) return;
+        await renderGesture(key);
+        break;
+
+      case "/why":
+        await renderWhy();
+        break;
+    }
+  }
+
+  function clearOutput(){ output.innerHTML=""; practiceShown=false; }
+
+  /* ---------- gesture responses (streamed) ---------- */
+  const GESTURE_TEXT = {
+    "/explain-differently":
+      "Think of a transaction as a sealed envelope. BeginTx opens it; Commit seals and mails it; Rollback shreds it. Your error branch opens the envelope and then walks away — it’s neither mailed nor shredded. Add tx.Rollback() on that branch so every opened envelope reaches one of the two endings.",
+    "/example":
+      "Another shape of the same bug: a transfer that debits one account, then errors before crediting the other and returns. Without Rollback the debit can persist alone. The repair is identical — defer or branch a tx.Rollback() so the half-done work is discarded on the error path.",
+    "/stuck":
+      "Lighter scaffold, three lines: (1) find the error branch that returns. (2) add tx.Rollback() just before it. (3) keep returning the original error. That single line is the whole fix — wrapping the rollback error is the optional polish."
+  };
+  async function renderGesture(key){
+    busy = true;
+    const srcLabel = mode==="fallback" ? "runtime author · instruction_only" : "claude · temp 0.2";
+    const status = genStatus(srcLabel, {before:true});
+    await wait(reduceMotion?0:420);
+    const card = document.createElement("div");
+    card.className="block";
+    const badge = mode==="fallback"
+      ? `<span class="card-badge badge fallbk"><span class="dot"></span>instruction-only · ${key}</span>`
+      : `<span class="card-badge badge llm"><span class="dot"></span>LLM generated · ${key}</span>`;
+    card.innerHTML = `<div class="gen-card ${mode==='fallback'?'fallbk':''}" style="margin-top:6px">${badge}<div class="gen-body"><p class="gp"></p></div></div>`;
+    // keep the sanctioned-moves bar and evidence composer pinned at the bottom
+    placeResponse(card);
+    await streamWords(card.querySelector(".gp"), GESTURE_TEXT[key], {speed:22});
+    resolveStatus(status, mode==="fallback"?"instruction_only":"claude · temp 0.2",
+      mode==="fallback"?`<span class="badge fallbk">runtime authored</span>`:`<span class="badge llm">llm generated</span>`);
+    busy=false;
+  }
+
+  /* ---------- /why : runtime rationale (no LLM — this is runtime truth) ---------- */
+  async function renderWhy(){
+    busy=true;
+    const card = document.createElement("div");
+    card.className="block";
+    card.innerHTML =
+      `<div class="gen-card" style="margin-top:6px;border-color:#c7dccd">`+
+        `<span class="card-badge badge runtime"><span class="dot"></span>runtime decided · /why</span>`+
+        `<div class="gen-body"><p class="wp"></p></div>`+
+      `</div>`;
+    placeResponse(card);
+    await streamWords(card.querySelector(".wp"),
+      "The runtime selected persistence over advancing because: retention fell to 0.38 with a spaced review 2 days overdue (FSRS), mastery is 0.41 and declining (BKT), and one misconception — forgot-tx-rollback — is active. ‘transactions’ depends on persistence in the concept DAG, so it stays locked. This rationale is runtime-owned; the practice text above is the disposable, regenerable part.",
+      {speed:20});
+    busy=false;
+  }
+
+  /* ---------- input wiring ---------- */
+  function syncFromField(){
+    autoGrow(field);
+    updateCaret();
+    const v = field.value;
+    if(v.startsWith("/")){
+      const items = renderPalette(v);
+      if(items.length){ palette.classList.add("open"); } else { closePalette(); }
+    } else {
+      closePalette();
+    }
+  }
+  field.addEventListener("input", syncFromField);
+  field.addEventListener("click", updateCaret);
+  field.addEventListener("keyup", updateCaret);
+
+  field.addEventListener("focus",()=>{ composer.classList.add("focused"); updateCaret(); });
+  field.addEventListener("blur",()=>{ composer.classList.remove("focused"); setTimeout(closePalette,120); });
+  promptArea.addEventListener("mousedown",(e)=>{ if(e.target!==field){ e.preventDefault(); field.focus(); } });
+
+  field.addEventListener("keydown",(e)=>{
+    const open = paletteOpen();
+    const items = [...cmdList.querySelectorAll(".cmd")];
+
+    if(e.key === "/" && field.value===""){
+      // opening the palette explicitly
+      setTimeout(()=>{ openPalette("/"); }, 0);
+      return;
+    }
+    if(open && (e.key==="ArrowDown")){ e.preventDefault(); selIdx=Math.min(items.length-1,selIdx+1); paintSel(); return; }
+    if(open && (e.key==="ArrowUp")){ e.preventDefault(); selIdx=Math.max(0,selIdx-1); paintSel(); return; }
+    if(e.key==="Escape"){ closePalette(); return; }
+
+    if(e.key==="Enter" && !e.shiftKey){
+      e.preventDefault();
+      if(open && items[selIdx]){
+        if(items[selIdx].dataset.disabled==="1") return;
+        runCommand(items[selIdx].dataset.key);
+        return;
+      }
+      const v = field.value.trim();
+      if(v.startsWith("/")){
+        // exact-ish match
+        const match = COMMANDS.find(c=>c.key===v) || COMMANDS.find(c=>c.key.startsWith(v));
+        if(match){ runCommand(match.key); return; }
+      }
+      // empty enter on a fresh void = /start
+      if(v==="" && !practiceShown){ runCommand("/start"); return; }
+    }
+  });
+
+  /* ---------- helpers ---------- */
+  function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  window.addEventListener("resize", updateCaret);
+
+  /* ---------- boot ---------- */
+  // initial palette content (closed) + position caret once paint settles
+  renderPalette("");
+  setTimeout(()=>{ updateCaret(); }, 200);
+  // gently invite focus after the intent has revealed
+  setTimeout(()=>{ if(!reduceMotion) field.focus(); }, reduceMotion?0:1500);
+})();
+</script>
+</body>
+</html>

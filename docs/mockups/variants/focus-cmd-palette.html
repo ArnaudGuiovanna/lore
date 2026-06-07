@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Command ⌘K — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Spline+Sans+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#efe8dc;
+    --card:#fbf8f2;
+    --ink:#23211c;
+    --ink-soft:#4a463d;
+    --ink-faint:#7d776a;
+    --ink-ghost:#a89f8d;
+    --line:#ddd4c3;
+    --line-soft:#e7dfd1;
+    --accent:#1f4a3a;
+    --accent-deep:#143229;
+    --accent-soft:#e3ece5;
+    --oxblood:#7a2230;
+    --oxblood-soft:#f1dfe0;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,28,.05), 0 18px 50px -26px rgba(35,33,28,.34);
+    --pal-shadow:0 8px 24px -8px rgba(35,33,28,.28), 0 40px 90px -30px rgba(35,33,28,.5);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,[role="option"]:focus-visible,input:focus-visible,textarea:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(135% 90% at 50% -8%, #faf6ee 0%, rgba(250,246,238,0) 52%),
+      radial-gradient(90% 70% at 92% 108%, #efe7d8 0%, rgba(239,231,216,0) 55%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:18px;line-height:1.58;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    min-height:100vh;
+  }
+  ::selection{background:var(--accent);color:#f4efe6}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono", ui-monospace, monospace}
+  .ser{font-family:"Fraunces", serif}
+
+  /* chrome whispers */
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:400;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.7);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn .7s .15s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:400;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn .7s .25s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #356c54, #1f4a3a);
+    color:#f4efe6;display:grid;place-items:center;
+    font-family:"Fraunces",serif;font-weight:600;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:120;
+    font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn .8s .4s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:500;color:var(--accent)}
+
+  .mode-pill{
+    position:fixed;bottom:16px;right:20px;z-index:120;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;
+    opacity:0;animation:chromeIn .8s .45s ease both;
+  }
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .mode-dot{background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+  .mode-pill .lbl b{color:var(--ink-soft);font-weight:600}
+
+  /* ===================== STAGE ===================== */
+  .stage{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:96px 24px 96px;position:relative;
+    transition:opacity .5s ease, filter .5s ease, transform .5s ease;
+  }
+  /* when a reading card is on stage, the void recedes */
+  body.summoned .stage-intent{opacity:.32;filter:saturate(.85)}
+  body.palette-open .stage-intent{opacity:.5}
+
+  .stage-intent{
+    text-align:center;max-width:660px;transition:opacity .5s ease, filter .5s ease;
+    opacity:0;animation:intentIn 1s .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  @keyframes intentIn{from{opacity:0;transform:translateY(12px) scale(.99)}to{opacity:1;transform:none}}
+
+  .intent-eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:18px;
+    display:flex;align-items:center;justify-content:center;gap:11px;
+  }
+  .intent-eyebrow .rl{flex:0 0 38px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
+  .intent-eyebrow .rl.r{background:linear-gradient(90deg,var(--line),transparent)}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;white-space:nowrap;
+  }
+  .badge.runtime{background:var(--accent);color:#f4efe6}
+  .badge.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .badge.fallbk{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  .badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  .intent-line{
+    font-family:"Fraunces",serif;font-weight:340;font-size:33px;line-height:1.3;
+    letter-spacing:-.014em;color:var(--ink);font-variation-settings:"opsz" 72;margin:0 auto;
+  }
+  .intent-line em{font-style:italic;color:var(--accent);font-weight:420}
+  .intent-line .neg{color:var(--oxblood);font-style:normal;font-weight:500;
+    font-family:"Spline Sans Mono",monospace;font-size:.7em;letter-spacing:-.01em}
+
+  .intent-meta{
+    margin-top:22px;display:flex;flex-wrap:wrap;gap:9px 12px;justify-content:center;align-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+  }
+  .metric{display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px}
+  .metric .k{letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--oxblood)}
+  .metric .v.warn{color:var(--amber)}
+
+  .recovery{
+    margin-top:18px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.05em;color:var(--amber);display:inline-flex;align-items:center;gap:7px;
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:999px;padding:4px 12px;
+  }
+  .recovery svg{width:12px;height:12px}
+
+  /* the ⌘K launcher button — the only stage affordance */
+  .launcher{
+    margin-top:40px;display:inline-flex;align-items:center;gap:14px;
+    background:var(--card);border:1px solid var(--line);border-radius:13px;
+    padding:13px 16px 13px 18px;cursor:pointer;min-width:340px;
+    box-shadow:0 1px 2px rgba(35,33,28,.04);transition:.22s ease;
+    opacity:0;animation:intentIn 1s .8s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .launcher:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow)}
+  .launcher .lg{font-family:"Spline Sans Mono",monospace;font-size:18px;color:var(--accent);font-weight:600;flex:0 0 auto}
+  body.fallback .launcher .lg{color:var(--amber)}
+  .launcher .lt{flex:1 1 auto;text-align:left;font-family:"Spline Sans Mono",monospace;font-size:13.5px;color:var(--ink-faint)}
+  .launcher .kbd-combo{display:inline-flex;gap:4px;flex:0 0 auto}
+  kbd{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;background:var(--paper-2);
+    border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:2px 7px;color:var(--ink-soft);line-height:1.4;
+  }
+
+  /* ===================== PALETTE OVERLAY ===================== */
+  .scrim{
+    position:fixed;inset:0;z-index:300;background:rgba(31,30,26,.18);
+    backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .22s ease;
+  }
+  .scrim.show{opacity:1;pointer-events:auto}
+
+  .palette{
+    position:fixed;left:50%;top:18vh;transform:translateX(-50%) translateY(-12px) scale(.98);
+    width:min(620px,92vw);z-index:320;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--pal-shadow);overflow:hidden;
+    opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s cubic-bezier(.2,.7,.2,1);
+  }
+  .palette.open{opacity:1;transform:translateX(-50%) translateY(0) scale(1);pointer-events:auto}
+
+  .palette-input-row{display:flex;align-items:center;gap:13px;padding:17px 20px;border-bottom:1px solid var(--line-soft)}
+  .palette-glyph{font-family:"Spline Sans Mono",monospace;font-size:18px;font-weight:600;color:var(--accent);flex:0 0 auto}
+  body.fallback .palette-glyph{color:var(--amber)}
+  .palette-input{
+    flex:1 1 auto;border:none;background:transparent;outline:none;
+    font-family:"Spline Sans Mono",monospace;font-size:17px;color:var(--ink);padding:0;
+  }
+  .palette-input::placeholder{color:var(--ink-ghost)}
+  .palette-scope{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-soft);border:1px solid #c7dccd;border-radius:999px;
+    padding:3px 9px;flex:0 0 auto;
+  }
+
+  .palette-list{max-height:min(50vh,360px);overflow:auto;scrollbar-width:thin;padding:7px}
+  .palette-group{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-ghost);padding:11px 13px 6px;
+  }
+  .cmd{
+    display:flex;align-items:center;gap:13px;padding:10px 13px;border-radius:10px;cursor:pointer;
+    transition:background .12s;position:relative;
+  }
+  .cmd[aria-selected="true"]{background:var(--accent-soft)}
+  body.fallback .cmd[aria-selected="true"]{background:var(--amber-soft)}
+  .cmd-ico{
+    flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+    background:var(--paper-2);border:1px solid var(--line-soft);color:var(--accent);
+    font-family:"Spline Sans Mono",monospace;font-size:15px;font-weight:600;
+  }
+  .cmd[aria-selected="true"] .cmd-ico{background:#fff;border-color:#c7dccd}
+  .cmd-main{flex:1 1 auto;min-width:0}
+  .cmd-name{font-family:"Spline Sans Mono",monospace;font-size:14px;font-weight:600;color:var(--ink);line-height:1.3}
+  .cmd-name .hl{color:var(--accent);text-decoration:underline;text-decoration-color:#bcd4c2;text-underline-offset:2px}
+  body.fallback .cmd-name .hl{color:var(--amber)}
+  .cmd-desc{font-family:"Newsreader",serif;font-size:14px;color:var(--ink-faint);line-height:1.32;margin-top:1px}
+  .cmd-tag{
+    font-family:"Spline Sans Mono",monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-ghost);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:0 0 auto;
+  }
+  .cmd-hint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost);flex:0 0 auto;display:flex;gap:3px}
+  .cmd.is-disabled{opacity:.36;cursor:not-allowed}
+  .cmd.is-disabled[aria-selected="true"]{background:var(--oxblood-soft)}
+  .cmd-empty{
+    font-family:"Newsreader",serif;font-style:italic;font-size:15px;color:var(--ink-faint);
+    padding:24px 16px;text-align:center;
+  }
+
+  .palette-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:10px 16px;border-top:1px solid var(--line-soft);
+    font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--ink-ghost);
+  }
+  .palette-foot .legends{display:flex;gap:14px;flex-wrap:wrap}
+  .palette-foot .leg{display:flex;align-items:center;gap:5px}
+  .palette-foot .bounded{color:var(--accent);display:flex;align-items:center;gap:6px}
+  .palette-foot .bounded .pulse{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  body.fallback .palette-foot .bounded{color:var(--amber)}
+  body.fallback .palette-foot .bounded .pulse{background:var(--amber)}
+
+  /* ===================== READING CARD STAGE ===================== */
+  .reading-deck{
+    position:fixed;inset:0;z-index:200;display:flex;align-items:flex-start;justify-content:center;
+    padding:84px 24px 64px;overflow-y:auto;pointer-events:none;
+  }
+  .reading-deck.active{pointer-events:auto}
+  .reading-card{
+    width:min(720px,100%);background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:0;position:relative;margin:auto 0;
+    opacity:0;transform:translateY(18px) scale(.985);transition:opacity .4s ease, transform .4s cubic-bezier(.2,.7,.2,1);
+  }
+  .reading-card.in{opacity:1;transform:none}
+  .reading-card.out{opacity:0;transform:translateY(-14px) scale(.99)}
+  .reading-card.fallbk{border-color:#e3cd9d}
+
+  .rc-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:16px 22px;border-bottom:1px solid var(--line-soft);
+  }
+  .rc-head .gen-status{
+    display:flex;align-items:center;gap:10px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.03em;color:var(--ink-faint);
+  }
+  .gen-status .spin{width:13px;height:13px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .7s linear infinite}
+  body.fallback .gen-status .spin{border-top-color:var(--amber)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .gen-status .src{color:var(--ink-soft);font-weight:600}
+  .gen-status.done .spin{display:none}
+  .gen-status .check{display:none}
+  .gen-status.done .check{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);color:#fff;font-size:9px}
+  body.fallback .gen-status.done .check{background:var(--amber)}
+  .rc-close{
+    appearance:none;cursor:pointer;background:transparent;border:1px solid var(--line);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;color:var(--ink-faint);transition:.16s ease;flex:0 0 auto;
+    font-family:"Spline Sans Mono",monospace;font-size:14px;
+  }
+  .rc-close:hover{border-color:var(--oxblood);color:var(--oxblood)}
+
+  .rc-body{padding:22px 26px 8px}
+  .scenario-label{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);display:block;margin-bottom:12px}
+  .card-badge{margin-bottom:14px;display:inline-flex}
+  .gen-body{font-family:"Newsreader",serif;font-size:18px;line-height:1.62;color:var(--ink)}
+  .gen-body p{margin:0 0 13px}
+  .gen-body p:last-child{margin-bottom:0}
+  .gen-body strong{font-weight:600}
+
+  pre.code{
+    margin:15px 0;background:#1c2420;border-radius:11px;padding:16px 18px;overflow-x:auto;
+    font-family:"Spline Sans Mono",monospace;font-size:13.5px;line-height:1.62;color:#d8e2da;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+  }
+  pre.code .kw{color:#9ec8ad}
+  pre.code .fn{color:#e6c98a}
+  pre.code .str{color:#c9a98a}
+  pre.code .cm{color:#6f8076;font-style:italic}
+  pre.code .err{color:#e08896}
+
+  ol.scaffold{margin:8px 0 0;padding-left:0;list-style:none;counter-reset:step}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:10px 0 10px 44px;
+    font-family:"Spline Sans Mono",monospace;font-size:14px;line-height:1.55;color:var(--ink-soft);
+    border-bottom:1px dashed var(--line-soft);
+  }
+  ol.scaffold li:last-child{border-bottom:none}
+  ol.scaffold li::before{
+    content:counter(step,decimal-leading-zero);position:absolute;left:0;top:10px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;font-weight:700;color:var(--amber);
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:6px;
+    width:28px;height:22px;display:grid;place-items:center;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:600}
+
+  /* footer of card: sanctioned re-summon chips + evidence */
+  .rc-foot{padding:6px 26px 22px}
+  .gestures{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 0;
+    padding-top:16px;border-top:1px dashed var(--line)}
+  .gestures .gl{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-right:2px}
+  .gesture{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:var(--paper-2);border:1px solid var(--line);border-radius:999px;padding:6px 13px;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .gesture:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  .gesture .g{color:var(--accent);font-weight:600}
+  .gesture.danger:hover{border-color:var(--oxblood);color:var(--oxblood)}
+  .gesture.danger .g{color:var(--oxblood)}
+  .gesture:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  .evidence{margin-top:18px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+  .evidence-head{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:11px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .evidence-row{display:flex;align-items:flex-start;gap:11px}
+  .evidence .eglyph{font-family:"Spline Sans Mono",monospace;font-size:17px;color:var(--ink-faint);padding-top:2px}
+  .evidence textarea{
+    flex:1 1 auto;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:14px;line-height:1.55;color:var(--ink);
+    min-height:72px;overflow:hidden;
+  }
+  .evidence textarea::placeholder{color:var(--ink-ghost)}
+  .evidence-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:12px;flex-wrap:wrap}
+  .evidence-foot .hint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+  .submit{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.04em;color:#f4efe6;background:var(--accent);border:1px solid var(--accent-deep);
+    border-radius:9px;padding:8px 16px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .submit:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .submit kbd{background:rgba(255,255,255,.16);border-color:transparent;color:#f4efe6}
+
+  /* ===================== STATE DELTA (card flips to this) ===================== */
+  .delta-head{
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:18px;display:flex;align-items:center;gap:9px;
+  }
+  .delta-head .ico{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .delta-rows{display:flex;flex-direction:column;gap:12px}
+  .drow{display:flex;align-items:flex-start;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px}
+  .drow .dk{flex:0 0 158px;color:var(--ink-faint);letter-spacing:.03em;padding-top:1px}
+  .drow .dv{display:flex;align-items:center;gap:9px;color:var(--ink);flex-wrap:wrap}
+  .drow .from{color:var(--ink-ghost)}
+  .drow .arr{color:var(--accent)}
+  .drow .to{font-weight:700;color:var(--accent)}
+  .drow .to.warn{color:var(--amber)}
+  .drow .to.bad{color:var(--oxblood)}
+  .drow .note{font-family:"Newsreader",serif;font-style:italic;font-size:14px;color:var(--ink-faint)}
+  .delta-foot{
+    margin-top:18px;padding-top:15px;border-top:1px dashed var(--line);
+    font-family:"Newsreader",serif;font-size:15px;color:var(--ink-soft);font-style:italic;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .delta-foot .continue{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11.5px;font-weight:600;
+    letter-spacing:.05em;text-transform:uppercase;color:#f4efe6;background:var(--accent);
+    border:1px solid var(--accent-deep);border-radius:999px;padding:8px 16px;transition:.18s ease;font-style:normal;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .delta-foot .continue:hover{background:var(--accent-deep);transform:translateY(-1px)}
+
+  /* streaming cursor + word fade */
+  .stream-cursor{
+    display:inline-block;width:8px;height:1.05em;background:var(--accent);
+    vertical-align:-2px;margin-left:1px;border-radius:1px;animation:blink 1s steps(1) infinite;
+  }
+  body.fallback .stream-cursor{background:var(--amber)}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  .w{opacity:0;animation:wordIn .26s ease forwards}
+  @keyframes wordIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+
+  /* toast when a disabled move is attempted */
+  .toast{
+    position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(10px);z-index:360;
+    background:var(--oxblood);color:#f7e9e9;font-family:"Spline Sans Mono",monospace;font-size:11.5px;
+    letter-spacing:.02em;padding:9px 16px;border-radius:999px;box-shadow:var(--shadow);
+    opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;max-width:90vw;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:640px){
+    body{font-size:17px}
+    .intent-line{font-size:25px}
+    .launcher{min-width:0;width:100%}
+    .drow{flex-direction:column;gap:3px}
+    .drow .dk{flex-basis:auto}
+    .brand-whisper,.mode-pill{display:none}
+    .cmd-hint{display:none}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+    .stream-cursor{animation:none;opacity:1}
+    .w{opacity:1;animation:none}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge" href="../">&larr; gallery index</a>
+
+  <div class="ident" aria-label="Learner identity">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar" aria-hidden="true">AO</div>
+  </div>
+
+  <div class="brand-whisper" aria-hidden="true"><b>LORE</b> · learning runtime</div>
+
+  <div class="mode-pill" role="status" aria-live="polite">
+    <span class="mode-dot" aria-hidden="true"></span>
+    <span class="lbl">tutor · <b id="modeLabel">anthropic/claude</b></span>
+  </div>
+
+  <!-- ===================== STAGE: the calm void ===================== -->
+  <main class="stage" id="stage">
+    <section class="stage-intent" id="stageIntent" aria-live="polite">
+      <div class="intent-eyebrow">
+        <span class="rl"></span>
+        <span class="badge runtime"><span class="dot"></span>runtime decided</span>
+        <span class="rl r"></span>
+      </div>
+      <h1 class="intent-line" id="intentLine">
+        Now: repair <em>persistence</em> before advancing —
+        <span class="neg">retention&nbsp;0.38</span>, review overdue <span class="neg">2d</span>.
+      </h1>
+      <div class="intent-meta" id="intentMeta">
+        <span class="metric"><span class="k">mastery</span><span class="v bad" id="mMastery">0.41 ↓</span></span>
+        <span class="metric"><span class="k">retention</span><span class="v bad" id="mRetention">0.38</span></span>
+        <span class="metric"><span class="k">misconception</span><span class="v warn" id="mMis">forgot-tx-rollback</span></span>
+        <span class="metric"><span class="k">gate</span><span class="v" id="mGate">transactions · locked</span></span>
+      </div>
+      <div style="margin-top:18px">
+        <span class="recovery" id="recovery" title="The runtime deliberately lowered load after 2 failed attempts.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/>
+          </svg>
+          overload recovery — load lowered after 2 failed attempts
+        </span>
+      </div>
+
+      <div>
+        <button class="launcher" id="launcher" aria-haspopup="dialog" aria-controls="palette">
+          <span class="lg" aria-hidden="true" id="launcherGlyph">⌘</span>
+          <span class="lt" id="launcherText">Press to act on this intent…</span>
+          <span class="kbd-combo"><kbd>⌘</kbd><kbd>K</kbd></span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== READING CARD DECK ===================== -->
+  <div class="reading-deck" id="readingDeck" aria-live="polite"></div>
+
+  <!-- ===================== PALETTE ===================== -->
+  <div class="scrim" id="scrim"></div>
+  <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Sanctioned runtime command palette">
+    <div class="palette-input-row">
+      <span class="palette-glyph" aria-hidden="true" id="palGlyph">⌘</span>
+      <input class="palette-input" id="palInput" type="text" spellcheck="false" autocomplete="off"
+        placeholder="Run a sanctioned move…" aria-label="Filter sanctioned runtime moves" aria-controls="palList" />
+      <span class="palette-scope" id="palScope">persistence</span>
+    </div>
+    <div class="palette-list" id="palList" role="listbox" aria-label="Sanctioned runtime moves"></div>
+    <div class="palette-foot">
+      <span class="legends">
+        <span class="leg"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span class="leg"><kbd>⏎</kbd> run</span>
+        <span class="leg"><kbd>esc</kbd> close</span>
+      </span>
+      <span class="bounded"><span class="pulse" aria-hidden="true"></span>bounded · runtime-sanctioned only</span>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="assertive"></div>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+  /* ---------- elements ---------- */
+  const body = document.body;
+  const stageIntent = document.getElementById("stageIntent");
+  const launcher = document.getElementById("launcher");
+  const scrim = document.getElementById("scrim");
+  const palette = document.getElementById("palette");
+  const palInput = document.getElementById("palInput");
+  const palList = document.getElementById("palList");
+  const palScope = document.getElementById("palScope");
+  const deck = document.getElementById("readingDeck");
+  const modeLabel = document.getElementById("modeLabel");
+  const toastEl = document.getElementById("toast");
+
+  /* ---------- state ---------- */
+  let mode = "llm";            // "llm" | "fallback"
+  let practiceShown = false;   // a reading card is on stage
+  let busy = false;            // generation in progress
+  let selIdx = 0;              // palette selection (into the filtered list)
+  let filtered = [];           // current filtered command list
+  let mastery = 0.41;
+  let retention = 0.38;
+  let attempts = 0;            // regenerate counter
+  let intentStage = 0;         // 0 = repair, 1 = tighten rollback
+  let activeCard = null;       // current reading-card element
+
+  if(!isMac){
+    document.getElementById("launcherGlyph").textContent = "⌃";
+    document.getElementById("palGlyph").textContent = "⌃";
+    document.querySelectorAll(".kbd-combo kbd")[0].textContent = "Ctrl";
+  }
+
+  /* ---------- sanctioned command set ---------- */
+  const COMMANDS = [
+    { key:"start",               label:"start",               desc:"Summon the repair practice for the persistence concept", tag:"generate", group:"summon", needsPractice:false, glyph:"▸", hint:["⏎"] },
+    { key:"explain-differently", label:"explain differently", desc:"Reframe the current task through another lens",            tag:"gesture",  group:"reshape", needsPractice:true,  glyph:"≈", hint:["e"] },
+    { key:"example",             label:"example",             desc:"Stream one more worked example of the same bug",          tag:"gesture",  group:"reshape", needsPractice:true,  glyph:"✦", hint:["x"] },
+    { key:"stuck",               label:"I’m stuck",           desc:"Ask the runtime for a lighter, three-line scaffold",      tag:"gesture",  group:"reshape", needsPractice:true,  glyph:"?", hint:["s"] },
+    { key:"why",                 label:"why",                 desc:"Why did the runtime choose this move? (runtime truth)",   tag:"meta",     group:"runtime", needsPractice:false, glyph:"∴", hint:["w"] },
+    { key:"fallback",            label:"fallback",            desc:"Flip the tutor LLM off — instruction-only scaffold",      tag:"runtime",  group:"runtime", needsPractice:false, glyph:"⏻", hint:["f"] },
+    { key:"regenerate",          label:"regenerate",          desc:"Discard the generated content & re-summon a variant",     tag:"generate", group:"runtime", needsPractice:true,  glyph:"↻", hint:["r"] },
+  ];
+  const GROUP_LABELS = { summon:"summon", reshape:"reshape the current task", runtime:"runtime controls" };
+
+  /* ---------- fuzzy match (subsequence) with highlight ---------- */
+  function fuzzy(query, text){
+    if(!query) return { ok:true, score:0, ranges:[] };
+    const q = query.toLowerCase(), t = text.toLowerCase();
+    let qi=0, ti=0, score=0, lastMatch=-2; const ranges=[];
+    while(qi<q.length && ti<t.length){
+      if(q[qi]===t[ti]){
+        ranges.push(ti);
+        if(ti===lastMatch+1) score+=3; else score+=1;
+        if(ti===0 || /\s|-/.test(t[ti-1])) score+=4; // word-boundary bonus
+        lastMatch=ti; qi++;
+      }
+      ti++;
+    }
+    return qi===q.length ? { ok:true, score, ranges } : { ok:false };
+  }
+  function highlight(text, ranges){
+    if(!ranges || !ranges.length) return escapeHtml(text);
+    const set = new Set(ranges); let out=""; let inHl=false;
+    for(let i=0;i<text.length;i++){
+      const hit = set.has(i);
+      if(hit && !inHl){ out+='<span class="hl">'; inHl=true; }
+      if(!hit && inHl){ out+='</span>'; inHl=false; }
+      out+=escapeHtml(text[i]);
+    }
+    if(inHl) out+='</span>';
+    return out;
+  }
+  function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  /* ---------- palette rendering ---------- */
+  function renderPalette(query){
+    const q = (query||"").trim();
+    // score + filter
+    let scored = COMMANDS.map(c=>{
+      const m = fuzzy(q, c.label);
+      const mk = fuzzy(q, c.key);
+      const best = (m.ok && mk.ok) ? (m.score>=mk.score ? m : mk) : (m.ok ? m : (mk.ok ? mk : null));
+      return best ? { c, score:best.score, ranges: (best===m? m.ranges : mk.ranges), matchOn:(best===m?'label':'key') } : null;
+    }).filter(Boolean);
+    if(q) scored.sort((a,b)=> b.score - a.score);
+    filtered = scored.map(s=>s.c);
+
+    palList.innerHTML = "";
+    if(!scored.length){
+      const empty = document.createElement("div");
+      empty.className = "cmd-empty";
+      empty.textContent = "No sanctioned move matches — the palette only runs runtime moves, not free text.";
+      palList.appendChild(empty);
+      selIdx = 0;
+      return;
+    }
+
+    // group when unfiltered, flat list when filtering
+    if(!q){
+      let lastGroup = null;
+      scored.forEach((s, i)=>{
+        if(s.c.group !== lastGroup){
+          const g = document.createElement("div");
+          g.className = "palette-group";
+          g.textContent = GROUP_LABELS[s.c.group];
+          palList.appendChild(g);
+          lastGroup = s.c.group;
+        }
+        palList.appendChild(buildCmd(s, i));
+      });
+    } else {
+      scored.forEach((s,i)=> palList.appendChild(buildCmd(s,i)));
+    }
+    selIdx = Math.min(selIdx, scored.length-1);
+    // skip a disabled item if it lands on selection start, prefer first enabled
+    if(isDisabled(filtered[selIdx])){
+      const firstOk = filtered.findIndex(c=>!isDisabled(c));
+      if(firstOk>=0) selIdx = firstOk;
+    }
+    paintSel();
+  }
+  function isDisabled(c){ return c && c.needsPractice && !practiceShown; }
+  function buildCmd(s, i){
+    const c = s.c;
+    const disabled = isDisabled(c);
+    const el = document.createElement("div");
+    el.className = "cmd" + (disabled ? " is-disabled":"");
+    el.setAttribute("role","option");
+    el.dataset.idx = i;
+    el.dataset.key = c.key;
+    el.tabIndex = -1;
+    const nameHtml = s.matchOn==='label' ? highlight(c.label, s.ranges) : escapeHtml(c.label);
+    el.innerHTML =
+      `<span class="cmd-ico" aria-hidden="true">${c.glyph}</span>`+
+      `<span class="cmd-main"><span class="cmd-name">${nameHtml}</span>`+
+      `<span class="cmd-desc">${escapeHtml(c.desc)}</span></span>`+
+      `<span class="cmd-tag">${c.tag}</span>`+
+      `<span class="cmd-hint">${disabled? '<kbd>locked</kbd>' : c.hint.map(h=>`<kbd>${h}</kbd>`).join("")}</span>`;
+    el.addEventListener("mousemove",()=>{ if(selIdx!==i){ selIdx=i; paintSel(); } });
+    el.addEventListener("click",()=>{
+      if(disabled){ flashDisabled(c); return; }
+      runCommand(c.key);
+    });
+    return el;
+  }
+  function paintSel(){
+    const opts = [...palList.querySelectorAll(".cmd")];
+    opts.forEach(el=> el.setAttribute("aria-selected", (+el.dataset.idx)===selIdx ? "true":"false"));
+    const cur = opts.find(el=> (+el.dataset.idx)===selIdx);
+    if(cur) cur.scrollIntoView({block:"nearest"});
+  }
+  function flashDisabled(c){
+    showToast(`/${c.key} needs a summoned practice first — run “start”.`);
+  }
+
+  /* ---------- palette open / close ---------- */
+  function openPalette(){
+    if(busy) return;
+    renderPalette("");
+    palInput.value = "";
+    scrim.classList.add("show");
+    palette.classList.add("open");
+    body.classList.add("palette-open");
+    setTimeout(()=> palInput.focus(), reduceMotion?0:30);
+  }
+  function closePalette(){
+    palette.classList.remove("open");
+    scrim.classList.remove("show");
+    body.classList.remove("palette-open");
+  }
+  function paletteIsOpen(){ return palette.classList.contains("open"); }
+
+  /* ---------- toast ---------- */
+  let toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> toastEl.classList.remove("show"), 2600);
+  }
+
+  /* ---------- streaming engine ---------- */
+  function streamWords(target, text, opts){
+    opts = opts || {};
+    const speed = opts.speed || 26;
+    const words = text.split(/(\s+)/);
+    let i = 0;
+    const cursor = document.createElement("span");
+    cursor.className = "stream-cursor";
+    target.appendChild(cursor);
+    return new Promise(resolve=>{
+      if(reduceMotion){
+        cursor.remove();
+        target.insertAdjacentText("beforeend", text);
+        return resolve();
+      }
+      function tick(){
+        if(i >= words.length){ cursor.remove(); return resolve(); }
+        const span = document.createElement("span");
+        span.className = "w"; span.textContent = words[i];
+        target.insertBefore(span, cursor);
+        i++;
+        const jitter = words[i-1] && /[.,;:]$/.test(words[i-1]) ? 120 : 0;
+        setTimeout(tick, speed + Math.random()*22 + jitter);
+      }
+      tick();
+    });
+  }
+  function streamReveal(target, html, perDelay){
+    target.innerHTML = html;
+    const reveals = [...target.querySelectorAll("[data-reveal]")];
+    return new Promise(resolve=>{
+      if(reduceMotion){ reveals.forEach(r=>r.style.opacity=1); return resolve(); }
+      let i=0;
+      reveals.forEach(r=>{ r.style.opacity="0"; r.style.transform="translateY(6px)"; r.style.transition="opacity .3s, transform .3s"; });
+      function tick(){
+        if(i>=reveals.length) return resolve();
+        reveals[i].style.opacity="1"; reveals[i].style.transform="none";
+        i++;
+        setTimeout(tick, perDelay || 70);
+      }
+      tick();
+    });
+  }
+  function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+  /* ---------- content fixtures ---------- */
+  const LLM_INTRO = "Here’s the repair task. A teammate wrote this Go function to record a new enrollment. It opens a transaction, inserts a row, then hits an error path — and returns early. Read it closely:";
+  const LLM_QUESTION = "The problem: when InsertEnrollment fails, the function returns without rolling back, so the transaction leaks and the row may be half-committed under load. Fix it — add the rollback path so persistence stays consistent on the error branch.";
+
+  const CODE_HTML =
+`<pre class="code" aria-label="Go function with a missing rollback"><span data-reveal><span class="kw">func</span> <span class="fn">RecordEnrollment</span>(ctx context.Context, db *sql.DB, e Enrollment) <span class="kw">error</span> {</span>
+<span data-reveal>    tx, err := db.BeginTx(ctx, <span class="kw">nil</span>)</span>
+<span data-reveal>    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }</span>
+<span data-reveal>
+    <span class="cm">// inserts the enrollment row inside the tx</span></span>
+<span data-reveal>    <span class="kw">if</span> err := <span class="fn">InsertEnrollment</span>(ctx, tx, e); err != <span class="kw">nil</span> {</span>
+<span data-reveal>        <span class="err">return err   // ← leaks the tx: no tx.Rollback()</span></span>
+<span data-reveal>    }</span>
+<span data-reveal>    <span class="kw">return</span> tx.<span class="fn">Commit</span>()</span>
+<span data-reveal>}</span></pre>`;
+
+  const FALLBACK_LEAD = "Tutor LLM is off for learner-1 (override: instruction_only). The runtime still authors a usable, numbered repair scaffold — no prose, no model:";
+  const FALLBACK_STEPS = [
+    "Open the failing function <b>RecordEnrollment</b>; locate the error branch after <b>InsertEnrollment</b>.",
+    "On that branch the code does <b>return err</b> directly — the open transaction is never closed.",
+    "Before returning the error, call <b>tx.Rollback()</b> so the partial write is discarded.",
+    "Handle the rollback’s own error: log or join it, but still return the <b>original</b> insert error.",
+    "Confirm the success path still ends in <b>tx.Commit()</b> — Commit and Rollback are mutually exclusive.",
+    "State the invariant in one line: every BeginTx path must reach exactly one of Commit or Rollback."
+  ];
+
+  const GESTURE_TEXT = {
+    "explain-differently":
+      "Think of a transaction as a sealed envelope. BeginTx opens it; Commit seals and mails it; Rollback shreds it. Your error branch opens the envelope and then walks away — it’s neither mailed nor shredded. Add tx.Rollback() on that branch so every opened envelope reaches one of the two endings.",
+    "example":
+      "Another shape of the same bug: a transfer that debits one account, then errors before crediting the other and returns. Without Rollback the debit can persist alone. The repair is identical — defer or branch a tx.Rollback() so the half-done work is discarded on the error path.",
+    "stuck":
+      "Lighter scaffold, three lines: (1) find the error branch that returns. (2) add tx.Rollback() just before it. (3) keep returning the original error. That single line is the whole fix — wrapping the rollback error is the optional polish."
+  };
+
+  /* ---------- card scaffolding helpers ---------- */
+  function mountCard(klass){
+    deck.innerHTML = "";
+    const card = document.createElement("article");
+    card.className = "reading-card" + (klass?(" "+klass):"");
+    card.setAttribute("role","document");
+    deck.appendChild(card);
+    deck.classList.add("active");
+    activeCard = card;
+    requestAnimationFrame(()=> card.classList.add("in"));
+    return card;
+  }
+  function genStatusEl(srcText){
+    const wrap = document.createElement("div");
+    wrap.className = "gen-status";
+    wrap.innerHTML = `<span class="spin"></span><span class="check">✓</span>`+
+      `<span>generating from <span class="src">TutorInstruction · ${srcText}</span></span>`;
+    return wrap;
+  }
+  function resolveStatus(statusEl, finalText, badgeHtml){
+    statusEl.classList.add("done");
+    statusEl.querySelector("span:last-child").innerHTML =
+      `resolved · <span class="src">${finalText}</span> ${badgeHtml}`;
+  }
+  async function dismissCard(){
+    if(!activeCard) return;
+    const c = activeCard;
+    c.classList.remove("in"); c.classList.add("out");
+    await wait(reduceMotion?0:360);
+    deck.innerHTML = "";
+    deck.classList.remove("active");
+    activeCard = null;
+    body.classList.remove("summoned");
+  }
+
+  /* ---------- render LLM practice ---------- */
+  async function renderLLMPractice(isRegen){
+    busy = true;
+    body.classList.add("summoned");
+    const card = mountCard();
+    const status = genStatusEl("claude · temp 0.2");
+    card.innerHTML =
+      `<div class="rc-head"></div>`+
+      `<div class="rc-body">`+
+        `<span class="card-badge badge llm"><span class="dot"></span>LLM generated · claude</span>`+
+        `<span class="scenario-label">scenario · persistence / forgot-tx-rollback</span>`+
+        `<div class="gen-body"><p class="p1"></p><div class="codeslot"></div><p class="p2"></p></div>`+
+      `</div>`+
+      `<div class="rc-foot"></div>`;
+    card.querySelector(".rc-head").appendChild(status);
+    addCloseBtn(card);
+
+    await wait(reduceMotion?0:520);
+    const p1 = card.querySelector(".p1");
+    const p2 = card.querySelector(".p2");
+    const codeslot = card.querySelector(".codeslot");
+
+    await streamWords(p1, isRegen ? "Same repair, re-summoned. " + LLM_INTRO : LLM_INTRO, {speed:24});
+    await streamReveal(codeslot, CODE_HTML, 80);
+    await streamWords(p2, LLM_QUESTION, {speed:22});
+    resolveStatus(status, "claude · temp 0.2", `<span class="badge llm">llm generated</span>`);
+
+    buildFoot(card);
+    practiceShown = true; busy = false;
+  }
+
+  /* ---------- render fallback scaffold ---------- */
+  async function renderFallbackPractice(){
+    busy = true;
+    body.classList.add("summoned");
+    const card = mountCard("fallbk");
+    const status = genStatusEl("runtime author · instruction_only");
+    card.innerHTML =
+      `<div class="rc-head"></div>`+
+      `<div class="rc-body">`+
+        `<span class="card-badge badge fallbk"><span class="dot"></span>instruction-only · runtime authored</span>`+
+        `<span class="scenario-label">scaffold · persistence / forgot-tx-rollback · no LLM</span>`+
+        `<div class="gen-body"><p class="lead"></p><ol class="scaffold"></ol></div>`+
+      `</div>`+
+      `<div class="rc-foot"></div>`;
+    card.querySelector(".rc-head").appendChild(status);
+    addCloseBtn(card);
+
+    await wait(reduceMotion?0:480);
+    const lead = card.querySelector(".lead");
+    const ol = card.querySelector(".scaffold");
+    await streamWords(lead, FALLBACK_LEAD, {speed:22});
+    for(let i=0;i<FALLBACK_STEPS.length;i++){
+      const li = document.createElement("li");
+      li.style.opacity="0"; li.style.transform="translateY(6px)"; li.style.transition="opacity .3s, transform .3s";
+      li.innerHTML = FALLBACK_STEPS[i];
+      ol.appendChild(li);
+      await wait(reduceMotion?0:90);
+      li.style.opacity="1"; li.style.transform="none";
+      await wait(reduceMotion?0:110);
+    }
+    resolveStatus(status, "instruction_only", `<span class="badge fallbk">runtime authored</span>`);
+
+    buildFoot(card);
+    practiceShown = true; busy = false;
+  }
+
+  function addCloseBtn(card){
+    const head = card.querySelector(".rc-head");
+    const btn = document.createElement("button");
+    btn.className = "rc-close"; btn.type = "button";
+    btn.setAttribute("aria-label","Dismiss this generated card — return to the void");
+    btn.textContent = "✕";
+    btn.addEventListener("click", async ()=>{
+      if(busy) return;
+      await dismissCard();
+      practiceShown = false;
+    });
+    head.appendChild(btn);
+  }
+
+  /* ---------- card footer: re-summon chips + evidence ---------- */
+  function buildFoot(card){
+    const foot = card.querySelector(".rc-foot");
+    foot.innerHTML =
+      `<div class="gestures">`+
+        `<span class="gl">re-summon via ⌘K · or</span>`+
+        `<button class="gesture" data-cmd="explain-differently"><span class="g">⌘K</span> explain differently</button>`+
+        `<button class="gesture" data-cmd="example"><span class="g">⌘K</span> example</button>`+
+        `<button class="gesture danger" data-cmd="stuck"><span class="g">⌘K</span> I’m stuck</button>`+
+        `<button class="gesture" data-cmd="why"><span class="g">⌘K</span> why</button>`+
+        `<button class="gesture" data-cmd="regenerate"><span class="g">⌘K</span> regenerate</button>`+
+      `</div>`+
+      `<div class="evidence">`+
+        `<div class="evidence-head"><span>your fix · evidence</span><span>persistence · attempt ${attempts+1}</span></div>`+
+        `<div class="evidence-row">`+
+          `<span class="eglyph" aria-hidden="true">&rsaquo;</span>`+
+          `<textarea id="evField" rows="3" spellcheck="false" aria-label="Your rollback fix" placeholder="describe or paste the rollback fix you’d add…"></textarea>`+
+        `</div>`+
+        `<div class="evidence-foot">`+
+          `<span class="hint">runtime scores this against BKT + the active misconception</span>`+
+          `<button class="submit" id="evSubmit">submit evidence <kbd>⌘⏎</kbd></button>`+
+        `</div>`+
+      `</div>`;
+    foot.querySelectorAll(".gesture").forEach(b=> b.addEventListener("click", ()=> runCommand(b.dataset.cmd)));
+    const ef = foot.querySelector("#evField");
+    const sb = foot.querySelector("#evSubmit");
+    ef.value = "if err := InsertEnrollment(ctx, tx, e); err != nil {\n    tx.Rollback()\n    return err\n}";
+    autoGrow(ef);
+    ef.addEventListener("input",()=>{ autoGrow(ef); sb.disabled = ef.value.trim().length < 3; });
+    ef.addEventListener("keydown",(ev)=>{
+      if((ev.metaKey||ev.ctrlKey) && ev.key==="Enter"){ ev.preventDefault(); if(!sb.disabled) submitEvidence(card); }
+    });
+    sb.addEventListener("click", ()=> submitEvidence(card));
+  }
+  function autoGrow(el){ el.style.height="auto"; el.style.height = el.scrollHeight + "px"; }
+
+  /* ---------- gesture responses (streamed, prepended into card body) ---------- */
+  async function renderGesture(key){
+    if(!practiceShown || !activeCard) return;
+    busy = true;
+    const card = activeCard;
+    const bodyEl = card.querySelector(".gen-body");
+    const isFb = mode==="fallback";
+    const block = document.createElement("div");
+    block.style.cssText = "margin:16px 0 4px;padding-top:14px;border-top:1px dashed var(--line)";
+    block.innerHTML =
+      `<span class="card-badge badge ${isFb?'fallbk':'llm'}"><span class="dot"></span>${isFb?'instruction-only':'LLM generated'} · ${key}</span>`+
+      `<div class="gstat"></div><p class="gp" style="margin-top:6px"></p>`;
+    bodyEl.appendChild(block);
+    const status = genStatusEl(isFb?"runtime author · instruction_only":"claude · temp 0.2");
+    block.querySelector(".gstat").appendChild(status);
+    block.scrollIntoView({block:"nearest", behavior: reduceMotion?"auto":"smooth"});
+    await wait(reduceMotion?0:420);
+    await streamWords(block.querySelector(".gp"), GESTURE_TEXT[key], {speed:22});
+    resolveStatus(status, isFb?"instruction_only":"claude · temp 0.2",
+      isFb?`<span class="badge fallbk">runtime authored</span>`:`<span class="badge llm">llm generated</span>`);
+    busy = false;
+  }
+
+  /* ---------- /why : runtime rationale (no LLM) ---------- */
+  async function renderWhy(){
+    busy = true;
+    // why is runtime truth — it gets its own card if none open, else prepend into the open card
+    if(!activeCard){
+      body.classList.add("summoned");
+      const card = mountCard();
+      card.innerHTML =
+        `<div class="rc-head"><div class="gen-status done"><span class="check">✓</span>`+
+          `<span><span class="src">runtime rationale</span> · not generated</span></div></div>`+
+        `<div class="rc-body"><span class="card-badge badge runtime"><span class="dot"></span>runtime decided · why</span>`+
+        `<div class="gen-body"><p class="wp"></p></div></div><div class="rc-foot"></div>`;
+      addCloseBtn(card);
+      await streamWords(card.querySelector(".wp"), whyText(), {speed:20});
+      // offer a path forward from the why card
+      const f = card.querySelector(".rc-foot");
+      f.innerHTML = `<div class="gestures"><span class="gl">next</span>`+
+        `<button class="gesture" data-cmd="start"><span class="g">⌘K</span> start the practice</button></div>`;
+      f.querySelector(".gesture").addEventListener("click", ()=> runCommand("start"));
+      busy = false;
+      return;
+    }
+    const bodyEl = activeCard.querySelector(".gen-body");
+    const block = document.createElement("div");
+    block.style.cssText = "margin:16px 0 4px;padding-top:14px;border-top:1px dashed var(--line)";
+    block.innerHTML = `<span class="card-badge badge runtime"><span class="dot"></span>runtime decided · why</span><p class="wp" style="margin-top:6px"></p>`;
+    bodyEl.appendChild(block);
+    block.scrollIntoView({block:"nearest", behavior: reduceMotion?"auto":"smooth"});
+    await streamWords(block.querySelector(".wp"), whyText(), {speed:20});
+    busy = false;
+  }
+  function whyText(){
+    return "The runtime selected persistence over advancing because: retention fell to "+retention.toFixed(2)+
+      " with a spaced review 2 days overdue (FSRS), mastery is "+mastery.toFixed(2)+" and declining (BKT), and one misconception — forgot-tx-rollback — is active. ‘transactions’ depends on persistence in the concept DAG, so it stays locked. This rationale is runtime-owned; the practice text is the disposable, regenerable part.";
+  }
+
+  /* ---------- submit -> state delta -> next intent ---------- */
+  async function submitEvidence(card){
+    if(busy) return;
+    busy = true;
+    card.querySelectorAll(".evidence textarea, .submit, .gesture, .rc-close").forEach(el=> el.disabled = true);
+
+    // flip the card body to the state delta
+    const status = card.querySelector(".rc-head .gen-status");
+    if(status){
+      status.classList.remove("done");
+      status.querySelector("span:last-child").innerHTML =
+        `committing · <span class="src">runtime · BKT update + FSRS reschedule</span>`;
+      status.insertAdjacentHTML("afterbegin", `<span class="spin"></span>`);
+    }
+    await wait(reduceMotion?0:520);
+
+    const prevMastery = mastery, prevRetention = retention;
+    mastery = Math.min(0.66, +(mastery + 0.06).toFixed(2));
+    retention = Math.min(0.9, +(retention + 0.14).toFixed(2));
+
+    const bodyEl = card.querySelector(".rc-body");
+    const footEl = card.querySelector(".rc-foot");
+    // fade out the practice content, render delta in its place
+    bodyEl.style.transition = "opacity .3s"; footEl.style.transition = "opacity .3s";
+    bodyEl.style.opacity = "0"; footEl.style.opacity = "0";
+    await wait(reduceMotion?0:320);
+    footEl.remove();
+    bodyEl.style.opacity = "1";
+    bodyEl.innerHTML =
+      `<div class="delta-head"><span class="ico"></span>state delta · runtime committed</div>`+
+      `<div class="delta-rows" id="deltaRows"></div>`+
+      `<div class="delta-foot"><span id="deltaNote"></span>`+
+        `<button class="continue" id="continueBtn">accept &amp; next intent <kbd>⏎</kbd></button></div>`;
+
+    if(status) resolveStatus(status, "runtime committed", `<span class="badge runtime">runtime decided</span>`);
+
+    const rows = bodyEl.querySelector("#deltaRows");
+    const deltas = [
+      `<span class="dk">mastery · persistence</span><span class="dv"><span class="from">${prevMastery.toFixed(2)}</span><span class="arr">→</span><span class="to">${mastery.toFixed(2)}</span><span class="note">partial credit — rollback present, error not wrapped</span></span>`,
+      `<span class="dk">misconception</span><span class="dv"><span class="to warn">forgot-tx-rollback</span><span class="note">still active — Rollback() error unhandled</span></span>`,
+      `<span class="dk">retention (FSRS)</span><span class="dv"><span class="from">${prevRetention.toFixed(2)}</span><span class="arr">→</span><span class="to">${retention.toFixed(2)}</span><span class="note">review rescheduled +1d (was overdue 2d)</span></span>`,
+      `<span class="dk">load state</span><span class="dv"><span class="to">overload recovery</span><span class="note">held — one clean attempt before lifting</span></span>`,
+      `<span class="dk">gate · transactions</span><span class="dv"><span class="to bad">still locked</span><span class="note">unlocks at persistence ≥ 0.6</span></span>`,
+    ];
+    for(let i=0;i<deltas.length;i++){
+      const r = document.createElement("div");
+      r.className = "drow"; r.innerHTML = deltas[i];
+      r.style.opacity="0"; r.style.transform="translateX(-8px)"; r.style.transition="opacity .32s, transform .32s";
+      rows.appendChild(r);
+      await wait(reduceMotion?0:140);
+      r.style.opacity="1"; r.style.transform="none";
+    }
+    const note = bodyEl.querySelector("#deltaNote");
+    await streamWords(note, "Evidence absorbed. The void will reset to the runtime’s next chosen move.", {speed:20});
+    const cont = bodyEl.querySelector("#continueBtn");
+    cont.addEventListener("click", advanceIntent);
+    cont.focus();
+    busy = false;
+  }
+
+  /* ---------- advance: dismiss card, mutate intent, return to void ---------- */
+  async function advanceIntent(){
+    if(busy) return;
+    busy = true;
+    await dismissCard();
+    practiceShown = false; attempts = 0; intentStage = 1;
+
+    // mutate the runtime intent on the stage
+    stageIntent.style.transition = "opacity .4s"; stageIntent.style.opacity = "0";
+    await wait(reduceMotion?0:300);
+    document.getElementById("intentLine").innerHTML =
+      `Now: <em>tighten the rollback</em> on persistence — mastery <span class="neg">${mastery.toFixed(2)}</span>, misconception still active.`;
+    const mEl = document.getElementById("mMastery");
+    mEl.textContent = mastery.toFixed(2) + " ↑"; mEl.classList.remove("bad"); mEl.classList.add("warn");
+    const rEl = document.getElementById("mRetention");
+    rEl.textContent = retention.toFixed(2); rEl.classList.remove("bad");
+    document.getElementById("recovery").innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/></svg>overload recovery — one clean attempt away from lifting`;
+    document.getElementById("launcherText").textContent = "Press to act on the next intent…";
+    stageIntent.style.opacity = "1";
+    busy = false;
+  }
+
+  /* ---------- command dispatcher ---------- */
+  async function runCommand(key){
+    if(busy) return;
+    const cmd = COMMANDS.find(c=>c.key===key);
+    if(!cmd) return;
+    if(isDisabled(cmd)){ flashDisabled(cmd); return; }
+    closePalette();
+
+    switch(key){
+      case "start":
+        if(practiceShown) return;
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(false);
+        break;
+      case "fallback":
+        mode = "fallback";
+        body.classList.add("fallback");
+        modeLabel.textContent = "instruction_only";
+        await dismissCard();
+        practiceShown = false;
+        await renderFallbackPractice();
+        break;
+      case "regenerate":
+        if(!practiceShown) return;
+        attempts++;
+        await dismissCard();
+        practiceShown = false;
+        if(mode==="fallback") await renderFallbackPractice();
+        else await renderLLMPractice(true);
+        break;
+      case "explain-differently":
+      case "example":
+      case "stuck":
+        await renderGesture(key);
+        break;
+      case "why":
+        await renderWhy();
+        break;
+    }
+  }
+
+  /* ---------- palette input wiring ---------- */
+  palInput.addEventListener("input", ()=> renderPalette(palInput.value));
+  palInput.addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowDown"){ e.preventDefault(); moveSel(1); return; }
+    if(e.key==="ArrowUp"){ e.preventDefault(); moveSel(-1); return; }
+    if(e.key==="Escape"){ e.preventDefault(); closePalette(); return; }
+    if(e.key==="Enter"){
+      e.preventDefault();
+      const c = filtered[selIdx];
+      if(!c) return;
+      if(isDisabled(c)){ flashDisabled(c); return; }
+      runCommand(c.key);
+      return;
+    }
+  });
+  function moveSel(dir){
+    if(!filtered.length) return;
+    let i = selIdx;
+    for(let n=0;n<filtered.length;n++){
+      i = (i + dir + filtered.length) % filtered.length;
+      if(!isDisabled(filtered[i])){ selIdx = i; paintSel(); return; }
+    }
+    // all disabled — still move
+    selIdx = (selIdx + dir + filtered.length) % filtered.length; paintSel();
+  }
+
+  /* ---------- launch wiring ---------- */
+  launcher.addEventListener("click", openPalette);
+  scrim.addEventListener("click", closePalette);
+
+  /* global keys: ⌘K / Ctrl-K toggles palette anywhere */
+  document.addEventListener("keydown",(e)=>{
+    if((e.metaKey||e.ctrlKey) && (e.key==="k"||e.key==="K")){
+      e.preventDefault();
+      if(paletteIsOpen()) closePalette(); else openPalette();
+      return;
+    }
+    if(e.key==="Escape" && paletteIsOpen()){ closePalette(); return; }
+    // single-key shortcuts when nothing is focused on an input and palette closed
+    if(!paletteIsOpen() && !busy){
+      const tag = (document.activeElement && document.activeElement.tagName) || "";
+      if(tag==="INPUT" || tag==="TEXTAREA") return;
+      const k = e.key.toLowerCase();
+      const map = { e:"explain-differently", x:"example", s:"stuck", w:"why", f:"fallback", r:"regenerate" };
+      if((k==="enter" || k===" ") && (document.activeElement===body || document.activeElement===document.documentElement)){
+        // Enter/Space on the void opens the single sanctioned affordance — the palette
+        e.preventDefault(); openPalette(); return;
+      }
+      if(map[k]){
+        const cmd = COMMANDS.find(c=>c.key===map[k]);
+        if(cmd && !isDisabled(cmd)){ e.preventDefault(); runCommand(map[k]); }
+        else if(cmd && isDisabled(cmd)){ /* silent — needs practice */ }
+      }
+    }
+  });
+
+  /* ---------- boot ---------- */
+  renderPalette("");
+  // gentle: focus the launcher so keyboard users land on the single affordance
+  setTimeout(()=>{ if(!reduceMotion) launcher.focus(); }, reduceMotion?0:1400);
+})();
+</script>
+</body>
+</html>

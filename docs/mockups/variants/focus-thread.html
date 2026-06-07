@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Thread — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Spline+Sans+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#efe8dc;
+    --card:#fbf8f2;
+    --ink:#23211c;
+    --ink-soft:#4a463d;
+    --ink-faint:#7d776a;
+    --ink-ghost:#a89f8d;
+    --line:#ddd4c3;
+    --line-soft:#e7dfd1;
+    --accent:#1f4a3a;        /* deep ink-green */
+    --accent-deep:#143229;
+    --accent-soft:#e3ece5;
+    --oxblood:#7a2230;
+    --oxblood-soft:#f1dfe0;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,28,.05), 0 18px 50px -26px rgba(35,33,28,.34);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,textarea:focus-visible,[role="option"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(135% 90% at 50% -8%, #faf6ee 0%, rgba(250,246,238,0) 52%),
+      radial-gradient(90% 70% at 92% 108%, #efe7d8 0%, rgba(239,231,216,0) 55%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:18px;
+    line-height:1.58;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    min-height:100vh;
+  }
+  ::selection{background:var(--accent);color:#f4efe6}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono", ui-monospace, monospace}
+  .ser{font-family:"Fraunces", serif}
+
+  /* gallery link */
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.7);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn .7s .15s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+
+  /* identity tag, top-right */
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:200;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn .7s .25s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #356c54, #1f4a3a);
+    color:#f4efe6;display:grid;place-items:center;
+    font-family:"Fraunces",serif;font-weight:600;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  /* brand whisper, bottom-left */
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:120;
+    font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn .8s .4s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:500;color:var(--accent)}
+
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+  /* ===== rail: the run header ===== */
+  .runhead{
+    position:sticky;top:0;z-index:90;
+    background:linear-gradient(180deg, rgba(244,239,230,.96) 60%, rgba(244,239,230,0));
+    backdrop-filter:blur(3px);
+    padding:60px 0 18px;
+    opacity:0;animation:chromeIn .8s .3s ease both;
+  }
+  .shell{width:100%;max-width:720px;margin:0 auto;padding:0 24px}
+  .runhead .crumb{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-ghost);display:flex;flex-wrap:wrap;
+    gap:6px 9px;align-items:center;
+  }
+  .runhead .crumb b{color:var(--ink-soft);font-weight:600}
+  .runhead .crumb .sep{opacity:.4}
+  .runhead .focus{
+    margin-top:11px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  }
+  .runhead .focus .lbl{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-ghost);
+  }
+  .runhead .focus .concept{
+    font-family:"Fraunces",serif;font-weight:420;font-size:23px;letter-spacing:-.01em;
+    color:var(--ink);font-variation-settings:"opsz" 40;
+  }
+  .runhead .focus .concept .neg{
+    font-family:"Spline Sans Mono",monospace;font-size:.6em;color:var(--oxblood);
+    letter-spacing:0;vertical-align:middle;
+  }
+  .metrics{
+    margin-top:13px;display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+  }
+  .metric{
+    display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+  }
+  .metric .k{letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--oxblood)}
+  .metric .v.warn{color:var(--amber)}
+  .metric .v.good{color:var(--accent)}
+  .metric.live{transition:background .5s, border-color .5s}
+  .metric.flash{background:var(--accent-soft);border-color:#c7dccd}
+
+  .recovery{
+    margin-top:12px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.04em;color:var(--amber);display:inline-flex;align-items:center;gap:7px;
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:999px;padding:4px 12px;
+  }
+  .recovery svg{width:12px;height:12px;flex:0 0 auto}
+
+  .hairline{height:1px;background:linear-gradient(90deg,transparent,var(--line) 14%,var(--line) 86%,transparent);
+    margin-top:18px}
+
+  /* ===== badges ===== */
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;
+    white-space:nowrap;
+  }
+  .badge.runtime{background:var(--accent);color:#f4efe6}
+  .badge.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .badge.fallbk{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  .badge.learner{background:transparent;color:var(--ink-faint);border:1px dashed var(--line)}
+  .badge.delta{background:var(--accent-deep);color:#e3ece5}
+  .badge .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+  .badge.live .dot{animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+  /* ===== thread ===== */
+  .thread{width:100%;max-width:720px;margin:0 auto;padding:8px 24px 220px}
+
+  .turn{
+    position:relative;padding:22px 0 6px 26px;margin-top:8px;
+  }
+  .turn::before{
+    content:"";position:absolute;left:0;top:30px;bottom:14px;width:2px;border-radius:2px;
+    background:var(--line);
+  }
+  .turn.t-runtime::before{background:var(--accent)}
+  .turn.t-llm::before{background:linear-gradient(180deg,var(--accent),#9fc0ac)}
+  .turn.t-fallback::before{background:var(--amber)}
+  .turn.t-learner::before{background:var(--ink-ghost)}
+  .turn.t-delta::before{background:var(--accent-deep)}
+
+  /* connector node */
+  .turn .node{
+    position:absolute;left:-5px;top:26px;width:12px;height:12px;border-radius:50%;
+    background:var(--paper);border:2px solid var(--line);
+  }
+  .turn.t-runtime .node{border-color:var(--accent);background:var(--accent)}
+  .turn.t-llm .node{border-color:var(--accent)}
+  .turn.t-fallback .node{border-color:var(--amber);background:var(--amber)}
+  .turn.t-learner .node{border-color:var(--ink-ghost)}
+  .turn.t-delta .node{border-color:var(--accent-deep);background:var(--accent-deep)}
+
+  .turn .turnhead{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:11px;
+  }
+  .turn .turnhead .src{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-ghost);
+  }
+  .turn .turnhead .time{
+    margin-left:auto;font-family:"Spline Sans Mono",monospace;font-size:10px;
+    color:var(--ink-ghost);letter-spacing:.05em;
+  }
+
+  .turn .body{font-size:18px;line-height:1.62}
+  .turn .body p{margin:0 0 .7em}
+  .turn .body p:last-child{margin-bottom:0}
+
+  /* runtime intent turn — editorial serif */
+  .turn.t-runtime .body, .turn.t-delta .body{
+    font-family:"Fraunces",serif;font-weight:350;font-size:21px;line-height:1.5;
+    letter-spacing:-.008em;color:var(--ink);font-variation-settings:"opsz" 40;
+  }
+  .turn.t-runtime .body em{font-style:italic;color:var(--accent);font-weight:430}
+  .turn.t-runtime .body .neg{
+    color:var(--oxblood);font-style:normal;font-weight:500;
+    font-family:"Spline Sans Mono",monospace;font-size:.72em;letter-spacing:-.01em;
+  }
+  .turn .why{
+    margin-top:13px;font-family:"Spline Sans Mono",monospace;font-size:11px;
+    line-height:1.7;color:var(--ink-faint);
+    border-left:2px solid var(--line);padding-left:13px;
+  }
+  .turn .why b{color:var(--ink-soft);font-weight:600}
+
+  /* llm generated body — paper card */
+  .turn.t-llm .body, .turn.t-fallback .body{
+    background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r);
+    padding:20px 22px;box-shadow:var(--shadow);
+  }
+  .turn .body h4{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink-ghost);margin:0 0 12px;font-weight:600;
+  }
+  .turn .body code, .turn .body pre{
+    font-family:"Spline Sans Mono",monospace;font-size:13.5px;
+  }
+  .turn .body pre{
+    background:#1c2b24;color:#dfeee5;border-radius:10px;padding:15px 16px;
+    overflow-x:auto;line-height:1.65;margin:13px 0;font-size:12.5px;
+    border:1px solid #14201a;
+  }
+  .turn .body pre .kw{color:#86c8a3}
+  .turn .body pre .fn{color:#e6c98a}
+  .turn .body pre .str{color:#cdb4f0}
+  .turn .body pre .cm{color:#6f8a7c;font-style:italic}
+  .turn .body pre .err{color:#e89aa3;text-decoration:wavy underline rgba(232,154,163,.5)}
+  .turn .body p code{
+    background:var(--accent-soft);color:var(--accent-deep);border-radius:5px;
+    padding:1px 6px;font-size:13px;
+  }
+
+  /* fallback scaffold — numbered list */
+  ol.scaffold{margin:6px 0 0;padding:0;list-style:none;counter-reset:step}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:9px 0 9px 38px;
+    font-family:"Spline Sans Mono",monospace;font-size:13.5px;line-height:1.6;
+    color:var(--ink-soft);border-top:1px solid var(--line-soft);
+  }
+  ol.scaffold li:first-child{border-top:0}
+  ol.scaffold li::before{
+    content:counter(step);position:absolute;left:0;top:9px;
+    width:24px;height:24px;border-radius:6px;background:var(--amber-soft);
+    color:#6f4d10;display:grid;place-items:center;font-size:11px;font-weight:700;
+    border:1px solid #e3cd9d;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:600}
+
+  /* learner turn */
+  .turn.t-learner .body{
+    background:transparent;border:1px dashed var(--line);border-radius:var(--r);
+    padding:16px 18px;font-family:"Spline Sans Mono",monospace;font-size:14px;
+    line-height:1.6;color:var(--ink-soft);
+  }
+  .turn.t-learner .conf{
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-ghost);
+    margin-bottom:8px;display:flex;align-items:center;gap:7px;
+  }
+  .turn.t-learner .conf .bar{
+    flex:1;height:4px;border-radius:3px;background:var(--line-soft);max-width:120px;overflow:hidden;
+  }
+  .turn.t-learner .conf .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+
+  /* state delta turn */
+  .turn.t-delta .deltas{
+    margin-top:14px;display:grid;gap:8px;
+  }
+  .delta-row{
+    display:flex;align-items:center;gap:12px;
+    font-family:"Spline Sans Mono",monospace;font-size:12px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:9px 13px;
+  }
+  .delta-row .dk{flex:1;color:var(--ink-faint);letter-spacing:.04em}
+  .delta-row .from{color:var(--ink-ghost);text-decoration:line-through;text-decoration-thickness:1px}
+  .delta-row .arrow{color:var(--ink-ghost)}
+  .delta-row .to{font-weight:700;color:var(--accent)}
+  .delta-row .to.bad{color:var(--oxblood)}
+  .delta-row .to.up::after{content:" ▲";font-size:9px}
+
+  /* ===== generating indicator ===== */
+  .genline{
+    display:flex;align-items:center;gap:11px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.05em;
+    color:var(--ink-faint);padding:4px 0;
+  }
+  .genline .orb{
+    width:14px;height:14px;border-radius:50%;flex:0 0 auto;position:relative;
+    background:conic-gradient(from 0deg,var(--accent),#9fc0ac,var(--accent));
+    animation:spin 1s linear infinite;
+  }
+  .genline .orb::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--card)}
+  body.fallback-turn .genline .orb{background:conic-gradient(from 0deg,var(--amber),#e3cd9d,var(--amber))}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .caret{
+    display:inline-block;width:.55ch;height:1.05em;vertical-align:-.18em;
+    background:var(--accent);margin-left:1px;animation:blink .9s step-end infinite;border-radius:1px;
+  }
+  @keyframes blink{50%{opacity:0}}
+  .word{opacity:0;animation:wordIn .26s ease forwards}
+  @keyframes wordIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+
+  /* ===== chip rail (sanctioned gestures) ===== */
+  .gestures{
+    margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  }
+  .gestures .glbl{
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-right:2px;
+  }
+  .chip{
+    font-family:"Spline Sans Mono",monospace;font-size:12px;
+    background:var(--paper-2);border:1px solid var(--line);border-radius:999px;
+    padding:6px 13px;color:var(--ink-soft);cursor:pointer;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .chip:hover{border-color:var(--accent);color:var(--accent);background:var(--card);transform:translateY(-1px)}
+  .chip:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .chip .ico{opacity:.6}
+  .chip.stuck:hover{border-color:var(--oxblood);color:var(--oxblood)}
+
+  /* ===== begin affordance ===== */
+  .begin-wrap{margin-top:18px}
+  .begin{
+    font-family:"Spline Sans Mono",monospace;font-size:13px;letter-spacing:.06em;
+    background:var(--accent);color:#f4efe6;border:0;border-radius:999px;
+    padding:12px 26px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;
+    box-shadow:0 10px 26px -14px rgba(31,74,58,.7);transition:.2s ease;
+  }
+  .begin:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .begin .arr{transition:transform .2s}
+  .begin:hover .arr{transform:translateX(3px)}
+  .begin-hint{
+    margin-top:10px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    color:var(--ink-ghost);letter-spacing:.04em;
+  }
+
+  /* ===== docked composer ===== */
+  .composer{
+    position:fixed;left:0;right:0;bottom:0;z-index:100;
+    background:linear-gradient(180deg, rgba(244,239,230,0), rgba(244,239,230,.97) 32%);
+    padding:30px 24px 18px;pointer-events:none;
+    transform:translateY(110%);transition:transform .5s cubic-bezier(.2,.8,.2,1);
+  }
+  .composer.show{transform:none;pointer-events:auto}
+  .composer-inner{
+    width:100%;max-width:720px;margin:0 auto;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 -4px 40px -20px rgba(35,33,28,.4), var(--shadow);
+    padding:15px 17px;
+  }
+  .composer .cprompt{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;margin-bottom:11px;
+  }
+  .composer .cprompt .badge{font-size:9px;padding:2px 7px}
+  .conf-row{display:flex;align-items:center;gap:12px;margin-bottom:11px}
+  .conf-row label{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-ghost);white-space:nowrap;
+  }
+  .conf-row input[type=range]{
+    flex:1;accent-color:var(--accent);height:4px;cursor:pointer;
+  }
+  .conf-row .cval{
+    font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    color:var(--accent);min-width:42px;text-align:right;
+  }
+  .answer-row{display:flex;gap:10px;align-items:flex-end}
+  textarea.answer{
+    flex:1;resize:none;font-family:"Spline Sans Mono",monospace;font-size:13.5px;
+    line-height:1.55;color:var(--ink);background:var(--paper);
+    border:1px solid var(--line);border-radius:11px;padding:11px 13px;min-height:46px;
+    max-height:140px;transition:border-color .2s;
+  }
+  textarea.answer:focus{outline:none;border-color:var(--accent)}
+  textarea.answer::placeholder{color:var(--ink-ghost)}
+  .submit{
+    font-family:"Spline Sans Mono",monospace;font-size:13px;letter-spacing:.04em;
+    background:var(--accent);color:#f4efe6;border:0;border-radius:11px;
+    padding:12px 20px;cursor:pointer;transition:.2s;flex:0 0 auto;white-space:nowrap;
+  }
+  .submit:hover{background:var(--accent-deep)}
+  .submit:disabled{opacity:.45;cursor:not-allowed}
+  .composer .meta{
+    margin-top:9px;font-family:"Spline Sans Mono",monospace;font-size:10px;
+    color:var(--ink-ghost);letter-spacing:.04em;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
+  }
+  .composer .meta kbd{
+    font-family:"Spline Sans Mono",monospace;background:var(--paper-2);
+    border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:10px;color:var(--ink-soft);
+  }
+
+  /* ===== llm scope toggle (floating, bottom-left of shell) ===== */
+  .scope{
+    position:fixed;bottom:16px;right:20px;z-index:120;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.04em;
+    display:flex;align-items:center;gap:9px;color:var(--ink-faint);
+    opacity:0;animation:chromeIn .8s .45s ease both;
+  }
+  .scope .swatch{
+    display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    background:rgba(251,248,242,.8);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:5px 11px;transition:.2s;
+  }
+  .scope .swatch:hover{border-color:var(--accent)}
+  .scope-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .scope-dot{background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+  .scope .swatch b{color:var(--ink-soft);font-weight:600}
+  body.fallback .scope .swatch b{color:var(--amber)}
+
+  /* enter stagger for appended turns */
+  .turn.entering{opacity:0;transform:translateY(14px)}
+  .turn.in{animation:turnIn .6s cubic-bezier(.2,.7,.2,1) forwards}
+  @keyframes turnIn{to{opacity:1;transform:none}}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  @media (max-width:560px){
+    body{font-size:17px}
+    .runhead{padding-top:58px}
+    .turn .body{font-size:17px}
+    .turn.t-runtime .body,.turn.t-delta .body{font-size:19px}
+    .ident .who{display:none}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto !important}
+    .word{opacity:1 !important;filter:none !important}
+    .caret{animation:none}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge" href="../">← gallery index</a>
+
+  <div class="ident" aria-hidden="true">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar">AO</div>
+  </div>
+
+  <div class="brand-whisper"><b>LORE</b> · learning runtime</div>
+
+  <div class="scope" role="group" aria-label="LLM scope">
+    <button class="swatch" id="scopeToggle" type="button" aria-pressed="false"
+      title="Toggle LLM scope for learner-1 (tenant default: anthropic/claude · override: instruction_only)">
+      <span class="scope-dot" aria-hidden="true"></span>
+      <span>llm&nbsp;<b id="scopeLabel">claude · 0.2</b></span>
+    </button>
+  </div>
+
+  <!-- ===== sticky run header ===== -->
+  <header class="runhead">
+    <div class="shell">
+      <nav class="crumb" aria-label="context">
+        <span>Acme Learning</span><span class="sep">/</span>
+        <b>Backend Engineering 2026</b><span class="sep">/</span>
+        <span>Go Backend</span><span class="sep">·</span>
+        <span>cohort Go-Spring-24</span>
+      </nav>
+      <div class="focus">
+        <span class="lbl">repair focus</span>
+        <span class="concept">persistence <span class="neg">— error: forgot-tx-rollback</span></span>
+      </div>
+      <div class="metrics" id="metrics" aria-label="evidence metrics">
+        <span class="metric live" id="m-mastery"><span class="k">mastery</span><span class="v bad">0.41</span></span>
+        <span class="metric live" id="m-retention"><span class="k">retention</span><span class="v bad">0.38</span></span>
+        <span class="metric live" id="m-review"><span class="k">review</span><span class="v warn">2d overdue</span></span>
+        <span class="metric"><span class="k">misconceptions</span><span class="v bad">1 active</span></span>
+      </div>
+      <div class="recovery" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l2 2"/><circle cx="12" cy="12" r="9"/></svg>
+        overload recovery — 2 failed attempts · runtime lowered load
+      </div>
+      <div class="hairline"></div>
+    </div>
+  </header>
+
+  <!-- ===== thread ===== -->
+  <main class="thread" id="thread">
+    <!-- runtime opener turn is seeded into the void (rendered by JS for stagger) -->
+  </main>
+
+  <!-- ===== docked composer ===== -->
+  <form class="composer" id="composer" aria-label="submit evidence">
+    <div class="composer-inner">
+      <div class="cprompt">
+        <span class="badge runtime"><span class="dot"></span>runtime · evidence requested</span>
+        <span>fix the rollback path — show the corrected function</span>
+      </div>
+      <div class="conf-row">
+        <label for="conf">confidence</label>
+        <input type="range" id="conf" min="0" max="100" value="45" />
+        <span class="cval" id="confVal">45%</span>
+      </div>
+      <div class="answer-row">
+        <textarea class="answer" id="answer" rows="1"
+          placeholder="Your corrected Go — e.g. defer/rollback on error before return…"
+          aria-label="your answer"></textarea>
+        <button class="submit" id="submitBtn" type="submit" disabled>Submit evidence</button>
+      </div>
+      <div class="meta">
+        <span>Evidence only — no free prompt. Gestures regenerate the runtime's move.</span>
+        <span><kbd>⌘</kbd>+<kbd>↵</kbd> to submit</span>
+      </div>
+    </div>
+  </form>
+
+<script>
+(() => {
+  "use strict";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const thread = document.getElementById("thread");
+  const composer = document.getElementById("composer");
+  const body = document.body;
+
+  // ---- runtime state (the durable model the runtime owns) ----
+  const state = {
+    llmOn: true,          // tenant default anthropic/claude; learner-1 override -> instruction_only
+    mastery: 0.41,
+    retention: 0.38,
+    began: false,
+    submitted: false,
+    turnSeq: 0,
+    practiceServed: false,
+  };
+
+  const now = () => {
+    const d = new Date();
+    return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  };
+
+  // ---- scope toggle (instruction_only fallback is REAL) ----
+  const scopeToggle = document.getElementById("scopeToggle");
+  const scopeLabel = document.getElementById("scopeLabel");
+  function renderScope(){
+    body.classList.toggle("fallback", !state.llmOn);
+    scopeLabel.textContent = state.llmOn ? "claude · 0.2" : "instruction_only";
+    scopeToggle.setAttribute("aria-pressed", String(!state.llmOn));
+  }
+  scopeToggle.addEventListener("click", () => {
+    state.llmOn = !state.llmOn;
+    renderScope();
+    // If a practice turn already exists, re-serve it in the now-active mode.
+    if (state.practiceServed && !state.submitted){
+      const old = thread.querySelector('[data-kind="practice"]');
+      if (old) old.remove();
+      state.practiceServed = false;
+      servePractice();
+    }
+  });
+  renderScope();
+
+  // ---- turn builder ----
+  function el(html){ const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+
+  function appendTurn(node, {scroll=true} = {}){
+    node.classList.add("entering");
+    thread.appendChild(node);
+    // stagger reveal
+    requestAnimationFrame(() => {
+      node.classList.add("in");
+      node.classList.remove("entering");
+    });
+    if (scroll && !reduce){
+      setTimeout(() => node.scrollIntoView({behavior:"smooth", block:"center"}), 120);
+    }
+    return node;
+  }
+
+  // ---- streamed word reveal into a target element ----
+  function streamWords(target, htmlString, {wpm=520, onDone} = {}){
+    // split into tokens preserving simple inline html (we feed pre-tokenized arrays for code)
+    const tokens = tokenize(htmlString);
+    if (reduce){
+      // resolve block markers ({{PRE_BUG}} etc.) instead of printing them literally
+      target.innerHTML = tokens.map(tk => tk.v).join("");
+      onDone && onDone();
+      return;
+    }
+    const caret = el('<span class="caret" aria-hidden="true"></span>');
+    target.appendChild(caret);
+    let i = 0;
+    const delay = Math.max(14, 60000 / wpm);
+    function next(){
+      if (i >= tokens.length){
+        caret.remove();
+        onDone && onDone();
+        return;
+      }
+      const tk = tokens[i++];
+      if (tk.type === "raw"){
+        const frag = el(`<span class="word">${tk.v}</span>`);
+        target.insertBefore(frag, caret);
+      } else if (tk.type === "break"){
+        target.insertBefore(el(tk.v), caret);
+      }
+      // variable cadence — punctuation pauses
+      const pause = /[.,;:]$/.test(tk.text || "") ? delay * 3.4 : delay * (0.7 + Math.random()*0.7);
+      setTimeout(next, pause);
+    }
+    next();
+  }
+
+  // tokenizer: handles plain words + explicit block markers {{P}} (para) and {{PRE:...}} for code blocks
+  function tokenize(s){
+    const out = [];
+    // Replace block markers with placeholders we emit as raw breaks
+    const parts = s.split(/(\{\{[^}]+\}\})/g);
+    parts.forEach(part => {
+      if (!part) return;
+      const bm = part.match(/^\{\{(.+)\}\}$/);
+      if (bm){
+        out.push({type:"break", v: decodeBlock(bm[1])});
+        return;
+      }
+      // word tokens
+      part.split(/(\s+)/).forEach(w => {
+        if (!w) return;
+        if (/^\s+$/.test(w)){ out.push({type:"raw", v:" ", text:""}); }
+        else { out.push({type:"raw", v:w + " ", text:w}); }
+      });
+    });
+    return out;
+  }
+  const blockStore = {};
+  function decodeBlock(key){ return blockStore[key] || ""; }
+
+  // =========================================================
+  // CONTENT LIBRARY — runtime framings + generated bodies
+  // =========================================================
+
+  // The Go scenario (LLM mode) — pre-syntax-highlighted, revealed as one streamed block
+  blockStore["PRE_BUG"] = `<pre aria-label="buggy Go function"><span class="kw">func</span> <span class="fn">recordPayment</span>(db *sql.DB, p Payment) <span class="kw">error</span> {
+  tx, err := db.<span class="fn">Begin</span>()
+  <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }
+
+  _, err = tx.<span class="fn">Exec</span>(<span class="str">\`INSERT INTO ledger ...\`</span>, p.Amount)
+  <span class="kw">if</span> err != <span class="kw">nil</span> {
+    <span class="err">return err  // ← leaves the tx open, never rolled back</span>
+  }
+  <span class="kw">return</span> tx.<span class="fn">Commit</span>()
+}</pre>`;
+
+  function practiceLLM(){
+    // returns {head, streamBody}  — streamBody uses {{PRE_BUG}} marker mid-stream
+    return {
+      headHTML: `<h4>practice · repair “persistence”</h4>`,
+      stream:
+        `This function opens a transaction, inserts a ledger row, and on the insert error it returns immediately. {{PRE_BUG}} ` +
+        `On the error path the transaction is abandoned — the connection holds a lingering tx until it’s reaped, and partial work can leak. ` +
+        `Rewrite recordPayment so that every error path after Begin rolls back before returning. ` +
+        `A defer-based guard is the idiomatic Go shape here. Show me the corrected function in the composer below.`
+    };
+  }
+
+  // sanctioned-gesture variants (each is a freshly GENERATED turn, not pre-existing)
+  const gestureContent = {
+    "explain": {
+      label: "Explain differently",
+      head: `<h4>explained differently · same move</h4>`,
+      stream:
+        `Think of <code>db.Begin()</code> as borrowing a notebook page that’s yours alone. ` +
+        `Every <code>Exec</code> writes draft lines on it. <code>Commit</code> tears the page out and files it; ` +
+        `<code>Rollback</code> crumples it. If you return on an error without doing either, the page stays half-written and ` +
+        `nobody can reuse it — that’s your leaked transaction. The fix: always crumple-or-file before you walk away.`
+    },
+    "example": {
+      label: "Another example",
+      head: `<h4>another example · transfer</h4>`,
+      stream:
+        `Same shape, different table. {{PRE_XFER}} ` +
+        `Here a debit succeeds but the credit insert fails. Without a rollback, the debit is left dangling and the ledger ` +
+        `no longer balances. Notice it’s the identical bug as recordPayment — an error path after Begin with no Rollback.`
+    },
+    "stuck": {
+      label: "I'm stuck",
+      head: `<h4>unstuck · one nudge, not the answer</h4>`,
+      stream:
+        `No answer yet — just one nudge. Right after <code>tx, err := db.Begin()</code> succeeds, add ` +
+        `<code>defer func(){ if err != nil { tx.Rollback() } }()</code>. Now every early return that sets <code>err</code> ` +
+        `triggers a rollback automatically, and the final <code>Commit</code> clears it. Try writing just that defer line first.`
+    },
+    "why": {
+      label: "Why this?",
+      head: `<h4>why this move · the runtime’s reasoning</h4>`,
+      // live: reads the durable model so the rationale never contradicts current evidence
+      stream: () =>
+        `The runtime chose persistence over transactions because of evidence, not order. ` +
+        `Your mastery on persistence is ${state.mastery.toFixed(2)} (gate 0.75), FSRS retention is ${state.retention.toFixed(2)}, ` +
+        `and a spaced review came due. ` +
+        `The forgot-tx-rollback misconception is what gated this move, and transactions stays locked until persistence is repaired, ` +
+        `since it depends on this concept in the DAG. Repair first protects everything downstream.`
+    }
+  };
+
+  blockStore["PRE_XFER"] = `<pre aria-label="transfer example"><span class="kw">func</span> <span class="fn">transfer</span>(db *sql.DB, from, to int, amt int64) <span class="kw">error</span> {
+  tx, _ := db.<span class="fn">Begin</span>()
+  tx.<span class="fn">Exec</span>(<span class="str">\`UPDATE acct SET bal=bal-? WHERE id=?\`</span>, amt, from)
+  _, err := tx.<span class="fn">Exec</span>(<span class="str">\`INSERT INTO credit ...\`</span>, to, amt)
+  <span class="kw">if</span> err != <span class="kw">nil</span> {
+    <span class="err">return err  // ← debit already applied, no rollback</span>
+  }
+  <span class="kw">return</span> tx.<span class="fn">Commit</span>()
+}</pre>`;
+
+  // instruction_only scaffold (no LLM) — runtime-authored numbered steps
+  function practiceFallback(){
+    return `
+      <h4>runtime scaffold · instruction_only · no LLM</h4>
+      <ol class="scaffold" aria-label="runtime-authored scaffold">
+        <li><b>Read</b> the target <code>recordPayment</code> — it opens a tx, inserts, returns on error.</li>
+        <li><b>Locate</b> the error path after <code>db.Begin()</code> that returns without <code>Rollback()</code>.</li>
+        <li><b>Add</b> a deferred guard: <code>defer func(){ if err != nil { tx.Rollback() } }()</code>.</li>
+        <li><b>Ensure</b> the named return value <code>err</code> is what the guard checks.</li>
+        <li><b>Confirm</b> <code>tx.Commit()</code> runs only on the success path.</li>
+        <li><b>Submit</b> the corrected function as evidence below.</li>
+      </ol>`;
+  }
+
+  // =========================================================
+  // TURN RENDERERS
+  // =========================================================
+
+  function turnShell(kind, srcLabel, badgeHTML){
+    state.turnSeq++;
+    const node = el(`
+      <article class="turn t-${kind}" data-seq="${state.turnSeq}" tabindex="-1">
+        <span class="node" aria-hidden="true"></span>
+        <div class="turnhead">
+          ${badgeHTML}
+          <span class="src">${srcLabel}</span>
+          <span class="time">${now()}</span>
+        </div>
+        <div class="body"></div>
+      </article>`);
+    return node;
+  }
+
+  // 1) RUNTIME OPENER — seeds the void
+  function renderOpener(){
+    const node = turnShell("runtime", "runtime · selector",
+      `<span class="badge runtime"><span class="dot"></span>runtime decided</span>`);
+    const b = node.querySelector(".body");
+    b.innerHTML = `
+      <p>I’m putting <span class="neg">transactions</span> on hold. Let’s <em>repair persistence</em> first —
+      your retention slipped to 0.38 and a spaced review is 2 days overdue.</p>
+      <div class="why">
+        <b>why:</b> BKT mastery 0.41 ↓ · FSRS review overdue · 1 active misconception
+        <b>(forgot-tx-rollback)</b> · <b>transactions</b> locked in the DAG until persistence is repaired.
+        Entering overload recovery after 2 failed attempts — load lowered.
+      </div>
+      <div class="begin-wrap">
+        <button class="begin" id="beginBtn" type="button">
+          Begin repair <span class="arr" aria-hidden="true">→</span>
+        </button>
+        <div class="begin-hint">summons the first generated practice into the thread</div>
+      </div>`;
+    appendTurn(node, {scroll:false});
+    node.querySelector("#beginBtn").addEventListener("click", onBegin, {once:true});
+  }
+
+  // 2) GENERATED PRACTICE (LLM) or SCAFFOLD (fallback)
+  function servePractice(){
+    if (state.llmOn) servePracticeLLM();
+    else servePracticeFallback();
+  }
+
+  function servePracticeLLM(){
+    body.classList.remove("fallback-turn");
+    const node = turnShell("llm", "generated for: persistence / forgot-tx-rollback",
+      `<span class="badge llm live"><span class="dot"></span>llm generated · claude</span>`);
+    node.dataset.kind = "practice";
+    const b = node.querySelector(".body");
+    const gen = practiceLLM();
+    // show generating indicator first
+    const gl = el(`<div class="genline"><span class="orb" aria-hidden="true"></span><span>generating from TutorInstruction…</span></div>`);
+    b.appendChild(gl);
+    appendTurn(node);
+    setTimeout(() => {
+      gl.remove();
+      const head = el(`<div>${gen.headHTML}</div>`);
+      b.appendChild(head);
+      const stream = el(`<p></p>`);
+      b.appendChild(stream);
+      streamWords(stream, gen.stream, { onDone: () => {
+        attachGestures(node);
+        state.practiceServed = true;
+        revealComposer();
+      }});
+    }, reduce ? 0 : 760);
+  }
+
+  function servePracticeFallback(){
+    body.classList.add("fallback-turn");
+    const node = turnShell("fallback", "runtime-authored · LLM off",
+      `<span class="badge fallbk"><span class="dot"></span>instruction-only fallback</span>`);
+    node.dataset.kind = "practice";
+    const b = node.querySelector(".body");
+    const gl = el(`<div class="genline"><span class="orb" aria-hidden="true"></span><span>assembling runtime scaffold (no LLM)…</span></div>`);
+    b.appendChild(gl);
+    appendTurn(node);
+    setTimeout(() => {
+      gl.remove();
+      const wrap = el(`<div></div>`);
+      wrap.innerHTML = practiceFallback();
+      b.appendChild(wrap);
+      // reveal scaffold steps in a calm stagger
+      const items = wrap.querySelectorAll("ol.scaffold li");
+      if (!reduce){
+        items.forEach((li,i) => {
+          li.style.opacity = "0"; li.style.transform="translateY(8px)";
+          setTimeout(() => {
+            li.style.transition="opacity .4s, transform .4s";
+            li.style.opacity="1"; li.style.transform="none";
+          }, 90 + i*120);
+        });
+      }
+      const total = reduce ? 0 : 90 + items.length*120 + 200;
+      setTimeout(() => {
+        attachGestures(node, true);
+        state.practiceServed = true;
+        revealComposer();
+      }, total);
+    }, reduce ? 0 : 640);
+  }
+
+  // 3) sanctioned-gesture chip rail under a generated turn
+  function attachGestures(node, isFallback){
+    // only the latest practice/generated turn keeps active chips
+    thread.querySelectorAll(".gestures").forEach(g => {
+      g.querySelectorAll(".chip").forEach(c => c.disabled = true);
+    });
+    const rail = el(`<div class="gestures" role="group" aria-label="sanctioned gestures">
+      <span class="glbl">gestures</span>
+    </div>`);
+    const defs = [
+      {key:"explain", ico:"↻"},
+      {key:"example", ico:"+"},
+      {key:"stuck",   ico:"?", cls:"stuck"},
+      {key:"why",     ico:"∴"},
+      {key:"regen",   ico:"⟳"}
+    ];
+    defs.forEach(d => {
+      const label = d.key==="regen" ? "Regenerate" : gestureContent[d.key].label;
+      const chip = el(`<button class="chip ${d.cls||''}" type="button" data-g="${d.key}">
+        <span class="ico" aria-hidden="true">${d.ico}</span>${label}</button>`);
+      chip.addEventListener("click", () => onGesture(d.key));
+      rail.appendChild(chip);
+    });
+    node.querySelector(".body").appendChild(rail);
+  }
+
+  // gesture -> append a NEW streamed generated turn (never an open text box)
+  function onGesture(key){
+    // disable chips on all prior turns
+    thread.querySelectorAll(".gestures .chip").forEach(c => c.disabled = true);
+
+    if (key === "regen"){
+      // regenerate the current practice move in the active mode
+      servePractice();
+      return;
+    }
+
+    if (!state.llmOn){
+      // instruction_only: gestures still resolve via runtime-authored micro-scaffolds
+      serveFallbackGesture(key);
+      return;
+    }
+
+    const g = gestureContent[key];
+    const node = turnShell("llm", `gesture · ${g.label.toLowerCase()}`,
+      `<span class="badge llm live"><span class="dot"></span>llm generated · claude</span>`);
+    const b = node.querySelector(".body");
+    const gl = el(`<div class="genline"><span class="orb" aria-hidden="true"></span><span>regenerating into the void…</span></div>`);
+    b.appendChild(gl);
+    appendTurn(node);
+    setTimeout(() => {
+      gl.remove();
+      b.insertAdjacentHTML("beforeend", g.head);
+      const stream = el(`<p></p>`);
+      b.appendChild(stream);
+      const text = typeof g.stream === "function" ? g.stream() : g.stream;
+      streamWords(stream, text, { onDone: () => attachGestures(node) });
+    }, reduce ? 0 : 560);
+  }
+
+  // fallback micro-scaffold for a gesture (LLM off)
+  const fallbackGesture = {
+    explain: [`<b>Reframe:</b> a tx is an exclusive notebook page.`,
+              `<b>Commit</b> files it; <b>Rollback</b> crumples it.`,
+              `Returning on error without either leaks the page.`],
+    example: [`<b>Transfer case:</b> debit succeeds, credit insert fails.`,
+              `No rollback → debit dangles, ledger unbalanced.`,
+              `Same bug class as recordPayment.`],
+    stuck:   [`Add right after Begin succeeds:`,
+              `<code>defer func(){ if err!=nil { tx.Rollback() } }()</code>`,
+              `Write just that line first, then re-check returns.`],
+    why:     [`mastery 0.41 ↓ · retention 0.38 · review 2d overdue`,
+              `misconception forgot-tx-rollback active`,
+              `transactions locked in DAG until persistence repaired`]
+  };
+  function serveFallbackGesture(key){
+    const labelMap = {explain:"explain differently",example:"another example",stuck:"i’m stuck",why:"why this?"};
+    const node = turnShell("fallback", `gesture · ${labelMap[key]} · LLM off`,
+      `<span class="badge fallbk"><span class="dot"></span>instruction-only fallback</span>`);
+    const b = node.querySelector(".body");
+    const gl = el(`<div class="genline"><span class="orb" aria-hidden="true"></span><span>runtime micro-scaffold (no LLM)…</span></div>`);
+    b.appendChild(gl);
+    appendTurn(node);
+    setTimeout(() => {
+      gl.remove();
+      const ol = el(`<ol class="scaffold"></ol>`);
+      fallbackGesture[key].forEach(line => ol.appendChild(el(`<li>${line}</li>`)));
+      b.appendChild(ol);
+      const items = ol.querySelectorAll("li");
+      if (!reduce){
+        items.forEach((li,i) => {
+          li.style.opacity="0"; li.style.transform="translateY(8px)";
+          setTimeout(()=>{ li.style.transition="opacity .4s,transform .4s"; li.style.opacity="1"; li.style.transform="none"; }, i*110);
+        });
+      }
+      setTimeout(() => attachGestures(node, true), reduce ? 0 : items.length*110 + 150);
+    }, reduce ? 0 : 520);
+  }
+
+  // 4) LEARNER evidence turn
+  function renderLearnerTurn(answerText, conf){
+    const node = turnShell("learner", "Amara Okafor · evidence",
+      `<span class="badge learner"><span class="dot"></span>learner submitted</span>`);
+    const b = node.querySelector(".body");
+    b.innerHTML = `
+      <div class="conf">confidence ${conf}%
+        <span class="bar"><i style="width:${conf}%"></i></span>
+      </div>
+      <div>${escapeHtml(answerText)}</div>`;
+    appendTurn(node);
+  }
+
+  // 5) STATE-DELTA turn (what the model learned) — then NEXT intent
+  function renderDelta(conf){
+    // deterministic runtime update (illustrative BKT/FSRS movement on correct evidence)
+    const newMastery = +(state.mastery + 0.18).toFixed(2);   // 0.41 -> 0.59
+    const newRet = +(state.retention + 0.27).toFixed(2);     // 0.38 -> 0.65
+    state.mastery = newMastery; state.retention = newRet;
+
+    const node = turnShell("delta", "runtime · model updated",
+      `<span class="badge delta"><span class="dot"></span>state delta</span>`);
+    const b = node.querySelector(".body");
+    const gl = el(`<div class="genline"><span class="orb" aria-hidden="true"></span><span>runtime scoring evidence · updating model…</span></div>`);
+    b.appendChild(gl);
+    appendTurn(node);
+    setTimeout(() => {
+      gl.remove();
+      b.innerHTML = `
+        <p>Evidence accepted. The rollback path is present — the <em>forgot-tx-rollback</em> misconception is no longer firing.</p>
+        <div class="deltas" aria-label="state delta">
+          <div class="delta-row"><span class="dk">BKT mastery · persistence</span>
+            <span class="from">0.41</span><span class="arrow">→</span><span class="to up">${newMastery}</span></div>
+          <div class="delta-row"><span class="dk">FSRS retention</span>
+            <span class="from">0.38</span><span class="arrow">→</span><span class="to up">${newRet}</span></div>
+          <div class="delta-row"><span class="dk">misconception · forgot-tx-rollback</span>
+            <span class="from">active</span><span class="arrow">→</span><span class="to">downgraded</span></div>
+          <div class="delta-row"><span class="dk">spaced review</span>
+            <span class="from">2d overdue</span><span class="arrow">→</span><span class="to">rescheduled +4d</span></div>
+        </div>`;
+      flashMetrics(newMastery, newRet);
+      if (!reduce){
+        b.querySelectorAll(".delta-row").forEach((r,i)=>{
+          r.style.opacity="0"; r.style.transform="translateY(8px)";
+          setTimeout(()=>{ r.style.transition="opacity .45s,transform .45s"; r.style.opacity="1"; r.style.transform="none"; }, 120 + i*130);
+        });
+      }
+      setTimeout(renderNextIntent, reduce ? 0 : 900);
+    }, reduce ? 0 : 820);
+  }
+
+  // 6) NEXT runtime intent — the void reseeds, loop continues
+  function renderNextIntent(){
+    const node = turnShell("runtime", "runtime · selector",
+      `<span class="badge runtime"><span class="dot"></span>runtime decided</span>`);
+    const b = node.querySelector(".body");
+    b.innerHTML = `
+      <p>Persistence is recovering — but not yet at the 0.75 gate. Let’s run <em>one more spaced check</em>
+      on the rollback shape, then I’ll consider unlocking <span class="neg">transactions</span>.</p>
+      <div class="why">
+        <b>why:</b> mastery ${state.mastery} (gate 0.75) · retention ${state.retention} climbing ·
+        overload recovery easing · transactions stays locked one more cycle.
+      </div>
+      <div class="begin-wrap">
+        <button class="begin" id="nextBtn" type="button">
+          Continue repair <span class="arr" aria-hidden="true">→</span>
+        </button>
+        <div class="begin-hint">the loop continues down the thread — the void reseeds with the next move</div>
+      </div>`;
+    appendTurn(node);
+    node.querySelector("#nextBtn").addEventListener("click", () => {
+      node.querySelector(".begin-wrap").remove();
+      state.submitted = false;
+      state.practiceServed = false;
+      servePractice();
+    }, {once:true});
+  }
+
+  // =========================================================
+  // COMPOSER
+  // =========================================================
+  const conf = document.getElementById("conf");
+  const confVal = document.getElementById("confVal");
+  const answer = document.getElementById("answer");
+  const submitBtn = document.getElementById("submitBtn");
+
+  conf.addEventListener("input", () => { confVal.textContent = conf.value + "%"; });
+  answer.addEventListener("input", () => {
+    submitBtn.disabled = answer.value.trim().length < 3;
+    answer.style.height = "auto";
+    answer.style.height = Math.min(140, answer.scrollHeight) + "px";
+  });
+  answer.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !submitBtn.disabled){
+      e.preventDefault(); composer.requestSubmit();
+    }
+  });
+
+  composer.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (submitBtn.disabled || state.submitted) return;
+    const text = answer.value.trim();
+    const c = conf.value;
+    state.submitted = true;
+    submitBtn.disabled = true;
+    // lock prior gestures
+    thread.querySelectorAll(".gestures .chip").forEach(ch => ch.disabled = true);
+    renderLearnerTurn(text, c);
+    answer.value = ""; answer.style.height="auto"; submitBtn.disabled = true;
+    hideComposer();
+    setTimeout(() => renderDelta(c), reduce ? 0 : 520);
+  });
+
+  function revealComposer(){ composer.classList.add("show"); }
+  function hideComposer(){ composer.classList.remove("show"); }
+
+  // metric flash on delta
+  function flashMetrics(m, r){
+    const setM = (id, val, cls) => {
+      const wrap = document.getElementById(id);
+      const v = wrap.querySelector(".v");
+      v.textContent = val; v.className = "v " + cls;
+      wrap.classList.add("flash");
+      setTimeout(() => wrap.classList.remove("flash"), 1400);
+    };
+    setM("m-mastery", m.toFixed(2), m >= 0.75 ? "good" : "warn");
+    setM("m-retention", r.toFixed(2), r >= 0.6 ? "good" : "warn");
+    const rv = document.querySelector("#m-review .v");
+    rv.textContent = "+4d"; rv.className = "v good";
+    document.getElementById("m-review").classList.add("flash");
+    setTimeout(()=>document.getElementById("m-review").classList.remove("flash"),1400);
+  }
+
+  // ---- begin handler ----
+  function onBegin(){
+    state.began = true;
+    // remove the begin affordance from the opener (it served its purpose)
+    const opener = thread.querySelector(".t-runtime");
+    if (opener){ const bw = opener.querySelector(".begin-wrap"); if (bw) bw.remove(); }
+    servePractice();
+  }
+
+  // ---- util ----
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // ---- boot: seed the void with the single runtime opener ----
+  renderOpener();
+})();
+</script>
+</body>
+</html>

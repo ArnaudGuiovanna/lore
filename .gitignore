@@ -28,3 +28,9 @@ go.work.sum
 .idea/
 .vscode/
 *.swp
+
+# Playwright MCP / screenshot artifacts (root-level scratch only)
+.playwright-mcp/
+/*.png
+/*.jpeg
+/*.jpg

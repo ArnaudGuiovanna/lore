@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ATLAS — Concept Graph Explorer · LORE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=Familjen+Grotesk:ital,wght@0,400..700;1,400..600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #06090f;
+    --bg-panel: #0b1119;
+    --bg-panel-2: #0e1622;
+    --grid: rgba(94, 134, 173, 0.07);
+    --grid-major: rgba(94, 134, 173, 0.13);
+    --ink: #dce6f2;
+    --ink-dim: #8497ad;
+    --ink-faint: #56657a;
+    --line: rgba(110, 140, 180, 0.16);
+    --line-bright: rgba(120, 160, 210, 0.32);
+    --accent: #4fd1c5;       /* teal — runtime / cartographic */
+    --accent-2: #f2b134;     /* amber — frontier / ZPD */
+    --hot: #ff5d6c;          /* low mastery */
+    --warm: #f2994a;
+    --mid: #f2c94c;
+    --cool: #56c596;
+    --cold: #2fb4d9;         /* high mastery */
+    --danger: #ff5d6c;
+    --shadow: 0 18px 50px rgba(0,0,0,0.55);
+    --mono: 'B612 Mono', ui-monospace, monospace;
+    --sans: 'Familjen Grotesk', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+      linear-gradient(var(--grid-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-major) 1px, transparent 1px);
+    background-size: 28px 28px, 28px 28px, 140px 140px, 140px 140px;
+    min-height: 100vh;
+  }
+
+  ::selection { background: rgba(79,209,197,0.3); color: #fff; }
+
+  a { color: inherit; }
+
+  /* gallery badge */
+  .gallery-badge {
+    position: fixed; top: 14px; right: 14px; z-index: 200;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; text-decoration: none;
+    color: var(--ink-dim);
+    background: rgba(11,17,25,0.85);
+    border: 1px solid var(--line);
+    padding: 6px 11px; border-radius: 4px;
+    backdrop-filter: blur(8px);
+    transition: all .2s ease;
+  }
+  .gallery-badge:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* header */
+  header.topbar {
+    display: flex; align-items: center; gap: 26px;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(11,17,25,0.96), rgba(6,9,15,0.82));
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand .mark {
+    font-family: var(--mono); font-weight: 700; font-size: 19px;
+    letter-spacing: 0.14em; color: var(--ink);
+  }
+  .brand .mark b { color: var(--accent); }
+  .brand .sub {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+  .coord {
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint);
+    letter-spacing: 0.06em; margin-left: auto;
+    display: flex; gap: 18px; align-items: center;
+  }
+  .coord .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cool); box-shadow: 0 0 8px var(--cool); display: inline-block; margin-right: 6px; animation: pulse-dot 2.4s infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  /* tabs */
+  nav.tabs {
+    display: flex; gap: 2px; padding: 0 24px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(8,12,18,0.6); overflow-x: auto;
+  }
+  nav.tabs button {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-faint);
+    background: none; border: none; cursor: pointer;
+    padding: 14px 18px; position: relative; white-space: nowrap;
+    transition: color .18s ease;
+  }
+  nav.tabs button .idx { color: var(--ink-faint); opacity: 0.55; margin-right: 7px; }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--ink); }
+  nav.tabs button.active .idx { color: var(--accent); opacity: 1; }
+  nav.tabs button.active::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: var(--accent); box-shadow: 0 0 12px var(--accent);
+  }
+  nav.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+
+  main { padding: 22px 28px 60px; max-width: 1480px; margin: 0 auto; }
+  .screen { display: none; animation: reveal .5s cubic-bezier(.2,.7,.3,1); }
+  .screen.active { display: block; }
+  @keyframes reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .screen-head { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 20px; flex-wrap: wrap; }
+  .screen-head h1 {
+    font-family: var(--mono); font-weight: 700; font-size: 21px;
+    letter-spacing: 0.05em; margin: 0; color: var(--ink);
+  }
+  .screen-head .desc { color: var(--ink-dim); font-size: 13.5px; max-width: 540px; }
+  .screen-head .tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid rgba(79,209,197,0.3); border-radius: 3px;
+    padding: 3px 8px; background: rgba(79,209,197,0.06);
+  }
+
+  /* ===== ATLAS layout ===== */
+  .atlas-grid { display: grid; grid-template-columns: 1fr 340px; gap: 18px; }
+  @media (max-width: 1100px){ .atlas-grid { grid-template-columns: 1fr; } }
+
+  .map-frame {
+    position: relative; border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(47,180,217,0.06), transparent 60%),
+      radial-gradient(ellipse at 80% 90%, rgba(242,177,52,0.04), transparent 55%),
+      var(--bg-panel);
+    box-shadow: var(--shadow);
+  }
+  .map-frame svg { display: block; width: 100%; height: auto; }
+
+  .corner {
+    position: absolute; font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-faint); letter-spacing: 0.1em; pointer-events: none;
+  }
+  .corner.tl { top: 10px; left: 12px; }
+  .corner.tr { top: 10px; right: 12px; text-align: right; }
+  .corner.bl { bottom: 10px; left: 12px; }
+  .corner.br { bottom: 10px; right: 12px; text-align: right; }
+
+  /* graph nodes */
+  .node { cursor: pointer; }
+  .node circle.body { transition: stroke-width .2s, filter .2s; }
+  .node text { font-family: var(--mono); font-size: 9px; fill: var(--ink); letter-spacing: 0.02em; pointer-events: none; }
+  .node text.diff { font-size: 7.5px; fill: var(--ink-faint); }
+  .node:hover circle.body { stroke-width: 2.5; }
+  .node.selected circle.body { stroke: #fff; stroke-width: 2.5; }
+  .edge { stroke: var(--line-bright); stroke-width: 1.4; fill: none; transition: stroke .2s, stroke-width .2s, opacity .2s; }
+  .edge.hot { stroke: var(--accent); stroke-width: 2.2; opacity: 1; }
+  .node.dim, .edge.dim { opacity: 0.16; }
+  .frontier-ring { fill: none; stroke: var(--accent-2); stroke-width: 1.6; stroke-dasharray: 4 4; opacity: 0.85; animation: spin 26s linear infinite; transform-origin: center; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pulse-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+  @keyframes pulse-grow { 0%{ r: 22; opacity: 0.9; } 100%{ r: 46; opacity: 0; } }
+
+  /* legend */
+  .legend {
+    position: absolute; left: 12px; bottom: 30px;
+    background: rgba(8,12,18,0.88); border: 1px solid var(--line);
+    border-radius: 6px; padding: 11px 13px; backdrop-filter: blur(6px);
+    font-family: var(--mono); font-size: 10px; max-width: 200px;
+  }
+  .legend .ttl { color: var(--ink-dim); letter-spacing: 0.12em; text-transform: uppercase; font-size: 9px; margin-bottom: 8px; }
+  .heatbar { height: 9px; border-radius: 3px; margin: 6px 0 4px;
+    background: linear-gradient(90deg, var(--hot), var(--warm), var(--mid), var(--cool), var(--cold)); }
+  .heatscale { display: flex; justify-content: space-between; color: var(--ink-faint); font-size: 8.5px; }
+  .legend .key { display: flex; align-items: center; gap: 7px; margin-top: 7px; color: var(--ink-dim); }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+
+  /* inspector */
+  .inspector {
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg-panel); box-shadow: var(--shadow);
+    overflow: hidden; align-self: start; position: sticky; top: 130px;
+  }
+  .insp-head { padding: 15px 16px 13px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--bg-panel-2), transparent); }
+  .insp-head .eyebrow { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  .insp-head h2 { margin: 5px 0 3px; font-family: var(--mono); font-size: 17px; letter-spacing: 0.02em; }
+  .insp-head .coord-line { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+  .insp-body { padding: 14px 16px; }
+
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stat {
+    border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px;
+    background: var(--bg-panel-2);
+  }
+  .stat .lab { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .stat .val { font-family: var(--mono); font-size: 22px; font-weight: 700; margin-top: 3px; line-height: 1; }
+  .stat .trend { font-size: 10.5px; font-family: var(--mono); margin-top: 4px; }
+  .trend.down { color: var(--hot); }
+  .trend.up { color: var(--cool); }
+  .trend.flat { color: var(--ink-faint); }
+
+  .meter { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.07); margin-top: 8px; overflow: hidden; }
+  .meter > i { display: block; height: 100%; border-radius: 3px; }
+
+  .insp-section { margin-top: 8px; padding-top: 13px; border-top: 1px dashed var(--line); }
+  .insp-section h3 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 8px; }
+
+  .dep { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 3px 0; color: var(--ink-dim); }
+  .dep .chk { font-family: var(--mono); font-size: 12px; width: 16px; }
+  .dep .chk.ok { color: var(--cool); }
+  .dep .chk.no { color: var(--hot); }
+
+  .rationale {
+    font-size: 12.5px; line-height: 1.55; color: var(--ink);
+    background: rgba(79,209,197,0.05); border-left: 2px solid var(--accent);
+    padding: 9px 11px; border-radius: 0 5px 5px 0;
+  }
+  .rationale .src { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 5px; }
+
+  .runtime-badge, .llm-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 3px;
+  }
+  .runtime-badge { color: var(--accent); border: 1px solid rgba(79,209,197,0.35); background: rgba(79,209,197,0.07); }
+  .llm-badge { color: var(--ink-dim); border: 1px solid var(--line); background: rgba(255,255,255,0.02); }
+  .llm-badge.fallback { color: var(--accent-2); border-color: rgba(242,177,52,0.35); background: rgba(242,177,52,0.06); }
+
+  .evidence-snip { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; line-height: 1.5; }
+  .evidence-snip b { color: var(--ink); }
+
+  /* ===== MATRIX ===== */
+  .matrix-wrap { border: 1px solid var(--line); border-radius: 8px; background: var(--bg-panel); box-shadow: var(--shadow); padding: 4px; overflow-x: auto; }
+  table.matrix { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.matrix th, table.matrix td { padding: 0; }
+  table.matrix thead th {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-dim); padding: 12px 6px; text-align: center; vertical-align: bottom;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  table.matrix thead th:first-child { text-align: left; padding-left: 14px; }
+  table.matrix tbody th {
+    font-family: var(--sans); font-weight: 500; font-size: 13px; text-align: left;
+    padding: 0 14px; color: var(--ink); white-space: nowrap;
+    border-right: 1px solid var(--line);
+  }
+  table.matrix tbody th .lr-status { font-family: var(--mono); font-size: 9px; color: var(--ink-faint); display: block; }
+  .cell { width: 60px; height: 44px; text-align: center; vertical-align: middle; position: relative; }
+  .cell .hm { display: flex; align-items: center; justify-content: center; height: 38px; margin: 3px; border-radius: 4px; font-family: var(--mono); font-size: 11px; font-weight: 700; color: #06090f; transition: transform .14s, box-shadow .14s; cursor: default; }
+  .cell .hm:hover { transform: scale(1.12); box-shadow: 0 0 0 2px #fff, var(--shadow); z-index: 5; position: relative; }
+  .cell .hm.empty { background: rgba(255,255,255,0.03) !important; color: var(--ink-faint); font-weight: 400; }
+  .cell .hm .alert-dot { position: absolute; top: 4px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
+  /* ===== PATHWAY ===== */
+  .pathway { display: flex; flex-direction: column; gap: 0; max-width: 900px; }
+  .path-step { display: grid; grid-template-columns: 56px 1fr; gap: 18px; }
+  .path-rail { display: flex; flex-direction: column; align-items: center; }
+  .path-node { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 15px; border: 2px solid var(--line); background: var(--bg-panel); flex: 0 0 auto; }
+  .path-node.now { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 18px rgba(79,209,197,0.4); }
+  .path-node.next { border-color: var(--accent-2); color: var(--accent-2); }
+  .path-line { width: 2px; flex: 1; background: repeating-linear-gradient(180deg, var(--line) 0 6px, transparent 6px 12px); min-height: 28px; }
+  .path-card { border: 1px solid var(--line); border-radius: 8px; background: var(--bg-panel); padding: 16px 18px; margin-bottom: 18px; box-shadow: var(--shadow); transition: border-color .2s; }
+  .path-card:hover { border-color: var(--line-bright); }
+  .path-card .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .path-card h3 { font-family: var(--mono); font-size: 16px; margin: 0; letter-spacing: 0.02em; }
+  .path-card .why { font-size: 13.5px; color: var(--ink-dim); line-height: 1.55; }
+  .path-card .why b { color: var(--ink); }
+  .path-meta { display: flex; gap: 16px; margin-top: 11px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); flex-wrap: wrap; }
+  .path-meta span b { color: var(--ink-dim); font-weight: 400; }
+
+  /* ===== TIMELINE ===== */
+  .timeline { max-width: 880px; position: relative; padding-left: 26px; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--line); }
+  .tl-item { position: relative; padding: 0 0 22px 18px; }
+  .tl-item::before { content: ''; position: absolute; left: -23px; top: 5px; width: 11px; height: 11px; border-radius: 50%; background: var(--bg); border: 2px solid var(--accent); }
+  .tl-item.event::before { border-color: var(--ink-faint); }
+  .tl-item.alert::before { border-color: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .tl-time { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: 0.06em; }
+  .tl-card { border: 1px solid var(--line); border-radius: 7px; background: var(--bg-panel); padding: 13px 15px; margin-top: 6px; }
+  .tl-card .tl-h { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 7px; }
+  .tl-card h4 { margin: 0; font-family: var(--mono); font-size: 13px; letter-spacing: 0.02em; }
+  .ba-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 9px; font-size: 12px; }
+  .ba-box { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; background: var(--bg-panel-2); }
+  .ba-box .lab { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 3px; }
+  .ba-box .v { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+  .ba-arrow { font-family: var(--mono); color: var(--accent); font-size: 16px; }
+  .tl-rationale { font-size: 12.5px; color: var(--ink-dim); margin-top: 9px; line-height: 1.5; font-style: italic; }
+
+  .pill { font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink-dim); }
+  .pill.crit { color: var(--hot); border-color: rgba(255,93,108,0.4); background: rgba(255,93,108,0.07); }
+  .pill.warn { color: var(--accent-2); border-color: rgba(242,177,52,0.4); background: rgba(242,177,52,0.07); }
+  .pill.ok { color: var(--cool); border-color: rgba(86,197,150,0.4); background: rgba(86,197,150,0.07); }
+
+  .learner-switch { display: flex; gap: 6px; align-items: center; }
+  .learner-switch select {
+    font-family: var(--mono); font-size: 12px; background: var(--bg-panel-2);
+    color: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 7px 10px; cursor: pointer;
+  }
+  .learner-switch label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+  .learner-switch select:focus-visible { outline: 2px solid var(--accent); }
+
+  .hint { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em; }
+
+  @media (max-width: 640px){
+    main { padding: 16px 14px 50px; }
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    .coord { display: none; }
+  }
+</style>
+</head>
+<body>
+<a class="gallery-badge" href="../">‹ index</a>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark"><b>◆</b> ATLAS</span>
+    <span class="sub">Concept Graph Explorer</span>
+  </div>
+  <div class="learner-switch">
+    <label for="lr">Learner</label>
+    <select id="lr" aria-label="Select learner">
+      <option value="amara" selected>Amara Okafor · learner-1</option>
+      <option value="liam">Liam Chen · learner-2</option>
+      <option value="noor">Noor Haddad · learner-3</option>
+      <option value="diego">Diego Santos · learner-4</option>
+    </select>
+  </div>
+  <div class="coord">
+    <span><span class="dot"></span>RUNTIME LIVE</span>
+    <span>acme / Go-Spring-24</span>
+    <span>LAT 0.41 · LON 0.86</span>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Atlas screens">
+  <button class="active" data-screen="atlas" role="tab" aria-selected="true"><span class="idx">01</span>Atlas</button>
+  <button data-screen="matrix" role="tab" aria-selected="false"><span class="idx">02</span>Mastery Matrix</button>
+  <button data-screen="pathway" role="tab" aria-selected="false"><span class="idx">03</span>Pathway</button>
+  <button data-screen="timeline" role="tab" aria-selected="false"><span class="idx">04</span>Snapshot Timeline</button>
+</nav>
+
+<main>
+  <!-- ============ SCREEN 1: ATLAS ============ -->
+  <section class="screen active" id="screen-atlas" role="tabpanel" aria-label="Atlas">
+    <div class="screen-head">
+      <h1>GO BACKEND · DOMAIN ATLAS</h1>
+      <span class="tag">domain d-go-backend</span>
+      <p class="desc">Live prerequisite DAG for <b style="color:var(--ink)">Amara Okafor</b>. Nodes sized by difficulty, colored by mastery heat. The runtime-selected concept pulses; the amber ring marks the unlockable frontier (ZPD).</p>
+    </div>
+
+    <div class="atlas-grid">
+      <div class="map-frame">
+        <span class="corner tl">GRID · WGS-LORE · 28u</span>
+        <span class="corner tr">PROJECTION · prereq-flow</span>
+        <span class="corner bl" id="mapMeta">NODES 8 · EDGES 6 · FRONTIER 1</span>
+        <span class="corner br">SCALE 1:1 mastery</span>
+
+        <svg viewBox="0 0 760 560" id="dag" role="img" aria-label="Concept dependency graph">
+          <defs>
+            <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M0,1 L8,4.5 L0,8 Z" fill="rgba(120,160,210,0.5)"/>
+            </marker>
+            <marker id="arrowHot" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M0,1 L8,4.5 L0,8 Z" fill="#4fd1c5"/>
+            </marker>
+            <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <!-- edges drawn first, then nodes; JS injects -->
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </svg>
+
+        <div class="legend" aria-label="Map legend">
+          <div class="ttl">Mastery Heat</div>
+          <div class="heatbar"></div>
+          <div class="heatscale"><span>0.0</span><span>0.5</span><span>1.0</span></div>
+          <div class="key"><span class="swatch" style="background:var(--accent)"></span>Runtime-selected · pulsing</div>
+          <div class="key"><span class="swatch" style="background:none;border:1.5px dashed var(--accent-2)"></span>ZPD frontier · unlockable</div>
+        </div>
+      </div>
+
+      <aside class="inspector" id="inspector" aria-live="polite">
+        <!-- filled by JS -->
+      </aside>
+    </div>
+    <p class="hint" style="margin-top:14px">↳ hover a node to trace neighbors · click to inspect runtime state · node radius ∝ difficulty</p>
+  </section>
+
+  <!-- ============ SCREEN 2: MATRIX ============ -->
+  <section class="screen" id="screen-matrix" role="tabpanel" aria-label="Mastery Matrix">
+    <div class="screen-head">
+      <h1>MASTERY MATRIX</h1>
+      <span class="tag">cohort Go-Spring-24 · 6 of 18 shown</span>
+      <p class="desc">Concept × learner mastery heatmap. Red cells flag a <b style="color:var(--hot)">repair</b> need; the dot marks an active alert. Read columns to see where the whole cohort is blocked.</p>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix" id="matrixTable" aria-label="Mastery heatmap"></table>
+    </div>
+    <p class="hint" style="margin-top:14px">↳ cells are BKT mastery 0–1 · empty = not yet attempted · column avg reveals cohort-level prerequisite gaps</p>
+  </section>
+
+  <!-- ============ SCREEN 3: PATHWAY ============ -->
+  <section class="screen" id="screen-pathway" role="tabpanel" aria-label="Pathway">
+    <div class="screen-head">
+      <h1>PLANNED PATHWAY</h1>
+      <span class="tag">3 runtime decisions ahead</span>
+      <p class="desc">The next three <span class="runtime-badge" style="display:inline-flex">▣ runtime decisions</span> for Amara, each with its TutorInstruction rationale. This is what the deterministic runtime will dispatch — the LLM only renders these.</p>
+    </div>
+    <div class="pathway" id="pathway"></div>
+  </section>
+
+  <!-- ============ SCREEN 4: TIMELINE ============ -->
+  <section class="screen" id="screen-timeline" role="tabpanel" aria-label="Snapshot Timeline">
+    <div class="screen-head">
+      <h1>SNAPSHOT TIMELINE</h1>
+      <span class="tag" id="tlConcept">concept · persistence</span>
+      <p class="desc">Audit trail of <b style="color:var(--ink)">PedagogicalSnapshots</b> and outbox events for the selected node. Each snapshot records before → observation → after with the runtime rationale.</p>
+    </div>
+    <div class="timeline" id="timeline"></div>
+  </section>
+</main>
+
+<script>
+/* ============ FIXTURE DATA ============ */
+const HEAT = v => {
+  // 0 hot -> 1 cold, returns hex
+  const stops = [[0,[255,93,108]],[0.35,[242,153,74]],[0.55,[242,201,76]],[0.75,[86,197,150]],[1,[47,180,217]]];
+  for (let i=0;i<stops.length-1;i++){
+    const [a,ca]=stops[i],[b,cb]=stops[i+1];
+    if (v<=b){ const t=(v-a)/(b-a); return `rgb(${ca.map((c,j)=>Math.round(c+(cb[j]-c)*t)).join(',')})`; }
+  }
+  return 'rgb(47,180,217)';
+};
+
+const LEARNERS = {
+  amara: { name:'Amara Okafor', id:'learner-1', selected:'persistence',
+    state:{
+      'http-handlers':{m:0.86,r:0.79,trend:'up',ev:'Built routed handler w/ middleware chain · PASS', evt:'4h ago'},
+      'persistence':{m:0.41,r:0.38,trend:'down',ev:'Failed 2 attempts · forgot tx rollback on error path', evt:'12m ago', overdue:'2d', misc:'forgot-tx-rollback'},
+      'middleware':{m:0.72,r:0.66,trend:'flat',ev:'Auth middleware ordering quiz · 4/5', evt:'1d ago'},
+      'transactions':{m:0.0,r:0,trend:'flat',ev:'— locked (persistence < 0.65)', evt:'—', locked:true},
+      'auth-jwt':{m:0.0,r:0,trend:'flat',ev:'— not attempted', evt:'—', locked:true},
+      'migrations':{m:0.0,r:0,trend:'flat',ev:'— locked (persistence < 0.65)', evt:'—', locked:true},
+      'concurrency':{m:0.58,r:0.54,trend:'flat',ev:'Goroutine leak debug · partial', evt:'3d ago'},
+      'channels':{m:0.0,r:0,trend:'flat',ev:'— not attempted', evt:'—', locked:true},
+    }
+  },
+  liam: { name:'Liam Chen', id:'learner-2', selected:'auth-jwt',
+    state:{
+      'http-handlers':{m:0.81,r:0.74,trend:'flat',ev:'Routing exercise · PASS', evt:'2d ago'},
+      'persistence':{m:0.69,r:0.62,trend:'up',ev:'Repo pattern impl · PASS', evt:'1d ago'},
+      'middleware':{m:0.7,r:0.6,trend:'flat',ev:'CORS middleware · PASS', evt:'2d ago'},
+      'transactions':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+      'auth-jwt':{m:0.58,r:0.51,trend:'flat',ev:'Plateau 9d · RS256 verify confusion', evt:'9d', plateau:true},
+      'migrations':{m:0.44,r:0.4,trend:'flat',ev:'Up/down migration · partial', evt:'4d ago'},
+      'concurrency':{m:0.5,r:0,trend:'flat',ev:'— in progress', evt:'5d ago'},
+      'channels':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+    }
+  },
+  noor: { name:'Noor Haddad', id:'learner-3', selected:'http-handlers',
+    state:{
+      'http-handlers':{m:0.91,r:0.85,trend:'up',ev:'Mastery-ready · assessment plannable', evt:'1h ago', ready:true},
+      'persistence':{m:0.63,r:0.6,trend:'up',ev:'Connection pool tuning · PASS', evt:'1d ago'},
+      'middleware':{m:0.78,r:0.71,trend:'up',ev:'Rate-limit middleware · PASS', evt:'1d ago'},
+      'transactions':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+      'auth-jwt':{m:0.4,r:0,trend:'flat',ev:'— early', evt:'3d ago'},
+      'migrations':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+      'concurrency':{m:0.66,r:0.6,trend:'up',ev:'Worker pool · PASS', evt:'2d ago'},
+      'channels':{m:0.52,r:0,trend:'flat',ev:'Fan-out/fan-in · partial', evt:'2d ago'},
+    }
+  },
+  diego: { name:'Diego Santos', id:'learner-4', selected:'persistence',
+    state:{
+      'http-handlers':{m:0.72,r:0.41,trend:'down',ev:'Review overdue 3d', evt:'overdue', overdue:'3d'},
+      'persistence':{m:0.48,r:0.3,trend:'down',ev:'3 overdue reviews · LearnerAtRisk', evt:'overdue', overdue:'4d', risk:true},
+      'middleware':{m:0.55,r:0.36,trend:'down',ev:'Review overdue 2d', evt:'overdue', overdue:'2d'},
+      'transactions':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+      'auth-jwt':{m:0.0,r:0,trend:'flat',ev:'— not attempted', evt:'—', locked:true},
+      'migrations':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+      'concurrency':{m:0.35,r:0.28,trend:'down',ev:'Race condition exercise · FAIL', evt:'1d ago'},
+      'channels':{m:0.0,r:0,trend:'flat',ev:'— locked', evt:'—', locked:true},
+    }
+  },
+};
+
+// node geometry: x,y in viewBox, difficulty -> radius
+const NODES = {
+  'http-handlers':{x:130,y:110,diff:0.4,label:'http-handlers'},
+  'middleware':   {x:130,y:300,diff:0.5,label:'middleware'},
+  'auth-jwt':     {x:130,y:470,diff:0.6,label:'auth-jwt'},
+  'persistence':  {x:400,y:160,diff:0.7,label:'persistence'},
+  'migrations':   {x:620,y:90, diff:0.55,label:'migrations'},
+  'transactions': {x:640,y:240,diff:0.8,label:'transactions'},
+  'concurrency':  {x:430,y:430,diff:0.75,label:'concurrency'},
+  'channels':     {x:650,y:470,diff:0.7,label:'channels'},
+};
+const EDGES = [
+  ['http-handlers','persistence'],
+  ['persistence','transactions'],
+  ['http-handlers','middleware'],
+  ['middleware','auth-jwt'],
+  ['persistence','migrations'],
+  ['concurrency','channels'],
+];
+// adjacency for hover-highlight
+const ADJ = {};
+Object.keys(NODES).forEach(n=>ADJ[n]=new Set());
+EDGES.forEach(([a,b])=>{ ADJ[a].add(b); ADJ[b].add(a); });
+
+const DEPS = { // prerequisite -> for inspector "dependencies satisfied"
+  'persistence':['http-handlers'],
+  'transactions':['persistence'],
+  'middleware':['http-handlers'],
+  'auth-jwt':['middleware'],
+  'migrations':['persistence'],
+  'channels':['concurrency'],
+  'http-handlers':[], 'concurrency':[],
+};
+
+const RATIONALE = {
+  amara: {
+    'persistence':{ text:'Mastery dropped to 0.41 and retention to 0.38 (review overdue 2d). The runtime detected an active misconception — <b>forgot-tx-rollback</b> — after 2 failed attempts. Selecting a targeted repair activity on error-path rollback before re-attempting the gate.', llm:'fallback' },
+    'http-handlers':{ text:'Mastery 0.86, retention healthy at 0.79. Above the assessment-readiness threshold but not the current frontier — held as a stable prerequisite anchor.', llm:'anthropic' },
+    'middleware':{ text:'Mastery 0.72, flat trend. Prerequisite for auth-jwt is satisfied; runtime will surface this only once persistence repair stabilizes to avoid ZPD drift.', llm:'anthropic' },
+    'transactions':{ text:'Locked. Requires persistence ≥ 0.65 (currently 0.41). Out of the zone of proximal development — not unlockable until the persistence repair lands.', llm:'anthropic' },
+    'migrations':{ text:'Locked. Depends on persistence (0.41 < 0.65). Sits just beyond the frontier; expected to unlock after the next two decisions.', llm:'anthropic' },
+    'auth-jwt':{ text:'Not yet on path. Prerequisite middleware (0.72) is satisfied but the runtime prioritizes closing the persistence retention gap first.', llm:'anthropic' },
+    'concurrency':{ text:'Mastery 0.58, independent branch. No blocking prerequisite, but lower priority than the active misconception repair on persistence.', llm:'anthropic' },
+    'channels':{ text:'Locked. Requires concurrency ≥ 0.6 (currently 0.58). One evidence cycle away from the frontier.', llm:'anthropic' },
+  }
+};
+
+const PATHWAY = {
+  amara: [
+    { step:1, status:'now', concept:'persistence', kind:'Repair · misconception', why:'Runtime selected a <b>targeted repair</b> activity. The active misconception <b>forgot-tx-rollback</b> must be cleared before the persistence gate re-opens. LLM scope = <b>instruction_only</b> for this learner, so content falls back to the TutorInstruction template.', meta:['BKT 0.41 → target 0.65','retention 0.38','misconception · forgot-tx-rollback','Idempotency-Key set'], llm:'fallback' },
+    { step:2, status:'next', concept:'persistence', kind:'Spaced review', why:'After repair, a <b>FSRS-scheduled review</b> on persistence retrieval (overdue 2d) reinforces the corrected model and lifts retention above the 0.5 forgetting-risk line.', meta:['retention 0.38 → ≥0.50','due_at now − 2d','review-card r-4821'], llm:'anthropic' },
+    { step:3, status:'plan', concept:'transactions', kind:'Advance · new concept', why:'Once persistence ≥ 0.65, the frontier shifts: <b>transactions</b> (difficulty 0.8) unlocks as the next ZPD target. Runtime will plan a guided commit/rollback exercise building directly on the repaired model.', meta:['unlocks at persistence ≥ 0.65','difficulty 0.80','prereq satisfied: 1/1'], llm:'anthropic' },
+  ]
+};
+
+const TIMELINE = {
+  amara: {
+    persistence: [
+      { t:'2026-06-06 · 14:12 UTC', type:'snapshot', title:'Repair planned', pill:['warn','RuntimeDecision'], before:0.46, after:0.41, rationale:'Second failed attempt on error-path handling. Mastery posterior revised down; misconception forgot-tx-rollback confirmed active. Runtime planned a repair activity instead of advancing.' },
+      { t:'2026-06-06 · 14:08 UTC', type:'event', title:'MisconceptionDetected emitted', pill:['crit','outbox'], detail:'error_type=forgot-tx-rollback · evidence: rollback omitted on insert failure · event evt-9f21 → outbox' },
+      { t:'2026-06-06 · 13:55 UTC', type:'alert', title:'Overload — recovery mode', pill:['crit','Alert · Overload'], detail:'2 consecutive failures within 18m. Runtime throttled new-concept introduction and entered recovery pacing.' },
+      { t:'2026-06-05 · 16:40 UTC', type:'snapshot', title:'Review attempted', pill:['warn','Snapshot'], before:0.52, after:0.46, rationale:'Spaced review on persistence; partial recall. Retention re-estimated 0.41 → 0.38. Review card rescheduled, due moved earlier.' },
+      { t:'2026-06-04 · 09:20 UTC', type:'event', title:'ReviewDue raised', pill:['warn','Alert · ReviewDue'], detail:'persistence retention crossed below 0.45 forgetting-risk threshold · review-card r-4821 marked due.' },
+      { t:'2026-06-02 · 11:05 UTC', type:'snapshot', title:'Initial mastery gain', pill:['ok','Snapshot'], before:0.34, after:0.52, rationale:'Repository pattern exercise passed. BKT mastery lifted, prerequisite for transactions partially established.' },
+    ]
+  }
+};
+const CONCEPT_LABEL = { persistence:'persistence', 'http-handlers':'http-handlers' };
+
+/* ============ STATE ============ */
+let CURRENT_LEARNER = 'amara';
+let SELECTED_NODE = LEARNERS[CURRENT_LEARNER].selected;
+
+/* ============ RENDER GRAPH ============ */
+function nodeRadius(diff){ return 20 + diff*16; } // 26..33
+
+function renderGraph(){
+  const L = LEARNERS[CURRENT_LEARNER];
+  const edgesG = document.getElementById('edges');
+  const nodesG = document.getElementById('nodes');
+  edgesG.innerHTML=''; nodesG.innerHTML='';
+
+  // edges (curved)
+  EDGES.forEach(([a,b])=>{
+    const A=NODES[a],B=NODES[b];
+    const ra=nodeRadius(A.diff), rb=nodeRadius(B.diff);
+    const dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy);
+    const ux=dx/len, uy=dy/len;
+    const x1=A.x+ux*ra, y1=A.y+uy*ra;
+    const x2=B.x-ux*(rb+8), y2=B.y-uy*(rb+8);
+    const mx=(x1+x2)/2 + (-uy)*22, my=(y1+y2)/2 + ux*22;
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',`M${x1},${y1} Q${mx},${my} ${x2},${y2}`);
+    p.setAttribute('class','edge');
+    p.setAttribute('marker-end','url(#arrow)');
+    p.dataset.a=a; p.dataset.b=b;
+    edgesG.appendChild(p);
+  });
+
+  // frontier set: nodes whose prereqs are satisfied (>=0.65) but self mastery low / locked
+  const frontier = new Set();
+  Object.keys(NODES).forEach(n=>{
+    const prereqs = DEPS[n]||[];
+    const satisfied = prereqs.every(p=>L.state[p].m>=0.65);
+    if (prereqs.length && satisfied && L.state[n].m < 0.55) frontier.add(n);
+  });
+  // for amara: persistence is selected(repair); frontier = nodes unlockable next
+  // ensure at least the next-best shows: middleware->auth-jwt etc.
+
+  Object.entries(NODES).forEach(([key,N])=>{
+    const st=L.state[key];
+    const r=nodeRadius(N.diff);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','node'+(key===SELECTED_NODE?' selected':''));
+    g.setAttribute('transform',`translate(${N.x},${N.y})`);
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button');
+    g.setAttribute('aria-label',`${N.label}, mastery ${st.m.toFixed(2)}`);
+    g.dataset.key=key;
+
+    const fill = st.locked ? 'rgba(86,101,122,0.22)' : HEAT(st.m);
+    const stroke = key===L.selected ? '#4fd1c5' : (st.locked?'rgba(110,140,180,0.3)':'rgba(0,0,0,0.4)');
+
+    // frontier ring
+    if (frontier.has(key)){
+      const fr=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      fr.setAttribute('class','frontier-ring'); fr.setAttribute('r',r+9);
+      g.appendChild(fr);
+    }
+    // selected pulse
+    if (key===L.selected){
+      for(let i=0;i<2;i++){
+        const pr=document.createElementNS('http://www.w3.org/2000/svg','circle');
+        pr.setAttribute('class','pulse-ring'); pr.setAttribute('r',r);
+        pr.style.animation=`pulse-grow 2.6s ${i*1.3}s infinite ease-out`;
+        g.appendChild(pr);
+      }
+    }
+
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('class','body'); c.setAttribute('r',r);
+    c.setAttribute('fill',fill); c.setAttribute('stroke',stroke); c.setAttribute('stroke-width','1.5');
+    if(key===L.selected) c.setAttribute('filter','url(#glow)');
+    g.appendChild(c);
+
+    // mastery value
+    const tv=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tv.setAttribute('text-anchor','middle'); tv.setAttribute('dy','-1');
+    tv.setAttribute('style','font-size:11px;font-weight:700;fill:'+(st.locked?'var(--ink-faint)':'#06090f'));
+    tv.textContent = st.locked ? '🔒' : st.m.toFixed(2);
+    g.appendChild(tv);
+
+    // label below node
+    const tl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tl.setAttribute('text-anchor','middle'); tl.setAttribute('y',r+13);
+    tl.textContent=N.label;
+    g.appendChild(tl);
+    const td=document.createElementNS('http://www.w3.org/2000/svg','text');
+    td.setAttribute('text-anchor','middle'); td.setAttribute('y',r+23); td.setAttribute('class','diff');
+    td.textContent='Δ'+N.diff.toFixed(2);
+    g.appendChild(td);
+
+    // interactions
+    g.addEventListener('mouseenter',()=>highlightNeighbors(key));
+    g.addEventListener('mouseleave',clearHighlight);
+    g.addEventListener('click',()=>selectNode(key));
+    g.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();selectNode(key);} });
+    nodesG.appendChild(g);
+  });
+
+  document.getElementById('mapMeta').textContent=`NODES ${Object.keys(NODES).length} · EDGES ${EDGES.length} · FRONTIER ${frontier.size}`;
+}
+
+function highlightNeighbors(key){
+  const nbrs=ADJ[key];
+  document.querySelectorAll('#nodes .node').forEach(n=>{
+    const k=n.dataset.key;
+    if(k!==key && !nbrs.has(k)) n.classList.add('dim');
+  });
+  document.querySelectorAll('#edges .edge').forEach(e=>{
+    if(e.dataset.a===key||e.dataset.b===key){ e.classList.add('hot'); e.setAttribute('marker-end','url(#arrowHot)'); }
+    else e.classList.add('dim');
+  });
+}
+function clearHighlight(){
+  document.querySelectorAll('#nodes .node').forEach(n=>n.classList.remove('dim'));
+  document.querySelectorAll('#edges .edge').forEach(e=>{ e.classList.remove('hot','dim'); e.setAttribute('marker-end','url(#arrow)'); });
+}
+
+function selectNode(key){
+  SELECTED_NODE=key;
+  document.querySelectorAll('#nodes .node').forEach(n=>n.classList.toggle('selected',n.dataset.key===key));
+  renderInspector();
+}
+
+/* ============ INSPECTOR ============ */
+function renderInspector(){
+  const L=LEARNERS[CURRENT_LEARNER];
+  const key=SELECTED_NODE;
+  const st=L.state[key];
+  const N=NODES[key];
+  const rat=(RATIONALE[CURRENT_LEARNER]&&RATIONALE[CURRENT_LEARNER][key])||{text:'No runtime rationale recorded for this concept under the current learner.',llm:'anthropic'};
+  const deps=DEPS[key]||[];
+  const trendSym={up:'▲ rising',down:'▼ declining',flat:'▬ flat'};
+
+  const llmBadge = rat.llm==='fallback'
+    ? '<span class="llm-badge fallback">⚠ instruction-only fallback</span>'
+    : '<span class="llm-badge">◇ anthropic/claude · t0.2</span>';
+
+  let depHtml = deps.length ? deps.map(d=>{
+    const ok=L.state[d].m>=0.65;
+    return `<div class="dep"><span class="chk ${ok?'ok':'no'}">${ok?'✓':'✕'}</span>${d} <span style="margin-left:auto;font-family:var(--mono);color:${ok?'var(--cool)':'var(--hot)'}">${L.state[d].m.toFixed(2)}</span></div>`;
+  }).join('') : '<div class="dep" style="color:var(--ink-faint)">— root concept · no prerequisites</div>';
+
+  const statusFlags=[];
+  if(key===L.selected) statusFlags.push('<span class="runtime-badge">▣ runtime-selected</span>');
+  if(st.misc) statusFlags.push(`<span class="pill crit">misconception</span>`);
+  if(st.plateau) statusFlags.push(`<span class="pill warn">plateau</span>`);
+  if(st.ready) statusFlags.push(`<span class="pill ok">mastery-ready</span>`);
+  if(st.risk) statusFlags.push(`<span class="pill crit">at-risk</span>`);
+  if(st.overdue) statusFlags.push(`<span class="pill warn">review +${st.overdue}</span>`);
+  if(st.locked) statusFlags.push(`<span class="pill">locked</span>`);
+
+  document.getElementById('inspector').innerHTML = `
+    <div class="insp-head">
+      <div class="eyebrow">CONCEPT NODE · ${L.name}</div>
+      <h2>${N.label}</h2>
+      <div class="coord-line">difficulty Δ${N.diff.toFixed(2)} · x${N.x} y${N.y} · ${deps.length} prereq</div>
+      <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">${statusFlags.join('')}</div>
+    </div>
+    <div class="insp-body">
+      <div class="stat-row">
+        <div class="stat">
+          <div class="lab">Mastery · BKT</div>
+          <div class="val" style="color:${st.locked?'var(--ink-faint)':HEAT(st.m)}">${st.locked?'—':st.m.toFixed(2)}</div>
+          <div class="meter"><i style="width:${st.m*100}%;background:${HEAT(st.m)}"></i></div>
+          <div class="trend ${st.trend}">${trendSym[st.trend]}</div>
+        </div>
+        <div class="stat">
+          <div class="lab">Retention · FSRS</div>
+          <div class="val" style="color:${st.locked||!st.r?'var(--ink-faint)':HEAT(st.r)}">${st.r?st.r.toFixed(2):'—'}</div>
+          <div class="meter"><i style="width:${(st.r||0)*100}%;background:${st.r?HEAT(st.r):'transparent'}"></i></div>
+          <div class="trend ${st.overdue?'down':'flat'}">${st.overdue?'review overdue '+st.overdue:'within window'}</div>
+        </div>
+      </div>
+
+      <div class="insp-section">
+        <h3>Last evidence</h3>
+        <div class="evidence-snip"><b>${st.evt}</b> · ${st.ev}</div>
+      </div>
+
+      <div class="insp-section">
+        <h3>Dependencies satisfied</h3>
+        ${depHtml}
+      </div>
+
+      <div class="insp-section">
+        <h3>Runtime rationale</h3>
+        <div class="rationale">
+          <span class="src">▣ TutorInstruction · why-this-next</span>
+          ${rat.text}
+        </div>
+        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--ink-faint);letter-spacing:0.08em">CONTENT SOURCE</span>
+          ${llmBadge}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ============ MATRIX ============ */
+function renderMatrix(){
+  const concepts=Object.keys(NODES);
+  const order=['amara','liam','noor','diego'];
+  const extraNames={ }; // we show the 4 + 2 fixture extras
+  const ROWS=[
+    ...order.map(k=>({key:k,name:LEARNERS[k].name,id:LEARNERS[k].id,state:LEARNERS[k].state,status:learnerStatus(k)})),
+    // two extra cohort members for texture
+    {key:'maya',name:'Maya Idris',id:'learner-5',status:'on track',state:synthState([0.83,0.74,0.66,0,0.49,0.5,0.7,0.55])},
+    {key:'tomas',name:'Tomás Rocha',id:'learner-6',status:'early',state:synthState([0.6,0.3,0.45,0,0,0,0.4,0])},
+  ];
+  function synthState(arr){
+    const o={}; concepts.forEach((c,i)=>o[c]={m:arr[i],locked:arr[i]===0}); return o;
+  }
+
+  const table=document.getElementById('matrixTable');
+  let head='<thead><tr><th>Learner</th>';
+  concepts.forEach(c=>head+=`<th>${c.replace('-','-​')}<br><span style="color:var(--ink-faint)">Δ${NODES[c].diff.toFixed(2)}</span></th>`);
+  head+='</tr></thead>';
+
+  let body='<tbody>';
+  ROWS.forEach(row=>{
+    body+=`<tr><th>${row.name}<span class="lr-status">${row.id} · ${row.status}</span></th>`;
+    concepts.forEach(c=>{
+      const cs=row.state[c]||{m:0,locked:true};
+      const v=cs.m;
+      const empty=cs.locked||v===0;
+      const alert = (row.key==='amara'&&c==='persistence')||(row.key==='liam'&&c==='auth-jwt')||(row.key==='diego'&&(c==='persistence'||c==='http-handlers'));
+      body+=`<td class="cell"><div class="hm${empty?' empty':''}" style="${empty?'':'background:'+HEAT(v)}" title="${row.name} · ${c} · ${empty?'not attempted':v.toFixed(2)}">${empty?'·':v.toFixed(2)}${alert?'<span class="alert-dot"></span>':''}</div></td>`;
+    });
+    body+='</tr>';
+  });
+  // column averages
+  body+='<tr><th style="color:var(--ink-faint);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.08em">cohort avg</th>';
+  concepts.forEach(c=>{
+    const vals=ROWS.map(r=>(r.state[c]&&!r.state[c].locked)?r.state[c].m:null).filter(v=>v!=null&&v>0);
+    const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    body+=`<td class="cell"><div class="hm${avg===0?' empty':''}" style="${avg===0?'':'background:'+HEAT(avg)+';opacity:0.85'}">${avg?avg.toFixed(2):'·'}</div></td>`;
+  });
+  body+='</tr></tbody>';
+  table.innerHTML=head+body;
+}
+function learnerStatus(k){
+  return {amara:'overload recovery',liam:'plateau auth-jwt',noor:'mastery-ready',diego:'AT RISK'}[k];
+}
+
+/* ============ PATHWAY ============ */
+function renderPathway(){
+  const L=LEARNERS[CURRENT_LEARNER];
+  const steps=PATHWAY[CURRENT_LEARNER];
+  const wrap=document.getElementById('pathway');
+  if(!steps){
+    wrap.innerHTML=`<div class="path-card" style="max-width:640px">
+      <div class="ph"><span class="runtime-badge">▣ runtime queue</span><h3>${L.name}</h3></div>
+      <div class="why">No decision queue captured in this fixture for <b>${L.name}</b>. The planned-pathway trace is authored for <b>Amara Okafor</b> (active misconception repair → spaced review → advance). Switch the learner selector back to Amara to inspect a populated runtime plan.</div>
+      <div class="path-meta"><span>· selected node · ${L.selected}</span><span>· fixture · partial</span></div>
+    </div>`;
+    return;
+  }
+  const stCls={now:'now',next:'next',plan:''};
+  const stLabel={now:'NOW',next:'NEXT',plan:'+2'};
+  wrap.innerHTML=steps.map((s,i)=>{
+    const llm = s.llm==='fallback'
+      ? '<span class="llm-badge fallback">⚠ instruction-only</span>'
+      : '<span class="llm-badge">◇ anthropic/claude</span>';
+    const pillCls = s.status==='now'?'crit':s.status==='next'?'warn':'';
+    return `
+    <div class="path-step">
+      <div class="path-rail">
+        <div class="path-node ${stCls[s.status]}">${stLabel[s.status]}</div>
+        ${i<steps.length-1?'<div class="path-line"></div>':''}
+      </div>
+      <div class="path-card">
+        <div class="ph">
+          <span class="runtime-badge">▣ RuntimeDecision #${s.step}</span>
+          <h3>${s.concept}</h3>
+          <span class="pill ${pillCls}">${s.kind}</span>
+          ${llm}
+        </div>
+        <div class="why">${s.why}</div>
+        <div class="path-meta">${s.meta.map(m=>`<span>· ${m}</span>`).join('')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ TIMELINE ============ */
+function renderTimeline(){
+  const L=LEARNERS[CURRENT_LEARNER];
+  const lt=TIMELINE[CURRENT_LEARNER];
+  const wrap=document.getElementById('timeline');
+  // pick the selected node if a trace exists for it, else the learner's first authored trace
+  let key = (lt&&lt[SELECTED_NODE]) ? SELECTED_NODE : (lt?Object.keys(lt)[0]:null);
+  if(!key){
+    document.getElementById('tlConcept').textContent='concept · '+SELECTED_NODE;
+    wrap.innerHTML=`<div class="tl-item event"><div class="tl-card" style="max-width:640px">
+      <div class="tl-h"><h4>No snapshot trail in fixture</h4><span class="pill">${L.name}</span></div>
+      <div class="tl-rationale" style="font-style:normal">The audit trail of PedagogicalSnapshots and outbox events is authored for <b style="color:var(--ink)">Amara Okafor · persistence</b>. Select Amara to inspect a full before → observation → after sequence with runtime rationale.</div>
+    </div></div>`;
+    return;
+  }
+  const data=lt[key];
+  document.getElementById('tlConcept').textContent='concept · '+key+' · '+L.name;
+  wrap.innerHTML=data.map(it=>{
+    const pillHtml=`<span class="pill ${it.pill[0]}">${it.pill[1]}</span>`;
+    let bodyHtml='';
+    if(it.type==='snapshot'){
+      const dir = it.after>=it.before?'up':'down';
+      bodyHtml=`
+        <div class="ba-grid">
+          <div class="ba-box"><div class="lab">before</div><div class="v" style="color:${HEAT(it.before)}">${it.before.toFixed(2)}</div></div>
+          <div class="ba-arrow">→</div>
+          <div class="ba-box"><div class="lab">after</div><div class="v" style="color:${HEAT(it.after)}">${it.after.toFixed(2)}</div></div>
+        </div>
+        <div class="tl-rationale">“${it.rationale}”</div>`;
+    } else {
+      bodyHtml=`<div class="tl-rationale" style="font-style:normal;font-family:var(--mono);font-size:11.5px">${it.detail}</div>`;
+    }
+    return `
+    <div class="tl-item ${it.type}">
+      <div class="tl-time">${it.t}</div>
+      <div class="tl-card">
+        <div class="tl-h"><h4>${it.title}</h4>${pillHtml}</div>
+        ${bodyHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ TABS ============ */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false');});
+    btn.classList.add('active'); btn.setAttribute('aria-selected','true');
+    const s=btn.dataset.screen;
+    document.querySelectorAll('.screen').forEach(sc=>sc.classList.remove('active'));
+    document.getElementById('screen-'+s).classList.add('active');
+    if(s==='timeline') renderTimeline();
+    if(s==='matrix') renderMatrix();
+    if(s==='pathway') renderPathway();
+  });
+});
+
+/* ============ LEARNER SWITCH ============ */
+document.getElementById('lr').addEventListener('change',e=>{
+  CURRENT_LEARNER=e.target.value;
+  SELECTED_NODE=LEARNERS[CURRENT_LEARNER].selected;
+  renderGraph(); renderInspector(); renderMatrix();
+  renderPathway(); renderTimeline();
+});
+
+/* ============ INIT ============ */
+renderGraph();
+renderInspector();
+renderMatrix();
+renderPathway();
+renderTimeline();
+</script>
+</body>
+</html>

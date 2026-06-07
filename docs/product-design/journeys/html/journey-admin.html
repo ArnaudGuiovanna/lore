@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Lecture / Control Plane — S. Aalto (Tenant Admin)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f6f2ea;
+    --paper-deep:#efe9dd;
+    --card:#fbf8f2;
+    --card-2:#f3eee4;
+    --ink:#23211b;
+    --ink-soft:#4c483e;
+    --ink-faint:#7c766a;
+    --ink-ghost:#a79e8c;
+    --line:#ddd4c3;
+    --line-soft:#e8e0d2;
+    --accent:#2a4f3e;
+    --accent-deep:#173127;
+    --accent-soft:#e4ece6;
+    --oxblood:#7c2531;
+    --oxblood-soft:#f1dfe0;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,27,.05), 0 36px 90px -46px rgba(35,33,27,.5);
+    --shadow-soft:0 1px 2px rgba(35,33,27,.04), 0 18px 44px -34px rgba(35,33,27,.4);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,input:focus-visible,select:focus-visible,[role="option"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(130% 90% at 50% -8%, #fbf7ef 0%, rgba(251,247,239,0) 58%),
+      radial-gradient(90% 70% at 92% 112%, #ece3d3 0%, rgba(236,227,211,0) 52%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:18px; line-height:1.6;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    min-height:100vh; overflow-x:hidden;
+  }
+  ::selection{background:var(--accent);color:#f6f2ea}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,monospace}
+
+  /* ---------- fixed chrome ---------- */
+  .gallery-badge{
+    position:fixed;top:14px;left:18px;z-index:400;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.78);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn .8s .2s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  /* ================= MARKS (runtime / llm / fallback) ================= */
+  .mark{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:500;white-space:nowrap;
+  }
+  .mark.runtime{background:var(--accent);color:#f6f2ea}
+  .mark.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .mark.fallbk{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  .mark.alarm{background:var(--oxblood-soft);color:var(--oxblood);border:1px solid #e2bcc0}
+  .mark .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  /* ================= TOP BAR : scope chip always visible + stepper ================= */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:300;
+    display:flex;flex-direction:column;
+    background:linear-gradient(to bottom, rgba(246,242,234,.96) 60%, rgba(246,242,234,0));
+    backdrop-filter:blur(7px);
+    opacity:0;animation:chromeIn .8s .15s ease both;
+  }
+  .topbar.hidden{display:none}
+  .topbar-row{
+    display:flex;align-items:center;justify-content:space-between;gap:18px;
+    padding:13px 22px 11px 150px;
+  }
+  .wordmark{display:flex;align-items:baseline;gap:11px;flex:0 0 auto}
+  .wordmark .lore{font-family:"Fraunces",serif;font-weight:500;font-size:21px;letter-spacing:-.01em;color:var(--ink);
+    font-variation-settings:"opsz" 40}
+  .wordmark .sub{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink-ghost)}
+
+  /* the tenant scope chip — ALWAYS present */
+  .scope-chip{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 13px 5px 9px;
+    box-shadow:var(--shadow-soft);
+  }
+  .scope-chip .badge{
+    font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;
+    background:var(--accent);color:#f6f2ea;border-radius:999px;padding:3px 8px;
+  }
+  .scope-chip .slug{color:var(--ink-faint)}
+  .scope-chip .div{width:1px;height:13px;background:var(--line)}
+  .scope-chip .role{color:var(--accent);font-weight:600;letter-spacing:.04em}
+
+  .ident{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #3a6c55, #2a4f3e);
+    color:#f6f2ea;display:grid;place-items:center;
+    font-family:"Fraunces",serif;font-weight:500;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+
+  /* the stepper rail */
+  .stepper{
+    display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none;
+    padding:3px 22px 11px;border-top:1px solid var(--line-soft);
+  }
+  .stepper::-webkit-scrollbar{display:none}
+  .step{
+    display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.03em;
+    color:var(--ink-ghost);padding:6px 12px;border:none;background:transparent;cursor:pointer;
+    border-radius:8px;transition:.2s ease;white-space:nowrap;
+  }
+  .step:hover:not(:disabled){color:var(--ink-soft);background:var(--card-2)}
+  .step:disabled{cursor:not-allowed;opacity:.55}
+  .step .num{
+    width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+    border:1px solid var(--line);font-size:9px;font-weight:600;color:var(--ink-ghost);transition:.2s;
+  }
+  .step.done .num{background:var(--accent-soft);border-color:#c7dccd;color:var(--accent)}
+  .step.current{color:var(--ink)}
+  .step.current .num{background:var(--accent);border-color:var(--accent-deep);color:#f6f2ea}
+  .step .arr{color:var(--line);margin:0 -2px}
+
+  /* ================= SCREENS ================= */
+  .screens{padding-top:104px;min-height:100vh}
+  .screen{display:none;animation:screenIn .55s cubic-bezier(.2,.7,.2,1) both}
+  .screen.active{display:block}
+  @keyframes screenIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 26px 130px}
+  .wrap.narrow{max-width:760px}
+
+  /* screen header */
+  .scr-kicker{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:14px;display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  }
+  .scr-kicker .rl{flex:0 0 32px;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  .scr-title{
+    font-family:"Fraunces",serif;font-weight:340;font-size:38px;line-height:1.12;letter-spacing:-.015em;
+    color:var(--ink);margin:0 0 12px;font-variation-settings:"opsz" 90;
+  }
+  .scr-dek{
+    font-family:"Newsreader",serif;font-size:19px;line-height:1.6;color:var(--ink-soft);
+    max-width:62ch;margin:0 0 30px;
+  }
+  .scr-dek em{font-style:italic;color:var(--accent)}
+
+  /* a calm panel/card primitive */
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow-soft);padding:24px 26px;margin-bottom:22px;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap;
+  }
+  .panel-head h3{
+    font-family:"Fraunces",serif;font-weight:400;font-size:21px;letter-spacing:-.01em;margin:0;color:var(--ink);
+    font-variation-settings:"opsz" 40;
+  }
+  .panel-head .meta{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-faint)}
+
+  /* mono key/value field rows */
+  .kv{display:grid;grid-template-columns:minmax(140px,200px) 1fr;gap:11px 18px;
+    font-family:"Spline Sans Mono",monospace;font-size:13px;}
+  .kv dt{color:var(--ink-faint);letter-spacing:.02em}
+  .kv dd{margin:0;color:var(--ink)}
+  .kv dd b{color:var(--accent);font-weight:600}
+
+  /* stat tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
+  .tile{
+    background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:16px 18px;
+  }
+  .tile .k{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:8px}
+  .tile .v{font-family:"Fraunces",serif;font-weight:400;font-size:30px;color:var(--ink);line-height:1;
+    font-variation-settings:"opsz" 50}
+  .tile .v.accent{color:var(--accent)}
+  .tile .v.warn{color:var(--amber)}
+  .tile .v.bad{color:var(--oxblood)}
+  .tile .sub{font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--ink-faint);margin-top:7px}
+
+  /* ============ TABLES (memberships, alerts) ============ */
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:560px}
+  thead th{
+    font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-ghost);text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);font-weight:500;
+    background:var(--card-2);
+  }
+  tbody td{padding:13px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:12.5px;color:var(--ink-soft)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr{transition:background .15s}
+  tbody tr:hover{background:var(--card-2)}
+  td .person{font-family:"Newsreader",serif;font-size:16px;color:var(--ink);font-weight:500}
+  td .email{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint)}
+
+  /* role pills */
+  .role-pill{
+    display:inline-flex;align-items:center;gap:6px;font-family:"Spline Sans Mono",monospace;
+    font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;
+    border-radius:999px;padding:4px 10px;
+  }
+  .role-pill.super{background:var(--oxblood-soft);color:var(--oxblood);border:1px solid #e2bcc0}
+  .role-pill.tadmin{background:var(--accent);color:#f6f2ea}
+  .role-pill.trainer{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .role-pill.learner{background:var(--card-2);color:var(--ink-soft);border:1px solid var(--line)}
+
+  /* note strip */
+  .note-strip{
+    display:flex;gap:13px;align-items:flex-start;
+    background:var(--accent-soft);border:1px solid #c7dccd;border-radius:12px;padding:15px 18px;
+    font-family:"Newsreader",serif;font-size:15.5px;line-height:1.55;color:var(--accent-deep);margin-bottom:22px;
+  }
+  .note-strip.amber{background:var(--amber-soft);border-color:#e3cd9d;color:#6f4d10}
+  .note-strip .ico{flex:0 0 auto;font-family:"Spline Sans Mono",monospace;font-size:15px;line-height:1.3;
+    color:var(--accent)}
+  .note-strip.amber .ico{color:var(--amber)}
+  .note-strip b{font-family:"Spline Sans Mono",monospace;font-size:.84em;font-weight:600}
+
+  /* ============ STRUCTURE TREE ============ */
+  .tree{font-family:"Spline Sans Mono",monospace;font-size:13px;line-height:1.5}
+  .tnode{margin:2px 0}
+  .trow{
+    display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;
+    cursor:pointer;transition:background .15s;position:relative;
+  }
+  .trow:hover{background:var(--card-2)}
+  .tnode.l1>.trow{padding-left:12px}
+  .tnode.l2>.trow{padding-left:38px}
+  .tnode.l3>.trow{padding-left:64px}
+  .tnode.l4>.trow{padding-left:90px}
+  .twist{width:14px;flex:0 0 auto;color:var(--ink-ghost);transition:transform .2s;user-select:none}
+  .tnode.open>.trow .twist{transform:rotate(90deg)}
+  .ticon{font-size:11px;color:var(--accent)}
+  .tlabel{font-family:"Newsreader",serif;font-size:16px;color:var(--ink);font-weight:500}
+  .tmeta{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-faint);margin-left:auto}
+  .tkids{display:none}
+  .tnode.open>.tkids{display:block}
+  .tbinding{
+    display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+    background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd;border-radius:999px;padding:2px 8px;
+  }
+
+  /* ============ DOMAIN GRAPH (SVG DAG) ============ */
+  .graph-shell{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:8px;overflow-x:auto;box-shadow:var(--shadow-soft)}
+  svg.dag{display:block;width:760px;max-width:none;height:auto}
+  .dag .edge{stroke:var(--line);stroke-width:1.6;fill:none}
+  .dag .edge.arrow{fill:var(--ink-ghost)}
+  .gnode rect{fill:var(--card-2);stroke:var(--line);stroke-width:1.4;rx:9}
+  .gnode:hover rect{stroke:var(--accent)}
+  .gnode .gname{font-family:"Spline Sans Mono",monospace;font-size:12px;fill:var(--ink);font-weight:500}
+  .gnode .gdiff{font-family:"Spline Sans Mono",monospace;font-size:9px;fill:var(--ink-faint)}
+  .gnode.repair rect{fill:var(--amber-soft);stroke:#e3cd9d}
+  .gnode.repair .gname{fill:#6f4d10}
+  .graph-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-faint)}
+  .graph-legend .lg{display:inline-flex;align-items:center;gap:7px}
+  .graph-legend .sw{width:14px;height:10px;border-radius:3px;border:1px solid var(--line)}
+  .graph-legend .sw.repair{background:var(--amber-soft);border-color:#e3cd9d}
+  .graph-legend .sw.normal{background:var(--card-2)}
+  .validity{
+    display:inline-flex;align-items:center;gap:9px;margin-top:16px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--accent);
+    background:var(--accent-soft);border:1px solid #c7dccd;border-radius:999px;padding:6px 14px;
+  }
+  .validity .ck{width:15px;height:15px;border-radius:50%;background:var(--accent);color:#fff;
+    display:grid;place-items:center;font-size:9px}
+
+  /* ============ LLM CONFIG MATRIX ============ */
+  .matrix-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card);
+    box-shadow:var(--shadow-soft)}
+  table.matrix{min-width:720px}
+  table.matrix thead th{background:var(--card-2)}
+  table.matrix .scope-cell{display:flex;align-items:center;gap:10px}
+  .scope-tier{
+    font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;
+    border-radius:6px;padding:3px 7px;flex:0 0 auto;
+  }
+  .scope-tier.t1{background:var(--accent);color:#f6f2ea}
+  .scope-tier.t2{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .scope-tier.t3{background:var(--card-2);color:var(--ink-soft);border:1px solid var(--line)}
+  .scope-tier.t4{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  table.matrix tr.editable{cursor:pointer}
+  table.matrix tr.editable:hover{background:var(--accent-soft)}
+  table.matrix tr.editable td:last-child{text-align:right}
+  .edit-cue{font-family:"Spline Sans Mono",monospace;font-size:9.5px;color:var(--accent);
+    opacity:0;transition:opacity .2s}
+  table.matrix tr.editable:hover .edit-cue{opacity:1}
+  .provider-val{color:var(--ink);font-weight:500}
+  .provider-val.instr{color:var(--amber);font-weight:600}
+
+  /* resolution explainer */
+  .resolve-box{
+    background:var(--card-2);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-top:22px;
+  }
+  .resolve-title{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:16px}
+  .resolve-chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+  .rstage{display:inline-flex;align-items:center;gap:7px;font-family:"Spline Sans Mono",monospace;font-size:11px;
+    border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--card);color:var(--ink-faint)}
+  .rstage.win{background:var(--accent);color:#f6f2ea;border-color:var(--accent-deep);font-weight:600}
+  .rstage .ord{font-size:8.5px;opacity:.7}
+  .resolve-chain .ra{color:var(--ink-ghost);font-size:13px}
+  .resolve-pick{font-family:"Newsreader",serif;font-size:16px;line-height:1.55;color:var(--ink-soft)}
+  .resolve-pick b{font-family:"Spline Sans Mono",monospace;font-size:.84em;color:var(--accent);font-weight:600}
+  .resolve-toggle{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .rt-btn{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11px;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 14px;color:var(--ink-soft);
+    transition:.18s ease;
+  }
+  .rt-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .rt-btn.on{background:var(--accent);color:#f6f2ea;border-color:var(--accent-deep);font-weight:600}
+
+  /* ============ EDIT PANEL + REVIEW STATE ============ */
+  .editor{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:26px 28px;margin-bottom:22px;
+  }
+  .editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;margin:20px 0 4px}
+  @media(max-width:680px){.editor-grid{grid-template-columns:1fr}}
+  .field-block label{
+    display:block;font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px;
+  }
+  .field-block input,.field-block select{
+    width:100%;font-family:"Spline Sans Mono",monospace;font-size:14px;color:var(--ink);
+    background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;
+    transition:.18s ease;
+  }
+  .field-block input:focus,.field-block select:focus{border-color:var(--accent);background:var(--card);outline:none}
+  .field-block .hint{font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--ink-ghost);margin-top:6px}
+  .range-row{display:flex;align-items:center;gap:14px}
+  .range-row input[type=range]{flex:1 1 auto;accent-color:var(--accent);background:transparent;padding:0}
+  .range-val{font-family:"Spline Sans Mono",monospace;font-size:14px;color:var(--accent);font-weight:600;
+    min-width:44px;text-align:right}
+
+  /* review state: live diff + impact + confirm gate */
+  .review-state{
+    margin-top:24px;border-top:1px dashed var(--line);padding-top:22px;
+  }
+  .review-kicker{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--amber);margin-bottom:16px;display:flex;align-items:center;gap:9px}
+  .review-kicker .ico{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+  .diff-rows{display:flex;flex-direction:column;gap:11px;margin-bottom:20px}
+  .diffrow{display:flex;align-items:baseline;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px;
+    flex-wrap:wrap}
+  .diffrow .dk{flex:0 0 150px;color:var(--ink-faint);letter-spacing:.02em}
+  .diffrow .dv{display:flex;align-items:baseline;gap:9px;flex:1 1 auto;flex-wrap:wrap}
+  .diffrow .from{color:var(--ink-ghost);text-decoration:line-through;text-decoration-color:var(--ink-ghost)}
+  .diffrow .arr{color:var(--amber)}
+  .diffrow .to{font-weight:700;color:var(--accent)}
+  .diffrow.changed .to{color:var(--amber)}
+  .diffrow.unchanged .dv{color:var(--ink-ghost)}
+  .diffrow.unchanged .same{color:var(--ink-ghost)}
+  .impact{
+    display:flex;gap:13px;align-items:flex-start;
+    background:var(--amber-soft);border:1px solid #e3cd9d;border-radius:12px;padding:15px 18px;margin-bottom:18px;
+    font-family:"Newsreader",serif;font-size:15.5px;line-height:1.55;color:#6f4d10;
+  }
+  .impact .ico{flex:0 0 auto;color:var(--amber);font-family:"Spline Sans Mono",monospace}
+  .impact b{font-family:"Spline Sans Mono",monospace;font-size:.84em;font-weight:600;color:#6f4d10}
+  .confirm-gate{display:flex;align-items:flex-start;gap:11px;margin-bottom:20px;cursor:pointer;
+    font-family:"Newsreader",serif;font-size:15px;color:var(--ink-soft);line-height:1.5}
+  .confirm-gate input{margin-top:4px;width:17px;height:17px;accent-color:var(--accent);flex:0 0 auto}
+  .confirm-gate b{font-family:"Spline Sans Mono",monospace;font-size:.86em;color:var(--ink);font-weight:600}
+  .editor-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+
+  /* buttons */
+  .btn{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.03em;border-radius:10px;padding:11px 20px;transition:.18s ease;
+    display:inline-flex;align-items:center;gap:9px;
+  }
+  .btn.primary{color:#f6f2ea;background:var(--accent);border:1px solid var(--accent-deep)}
+  .btn.primary:hover:not(:disabled){background:var(--accent-deep);transform:translateY(-1px)}
+  .btn.primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .btn.ghost{color:var(--accent);background:transparent;border:1px solid var(--accent)}
+  .btn.ghost:hover{background:var(--accent);color:#f6f2ea}
+  .btn.quiet{color:var(--ink-faint);background:transparent;border:1px solid var(--line)}
+  .btn.quiet:hover{border-color:var(--ink-faint);color:var(--ink-soft)}
+  .btn kbd{font-family:inherit;font-size:10px;background:rgba(255,255,255,.18);border-radius:4px;padding:1px 5px}
+  .btn.ghost kbd{background:var(--accent-soft);color:var(--accent-deep)}
+  .gate-note{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+
+  /* ============ EVENT OUTBOX ============ */
+  .outbox{display:flex;flex-direction:column;gap:0}
+  .evt{
+    display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
+    padding:16px 18px;border:1px solid var(--line-soft);border-radius:12px;margin-bottom:12px;
+    background:var(--card);transition:.3s ease;
+  }
+  .evt.fresh{box-shadow:0 0 0 2px var(--accent-soft)}
+  .evt .evico{
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
+    background:var(--accent-soft);color:var(--accent);font-family:"Spline Sans Mono",monospace;font-size:13px;
+  }
+  .evt .evbody .evname{font-family:"Spline Sans Mono",monospace;font-size:13px;color:var(--ink);font-weight:600}
+  .evt .evbody .evmeta{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-faint);margin-top:4px}
+  .evt .evstatus{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    display:inline-flex;align-items:center;gap:7px;font-weight:600}
+  .evt .evstatus.pub{color:var(--accent)}
+  .evt .evstatus.unpub{color:var(--amber)}
+  .evt .evstatus .sd{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .evt .evstatus.unpub .sd{animation:pulse 1.3s ease-in-out infinite}
+  .evt .evstatus.rolled{color:var(--oxblood)}
+  .evt.rolled{box-shadow:none;border-color:#e2bcc0;background:var(--oxblood-soft)}
+  .evt.rolled .evico{background:var(--oxblood-soft);color:var(--oxblood)}
+  .evt.rolled .evname{text-decoration:line-through;text-decoration-color:var(--ink-ghost);color:var(--ink-faint)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  /* tx-rollback demonstrator */
+  .tx-sim{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-top:4px}
+  .tx-sim .lbl{font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.04em;color:var(--ink-faint)}
+
+  /* generating status (reused from learner) */
+  .gen-status{
+    display:flex;align-items:center;gap:11px;margin:6px 0;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.03em;color:var(--ink-faint);
+  }
+  .gen-status .spin{width:13px;height:13px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .gen-status.done .spin{display:none}
+  .gen-status .check{display:none}
+  .gen-status.done .check{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);color:#fff;font-size:9px}
+  .gen-status .src{color:var(--ink-soft);font-weight:600}
+
+  /* nav row at bottom of each screen */
+  .scr-nav{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:34px;flex-wrap:wrap}
+  .scr-nav .spacer{flex:1 1 auto}
+
+  /* ================= LOGIN ================= */
+  .login-stage{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:90px 26px 60px}
+  .login-stage.gone{display:none}
+  .login-card{
+    width:100%;max-width:440px;text-align:center;
+    opacity:0;animation:riseIn 1s .3s cubic-bezier(.2,.7,.2,1) both;
+  }
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .login-word{font-family:"Fraunces",serif;font-weight:500;font-size:46px;letter-spacing:-.02em;color:var(--ink);
+    font-variation-settings:"opsz" 110;margin-bottom:8px}
+  .login-sub{font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:40px}
+  .login-inner{
+    background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);
+    padding:30px 30px 28px;text-align:left;
+  }
+  .login-inner h2{font-family:"Fraunces",serif;font-weight:400;font-size:22px;margin:0 0 4px;color:var(--ink);
+    font-variation-settings:"opsz" 30}
+  .login-inner .lh-sub{font-family:"Newsreader",serif;font-size:15px;color:var(--ink-faint);margin:0 0 22px;font-style:italic}
+  .login-field{margin-bottom:16px}
+  .login-field label{display:block;font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px}
+  .login-field input{
+    width:100%;font-family:"Spline Sans Mono",monospace;font-size:14px;color:var(--ink);
+    background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;transition:.18s;
+  }
+  .login-field input:focus{border-color:var(--accent);background:var(--card);outline:none}
+  .login-inner .btn.primary{width:100%;justify-content:center;margin-bottom:14px}
+  .sso{
+    width:100%;justify-content:center;font-family:"Spline Sans Mono",monospace;font-size:11.5px;
+    background:transparent;border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink-soft);
+    cursor:pointer;transition:.18s ease;display:inline-flex;align-items:center;gap:9px;
+  }
+  .sso:hover{border-color:var(--accent);color:var(--accent)}
+  .login-foot{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;line-height:1.65;color:var(--ink-ghost);
+    margin-top:22px;text-align:center;
+  }
+  .login-foot b{color:var(--ink-faint);font-weight:600}
+
+  /* resolving session beat */
+  .resolving{
+    width:100%;max-width:440px;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);
+    padding:28px 30px;display:none;
+  }
+  .resolving.show{display:block;animation:riseIn .5s ease both}
+  .resolving h2{font-family:"Fraunces",serif;font-weight:400;font-size:21px;margin:0 0 20px;color:var(--ink)}
+  .resolve-steps{display:flex;flex-direction:column;gap:0}
+  .rstep{display:flex;align-items:flex-start;gap:13px;padding:10px 0;opacity:.3;transition:opacity .4s ease}
+  .rstep.on{opacity:1}
+  .rstep .rmark{
+    width:18px;height:18px;border-radius:50%;flex:0 0 auto;margin-top:2px;
+    border:2px solid var(--line);transition:.3s;position:relative;
+  }
+  .rstep.on .rmark{border-color:var(--accent)}
+  .rstep.done .rmark{background:var(--accent);border-color:var(--accent)}
+  .rstep.done .rmark::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:9px;
+    font-family:"Spline Sans Mono",monospace}
+  .rstep.spin-on .rmark{border-top-color:var(--accent);animation:spin .8s linear infinite}
+  .rstep .rtext{font-family:"Spline Sans Mono",monospace;font-size:12px;line-height:1.5;color:var(--ink-soft)}
+  .rstep .rtext b{color:var(--accent);font-weight:600}
+  .rstep .rtext .ann{display:block;font-family:"Newsreader",serif;font-style:italic;font-size:13.5px;
+    color:var(--ink-faint);margin-top:3px}
+
+  /* END screen */
+  .end-seal{
+    width:54px;height:54px;border-radius:50%;background:var(--accent);color:#f6f2ea;
+    display:grid;place-items:center;font-size:24px;margin-bottom:22px;
+    box-shadow:0 0 0 8px var(--accent-soft);
+  }
+  .end-summary{display:flex;flex-direction:column;gap:11px;margin:24px 0 4px}
+  .end-row{display:flex;align-items:baseline;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px;flex-wrap:wrap}
+  .end-row .ek{flex:0 0 168px;color:var(--ink-faint)}
+  .end-row .ev{color:var(--ink)}
+  .end-row .ev b{color:var(--accent);font-weight:600}
+
+  @media (max-width:680px){
+    body{font-size:17px}
+    .topbar-row{padding:13px 16px 11px 130px}
+    .scope-chip .slug{display:none}
+    .scr-title{font-size:30px}
+    .ident .who{display:none}
+    .wrap{padding:20px 16px 120px}
+    .diffrow .dk{flex-basis:110px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge" href="../">&larr; gallery index</a>
+
+  <!-- ================= TOP BAR (hidden until logged in) ================= -->
+  <header class="topbar hidden" id="topbar">
+    <div class="topbar-row">
+      <div class="wordmark">
+        <span class="lore">LORE</span>
+        <span class="sub">control plane</span>
+      </div>
+      <div class="scope-chip" id="scopeChip" title="Tenant scope is always in view. Every call is bearer-JWT scoped to this tenant.">
+        <span class="badge">tenant</span>
+        <span>Acme Learning</span>
+        <span class="slug mono">· acme</span>
+        <span class="div"></span>
+        <span class="role">TENANT_ADMIN</span>
+      </div>
+      <div class="ident">
+        <div class="who">
+          <div class="n">S. Aalto</div>
+          <div class="r">admin@acme.test</div>
+        </div>
+        <div class="avatar" aria-hidden="true">SA</div>
+      </div>
+    </div>
+    <nav class="stepper" id="stepper" aria-label="Admin journey stages"></nav>
+  </header>
+
+  <!-- ================= LOGIN (stage 0) ================= -->
+  <main class="login-stage" id="loginStage">
+    <div class="login-card" id="loginCard">
+      <div class="login-word">LORE</div>
+      <div class="login-sub">Learning Orchestration Runtime Engine</div>
+      <div class="login-inner">
+        <h2>Sign in</h2>
+        <p class="lh-sub">Continue to your tenant. Your role is derived from your active membership.</p>
+        <form id="loginForm">
+          <div class="login-field">
+            <label for="email">Work email</label>
+            <input id="email" type="email" value="admin@acme.test" spellcheck="false" autocomplete="username" />
+          </div>
+          <button type="submit" class="btn primary" id="continueBtn">Continue</button>
+        </form>
+        <button class="sso" id="ssoBtn" type="button">
+          <span aria-hidden="true">⛬</span> Continue with your identity provider (SSO)
+        </button>
+        <div class="login-foot">
+          LORE verifies, it does not issue. On SSO, your IdP signs the token (<b>RS256</b>);<br/>
+          LORE only <b>verifies</b> it (OIDC verify-only boundary). Bearer JWT, role from membership.
+        </div>
+      </div>
+    </div>
+
+    <div class="resolving" id="resolving" aria-live="polite">
+      <h2>Resolving session</h2>
+      <div class="resolve-steps" id="resolveSteps">
+        <div class="rstep" data-i="0">
+          <span class="rmark"></span>
+          <span class="rtext">Verifying bearer token signature <b>RS256</b>
+            <span class="ann">verify-only — LORE never issued this token, it only checks the IdP's signature.</span></span>
+        </div>
+        <div class="rstep" data-i="1">
+          <span class="rmark"></span>
+          <span class="rtext">Looking up <b>active membership</b> for admin@acme.test
+            <span class="ann">one active membership found in tenant acme.</span></span>
+        </div>
+        <div class="rstep" data-i="2">
+          <span class="rmark"></span>
+          <span class="rtext">Deriving role from membership → <b>TENANT_ADMIN</b>
+            <span class="ann">the client never requested a role; the runtime derives it. Scope is bound to tenant acme.</span></span>
+        </div>
+        <div class="rstep" data-i="3">
+          <span class="rmark"></span>
+          <span class="rtext">Routing to <b>control plane · Acme Learning</b>
+            <span class="ann">24h token cap; all tenant routes carry this bearer JWT.</span></span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= SCREENS ================= -->
+  <div class="screens" id="screens" style="display:none">
+
+    <!-- STAGE 1 : TENANT OVERVIEW -->
+    <section class="screen" data-stage="1">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="mark runtime"><span class="dot"></span>runtime owned state</span><span class="rl"></span>tenant overview</div>
+        <h1 class="scr-title">Acme Learning, at a glance.</h1>
+        <p class="scr-dek">You are the tenant administrator. Everything below is <em>scoped to this tenant</em> — the chip in the top bar never leaves your view, and every API call carries a bearer JWT bound to <span class="mono">acme</span>. The runtime owns the durable pedagogical state; you own configuration, identity and structure.</p>
+
+        <div class="tiles">
+          <div class="tile"><div class="k">Programs</div><div class="v">1</div><div class="sub">Backend Engineering 2026</div></div>
+          <div class="tile"><div class="k">Cohorts</div><div class="v">1</div><div class="sub">Go-Spring-24</div></div>
+          <div class="tile"><div class="k">Learners</div><div class="v">18</div><div class="sub">active memberships</div></div>
+          <div class="tile"><div class="k">Cohort avg mastery</div><div class="v accent">0.63</div><div class="sub">runtime · BKT aggregate</div></div>
+          <div class="tile"><div class="k">Open alerts</div><div class="v warn">6</div><div class="sub">1 HIGH · runtime raised</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Tenant facts</h3><span class="meta">GET /v1/tenants/acme</span></div>
+          <dl class="kv">
+            <dt>tenant</dt><dd><b>Acme Learning</b> · slug <span class="mono">acme</span></dd>
+            <dt>domain</dt><dd>Go Backend</dd>
+            <dt>llm default</dt><dd><b>anthropic/claude</b> · temp 0.2 · max_tokens 512</dd>
+            <dt>your role</dt><dd><span class="role-pill tadmin">tenant_admin</span> &nbsp;derived from membership, not requested</dd>
+            <dt>token</dt><dd>bearer JWT · RS256 · 24h cap · scope <span class="mono">tenant:acme</span></dd>
+          </dl>
+        </div>
+
+        <div class="note-strip">
+          <span class="ico" aria-hidden="true">◷</span>
+          <span>The pedagogical state machine is the runtime's, not yours. You can shape <b>who</b> is in the tenant, <b>how</b> it is structured, and <b>which model</b> generates content — but mastery, reviews, misconceptions and alerts are computed and owned by the runtime. The journey ahead walks identity → structure → domain → the LLM configuration matrix.</span>
+        </div>
+
+        <div class="scr-nav">
+          <span class="spacer"></span>
+          <button class="btn primary" data-go="2">Identity &amp; memberships <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 2 : IDENTITY & MEMBERSHIPS -->
+    <section class="screen" data-stage="2">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="rl"></span>identity &amp; memberships</div>
+        <h1 class="scr-title">Roles are granted by membership.</h1>
+        <p class="scr-dek">A user is nothing until they hold a <em>membership</em> in this tenant. The membership carries the role; the client can never ask for one. When an IdP is wired in, LORE only <em>verifies</em> the token it issues.</p>
+
+        <div class="note-strip">
+          <span class="ico" aria-hidden="true">⛬</span>
+          <span><b>OIDC verify-only boundary.</b> When your identity provider issues tokens, LORE validates the <b>RS256</b> signature and claims — it never mints user tokens itself. The subject is mapped to a membership; the membership's role is what the runtime enforces on every tenant route.</span>
+        </div>
+
+        <div class="panel" style="padding-bottom:6px">
+          <div class="panel-head"><h3>Memberships</h3><span class="meta">GET /v1/tenants/acme/memberships</span></div>
+          <div class="table-wrap">
+            <table aria-label="Tenant memberships and roles">
+              <thead><tr><th>User</th><th>Role (via membership)</th><th>Scope</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="person">S. Aalto</div><div class="email">admin@acme.test</div></td>
+                  <td><span class="role-pill tadmin">tenant_admin</span></td>
+                  <td>tenant · acme</td><td>active · you</td>
+                </tr>
+                <tr>
+                  <td><div class="person">R. Köhler</div><div class="email">kohler@acme.test</div></td>
+                  <td><span class="role-pill trainer">trainer</span></td>
+                  <td>cohort · Go-Spring-24 (lead)</td><td>active</td>
+                </tr>
+                <tr>
+                  <td><div class="person">Amara Okafor</div><div class="email">amara@acme.test</div></td>
+                  <td><span class="role-pill learner">learner</span></td>
+                  <td>cohort · Go-Spring-24</td><td>active</td>
+                </tr>
+                <tr>
+                  <td><div class="person">Diego Santos</div><div class="email">diego@acme.test</div></td>
+                  <td><span class="role-pill learner">learner</span></td>
+                  <td>cohort · Go-Spring-24</td><td>active</td>
+                </tr>
+                <tr>
+                  <td><div class="person">Liam Chen</div><div class="email">liam@acme.test</div></td>
+                  <td><span class="role-pill learner">learner</span></td>
+                  <td>cohort · Go-Spring-24</td><td>active</td>
+                </tr>
+                <tr>
+                  <td><div class="person">— platform bootstrap —</div><div class="email">root@lore.system</div></td>
+                  <td><span class="role-pill super">super_admin</span></td>
+                  <td>platform (cross-tenant)</td><td>bootstrap only</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="note-strip amber">
+          <span class="ico" aria-hidden="true">▲</span>
+          <span><b>SUPER_ADMIN cannot be granted from here.</b> As <b>TENANT_ADMIN</b> you may grant TRAINER and LEARNER memberships within <b>acme</b>. Only the platform bootstrap / an existing SUPER_ADMIN may grant SUPER_ADMIN — it is cross-tenant and outside your tenant authority. The matrix shows it read-only so the boundary stays legible.</span>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="1"><span aria-hidden="true">←</span> Overview</button>
+          <span class="spacer"></span>
+          <button class="btn primary" data-go="3">Org structure <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 3 : STRUCTURE TREE -->
+    <section class="screen" data-stage="3">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="rl"></span>org structure · programs › cohorts › enrollment</div>
+        <h1 class="scr-title">How the tenant is shaped.</h1>
+        <p class="scr-dek">Your structure is <em>people and containers</em>: programs hold cohorts, cohorts hold enrolled learners and a trainer lead. You shape <em>who</em> belongs where — you do <em>not</em> author syllabi. A syllabus is a trainer's statement of intent; the admin can see its binding for governance, read-only.</p>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Org structure tree</h3><span class="meta">programs · cohorts · enrollment</span></div>
+          <div class="tree" id="tree" role="tree" aria-label="Tenant org-structure tree">
+
+            <div class="tnode l1 open" role="treeitem" aria-expanded="true">
+              <div class="trow"><span class="twist" aria-hidden="true">›</span><span class="ticon">▣</span>
+                <span class="tlabel">Backend Engineering 2026</span><span class="tmeta">program · 1 cohort</span></div>
+              <div class="tkids">
+
+                <div class="tnode l2 open" role="treeitem" aria-expanded="true">
+                  <div class="trow"><span class="twist" aria-hidden="true">›</span><span class="ticon">◫</span>
+                    <span class="tlabel">Go-Spring-24</span><span class="tmeta">cohort · 18 learners · lead R. Köhler</span></div>
+                  <div class="tkids">
+
+                    <!-- ENROLLMENT: the admin's real scope — people in the container -->
+                    <div class="tnode l3 open" role="treeitem" aria-expanded="true">
+                      <div class="trow"><span class="twist" aria-hidden="true">›</span><span class="ticon">◷</span>
+                        <span class="tlabel">Enrollment</span><span class="tmeta">18 learners · 1 trainer lead</span></div>
+                      <div class="tkids">
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span><span class="tlabel">R. Köhler</span>
+                            <span class="tmeta"><span class="role-pill trainer">trainer · lead</span></span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span><span class="tlabel">Amara Okafor</span>
+                            <span class="tmeta"><span class="role-pill learner">learner</span></span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span><span class="tlabel">Diego Santos</span>
+                            <span class="tmeta"><span class="role-pill learner">learner</span></span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span><span class="tlabel">Liam Chen</span>
+                            <span class="tmeta"><span class="role-pill learner">learner</span></span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span><span class="tlabel">Noor Haddad</span>
+                            <span class="tmeta"><span class="role-pill learner">learner</span></span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span><span class="tlabel">+ 14 more enrolled learners</span>
+                            <span class="tmeta"><span class="role-pill learner">learner</span></span></div></div>
+                      </div>
+                    </div>
+
+                    <!-- SYLLABI: READ-ONLY for the admin. Trainers author these. -->
+                    <div class="tnode l3" role="treeitem" aria-expanded="false">
+                      <div class="trow"><span class="twist" aria-hidden="true">›</span><span class="ticon" style="color:var(--ink-ghost)">≣</span>
+                        <span class="tlabel" style="color:var(--ink-soft)">Bound syllabi <span class="mono" style="font-size:10px;color:var(--ink-ghost)">(read-only)</span></span>
+                        <span class="tmeta">1 binding · authored by trainer</span></div>
+                      <div class="tkids">
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span>
+                            <span class="tlabel" style="color:var(--ink-soft)">Production-grade Go persistence</span>
+                            <span class="tmeta"><span class="tbinding" style="background:var(--card-2);color:var(--ink-faint);border-color:var(--line)">COHORT · GUIDED · view-only</span></span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span>
+                            <span class="tlabel mono" style="font-size:12px;color:var(--ink-faint)">syllabus_binding · target_type=COHORT · target_id=go-spring-24</span></div></div>
+                        <div class="tnode l4" role="treeitem">
+                          <div class="trow"><span class="ticon">·</span>
+                            <span class="tlabel mono" style="font-size:12px;color:var(--ink-faint)">author R. Köhler · scopes domain Go Backend</span></div></div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="note-strip">
+          <span class="ico" aria-hidden="true">≣</span>
+          <span><b>Syllabi are authored by trainers</b> (Trainer console), not by the admin. A trainer states intent — title, objectives, outcomes — and attaches a cohort; that binding lets the runtime + LLM generate each learner's parcours over the concept DAG. You see the binding here <b>read-only</b> for governance — there is no create-syllabus or edit-binding affordance in the control plane. Your levers are programs, cohorts and enrollment. Next we read the domain DAG.</span>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="2"><span aria-hidden="true">←</span> Identity</button>
+          <span class="spacer"></span>
+          <button class="btn primary" data-go="4">Domain graph <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 4 : DOMAIN GRAPH -->
+    <section class="screen" data-stage="4">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="mark runtime"><span class="dot"></span>runtime decided structure</span><span class="rl"></span>domain graph · go backend</div>
+        <h1 class="scr-title">The concept DAG, read-only.</h1>
+        <p class="scr-dek">This is the dependency graph the runtime walks to choose each learner's next concept. You can read it and validate it; you cannot edit progression. Edges point from prerequisite → dependent. Diff is the runtime's difficulty weight.</p>
+
+        <div class="graph-shell">
+          <svg class="dag" viewBox="0 0 760 380" role="img" aria-label="Go Backend concept dependency graph">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" class="edge arrow"/>
+              </marker>
+            </defs>
+            <!-- edges: http-handlers -> persistence -> transactions ; http-handlers -> middleware -> auth-jwt ; persistence -> migrations ; concurrency -> channels -->
+            <g class="edges" fill="none">
+              <path class="edge" d="M150,70 C240,70 240,150 310,150" marker-end="url(#arrow)"/>
+              <path class="edge" d="M430,150 C520,150 520,150 590,150" marker-end="url(#arrow)"/>
+              <path class="edge" d="M150,70 C240,70 240,235 310,235" marker-end="url(#arrow)"/>
+              <path class="edge" d="M430,235 C520,235 520,235 590,235" marker-end="url(#arrow)"/>
+              <path class="edge" d="M390,180 C390,250 350,300 320,310" marker-end="url(#arrow)"/>
+              <path class="edge" d="M150,335 C300,335 440,335 590,320" marker-end="url(#arrow)"/>
+            </g>
+            <g>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(40,46)">
+                <rect width="110" height="48"/><text class="gname" x="14" y="22">http-handlers</text><text class="gdiff" x="14" y="38">diff 0.40</text></g></a>
+              <a class="gnode repair" href="#" onclick="return false"><g transform="translate(310,126)">
+                <rect width="120" height="48"/><text class="gname" x="14" y="22">persistence</text><text class="gdiff" x="14" y="38">diff 0.70 · repair</text></g></a>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(590,126)">
+                <rect width="130" height="48"/><text class="gname" x="14" y="22">transactions</text><text class="gdiff" x="14" y="38">diff 0.80 · locked</text></g></a>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(310,211)">
+                <rect width="120" height="48"/><text class="gname" x="14" y="22">middleware</text><text class="gdiff" x="14" y="38">diff 0.50</text></g></a>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(590,211)">
+                <rect width="130" height="48"/><text class="gname" x="14" y="22">auth-jwt</text><text class="gdiff" x="14" y="38">diff 0.60</text></g></a>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(286,300)">
+                <rect width="120" height="48"/><text class="gname" x="14" y="22">migrations</text><text class="gdiff" x="14" y="38">diff 0.55</text></g></a>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(40,312)">
+                <rect width="110" height="48"/><text class="gname" x="14" y="22">concurrency</text><text class="gdiff" x="14" y="38">diff 0.75</text></g></a>
+              <a class="gnode" href="#" onclick="return false"><g transform="translate(590,296)">
+                <rect width="130" height="48"/><text class="gname" x="14" y="22">channels</text><text class="gdiff" x="14" y="38">diff 0.70</text></g></a>
+            </g>
+          </svg>
+        </div>
+
+        <div class="graph-legend">
+          <span class="lg"><span class="sw normal"></span> concept · prereq → dependent</span>
+          <span class="lg"><span class="sw repair"></span> active repair (a learner is here)</span>
+          <span class="lg">arrowhead = direction of dependency</span>
+        </div>
+
+        <div style="margin-top:6px">
+          <button class="btn ghost" id="validateGraph">Validate graph <span aria-hidden="true">↻</span></button>
+          <div class="validity" id="validityResult" style="display:none;margin-left:0">
+            <span class="ck">✓</span>
+            <span id="validityText">8 concepts · 6 edges · acyclic — no cycles, no invalid edges. Topological order resolved.</span>
+          </div>
+        </div>
+
+        <div class="note-strip" style="margin-top:22px">
+          <span class="ico" aria-hidden="true">↻</span>
+          <span>Validation is <b>cycle-safe</b>: the runtime refuses to bind a syllabus over a graph with a cycle or an edge to an unknown concept. Here, <b>GET /v1/tenants/acme/domains/go-backend/graph</b> resolves a clean topological order — so the runtime can always name a next concept.</span>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="3"><span aria-hidden="true">←</span> Org structure</button>
+          <span class="spacer"></span>
+          <button class="btn primary" data-go="5">LLM configuration <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 5 : LLM CONFIGURATION MATRIX -->
+    <section class="screen" data-stage="5">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="mark llm"><span class="dot"></span>llm generation config</span><span class="rl"></span>configuration matrix</div>
+        <h1 class="scr-title">Which model speaks, and where.</h1>
+        <p class="scr-dek">The LLM only generates learner-facing content from a runtime-authored instruction — it never owns progression. <em>This</em> is what you configure: provider, model, and limits, set at four scope tiers. The runtime resolves the effective config <em>most-specific-first</em>.</p>
+
+        <div class="matrix-wrap">
+          <table class="matrix" aria-label="LLM configuration by scope">
+            <thead><tr><th>Scope</th><th>Provider / model</th><th>Temp</th><th>Max tokens</th><th>Set at</th><th></th></tr></thead>
+            <tbody id="matrixBody">
+              <tr data-scope="tenant">
+                <td><div class="scope-cell"><span class="scope-tier t1">tenant</span> Acme Learning</div></td>
+                <td><span class="provider-val">anthropic/claude</span></td>
+                <td>0.2</td><td>512</td><td>tenant default</td>
+                <td><span class="edit-cue">— inherited root —</span></td>
+              </tr>
+              <tr data-scope="program">
+                <td><div class="scope-cell"><span class="scope-tier t2">program</span> Backend Engineering 2026</div></td>
+                <td><span class="provider-val mono" style="color:var(--ink-ghost)">↑ inherits tenant</span></td>
+                <td><span style="color:var(--ink-ghost)">—</span></td><td><span style="color:var(--ink-ghost)">—</span></td><td>not overridden</td>
+                <td><span class="edit-cue">— inherits —</span></td>
+              </tr>
+              <tr data-scope="cohort" class="editable" tabindex="0">
+                <td><div class="scope-cell"><span class="scope-tier t3">cohort</span> Go-Spring-24</div></td>
+                <td><span class="provider-val mono" style="color:var(--ink-ghost)">↑ inherits tenant</span></td>
+                <td><span style="color:var(--ink-ghost)">—</span></td><td><span style="color:var(--ink-ghost)">—</span></td><td>not overridden</td>
+                <td><span class="edit-cue">edit ⤸</span></td>
+              </tr>
+              <tr data-scope="learner" class="editable" tabindex="0">
+                <td><div class="scope-cell"><span class="scope-tier t4">learner</span> Amara Okafor <span class="mono" style="font-size:10px;color:var(--ink-ghost)">learner-1</span></div></td>
+                <td><span class="provider-val instr" id="learnerProviderCell">instruction_only</span></td>
+                <td>—</td><td>—</td><td><span class="mark fallbk" style="font-size:8px"><span class="dot"></span>override</span></td>
+                <td><span class="edit-cue">edit ⤸</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="resolve-box">
+          <div class="resolve-title">Resolution · most-specific-first (learner › cohort › program › tenant)</div>
+          <div class="resolve-toggle" role="group" aria-label="Resolve effective config for">
+            <button class="rt-btn on" data-learner="amara">for Amara (learner-1)</button>
+            <button class="rt-btn" data-learner="diego">for Diego (no override)</button>
+          </div>
+          <div class="resolve-chain" id="resolveChain"></div>
+          <p class="resolve-pick" id="resolvePick"></p>
+        </div>
+
+        <div class="note-strip" style="margin-top:22px">
+          <span class="ico" aria-hidden="true">⤸</span>
+          <span>The runtime checks <b>learner</b> first, then <b>cohort</b>, then <b>program</b>, then <b>tenant</b> — the first config it finds wins. Amara has an <b>instruction_only</b> override, so her tutor falls back to runtime-authored scaffolds. Click the <b>cohort</b> or <b>learner</b> row above to edit a scope, with a review state before anything is applied.</span>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="4"><span aria-hidden="true">←</span> Domain graph</button>
+          <span class="spacer"></span>
+          <button class="btn primary" id="toEditBtn" data-go="6">Edit cohort scope <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 6 : EDIT A SCOPE WITH REVIEW STATE -->
+    <section class="screen" data-stage="6">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="mark llm"><span class="dot"></span>llm config · scope edit</span><span class="rl"></span>review state before apply</div>
+        <h1 class="scr-title" id="editTitle">Edit cohort scope.</h1>
+        <p class="scr-dek" id="editDek">Set an explicit LLM configuration on <em>Go-Spring-24</em>. Nothing is applied until you pass the review state below: a live field diff, the blast radius, and an explicit confirmation.</p>
+
+        <div class="editor">
+          <div class="panel-head" style="margin-bottom:4px">
+            <h3 id="editScopeName">Go-Spring-24 · cohort</h3>
+            <span class="meta">PUT /v1/tenants/acme/llm-configurations</span>
+          </div>
+          <div class="kv" style="grid-template-columns:auto 1fr;margin-bottom:4px">
+            <dt>scope_type</dt><dd><b id="scopeTypeVal">cohort</b></dd>
+            <dt>scope_id</dt><dd class="mono" id="scopeIdVal">cohort:go-spring-24</dd>
+          </div>
+
+          <div class="editor-grid">
+            <div class="field-block">
+              <label for="fProvider">Provider</label>
+              <select id="fProvider">
+                <option value="anthropic" selected>anthropic</option>
+                <option value="instruction_only">instruction_only (no LLM)</option>
+              </select>
+              <div class="hint">instruction_only = runtime authors scaffolds, no model called</div>
+            </div>
+            <div class="field-block">
+              <label for="fModel">Model</label>
+              <select id="fModel">
+                <option value="claude" selected>claude</option>
+                <option value="claude-haiku">claude-haiku</option>
+              </select>
+              <div class="hint">disabled when provider is instruction_only</div>
+            </div>
+            <div class="field-block">
+              <label for="fTemp">Temperature · <span id="fTempLabel" class="mono" style="color:var(--accent)">0.2</span></label>
+              <div class="range-row">
+                <input id="fTemp" type="range" min="0" max="1" step="0.1" value="0.2" />
+                <span class="range-val" id="fTempVal">0.2</span>
+              </div>
+              <div class="hint">lower = more deterministic generation</div>
+            </div>
+            <div class="field-block">
+              <label for="fMax">Max tokens</label>
+              <input id="fMax" type="number" min="64" max="2048" step="64" value="512" />
+              <div class="hint">per generation ceiling</div>
+            </div>
+          </div>
+
+          <!-- REVIEW STATE -->
+          <div class="review-state">
+            <div class="review-kicker"><span class="ico"></span>review state · dangerous-change discipline</div>
+
+            <div class="diff-rows" id="diffRows"></div>
+
+            <div class="impact" id="impactBox">
+              <span class="ico" aria-hidden="true">◑</span>
+              <span id="impactText"></span>
+            </div>
+
+            <label class="confirm-gate">
+              <input type="checkbox" id="confirmChk" />
+              <span>I understand this writes an explicit config at <b id="confirmScope">cohort:go-spring-24</b> and changes generation for the affected learners. This is a runtime-owned, audited change.</span>
+            </label>
+
+            <div class="editor-actions">
+              <button class="btn primary" id="applyBtn" disabled>Apply configuration <kbd>⌘⏎</kbd></button>
+              <button class="btn quiet" data-go="5">Cancel</button>
+              <span class="gate-note" id="gateNote">Apply is gated until the box is checked and at least one field differs.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="5"><span aria-hidden="true">←</span> Matrix</button>
+          <span class="spacer"></span>
+          <span class="gate-note">Applying advances to the event outbox.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 7 : EVENT OUTBOX -->
+    <section class="screen" data-stage="7">
+      <div class="wrap">
+        <div class="scr-kicker"><span class="mark runtime"><span class="dot"></span>runtime emitted</span><span class="rl"></span>event outbox</div>
+        <h1 class="scr-title">The change left a trace.</h1>
+        <p class="scr-dek">Configuration writes are persisted, then the runtime emits a domain event to the <em>outbox</em>. Subscribers drain it asynchronously. Here you watch <span class="mono">LlmConfigurationUpdated</span> move from unpublished to published.</p>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Outbox monitor</h3><span class="meta">GET /v1/tenants/acme/events/outbox</span></div>
+          <div class="gen-status" id="outboxStatus"><span class="spin"></span><span class="check">✓</span>
+            <span>committing write &amp; emitting event · <span class="src">transactional outbox</span></span></div>
+          <div class="outbox" id="outboxList" style="margin-top:18px"></div>
+          <div class="tx-sim">
+            <span class="lbl">prove the boundary:</span>
+            <button class="btn quiet" id="txFailBtn" type="button">Simulate a write failure ↺</button>
+            <span class="gate-note" id="txSimNote">Replays the commit with the write forced to fail — watch the event refuse to publish.</span>
+          </div>
+        </div>
+
+        <div class="note-strip">
+          <span class="ico" aria-hidden="true">◇</span>
+          <span>The event is written in the <b>same transaction</b> as the config — it cannot be lost or double-emitted. Status moves <b>unpublished → published</b> once a subscriber acknowledges. The runtime owns this; your client never publishes events directly.</span>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="6"><span aria-hidden="true">←</span> Edit</button>
+          <span class="spacer"></span>
+          <button class="btn primary" data-go="8" id="toEndBtn">Finish <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 8 : END -->
+    <section class="screen" data-stage="8">
+      <div class="wrap narrow">
+        <div class="scr-kicker"><span class="mark runtime"><span class="dot"></span>runtime committed</span><span class="rl"></span>journey complete</div>
+        <div class="end-seal" aria-hidden="true">✓</div>
+        <h1 class="scr-title">Configuration applied. Event emitted.</h1>
+        <p class="scr-dek">You walked the control plane from sign-in to a safe, audited configuration change — with the tenant scope in view the whole way, the LLM kept disposable, and the runtime's authority over progression never touched.</p>
+
+        <div class="panel">
+          <div class="panel-head"><h3>What changed</h3><span class="meta" id="endScopeMeta">scope · cohort:go-spring-24</span></div>
+          <div class="end-summary" id="endSummary"></div>
+        </div>
+
+        <div class="note-strip">
+          <span class="ico" aria-hidden="true">◷</span>
+          <span>Resolution stays <b>most-specific-first</b>: this new config now wins for its scope unless a more specific one exists. Amara's <b>instruction_only</b> learner override still takes precedence over any cohort setting. The runtime continues to own mastery, reviews, misconceptions and alerts.</span>
+        </div>
+
+        <div class="scr-nav">
+          <button class="btn quiet" data-go="1"><span aria-hidden="true">↻</span> Back to overview</button>
+          <span class="spacer"></span>
+          <button class="btn ghost" data-go="5">Review the matrix</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = ms => new Promise(r=>setTimeout(r, reduceMotion?0:ms));
+
+  /* ---------- elements ---------- */
+  const loginStage = document.getElementById("loginStage");
+  const loginCard  = document.getElementById("loginCard");
+  const resolving  = document.getElementById("resolving");
+  const screensEl  = document.getElementById("screens");
+  const topbar     = document.getElementById("topbar");
+  const stepperEl  = document.getElementById("stepper");
+
+  /* ---------- stepper definition ---------- */
+  const STAGES = [
+    {n:0, label:"login"},
+    {n:1, label:"overview"},
+    {n:2, label:"identity"},
+    {n:3, label:"org structure"},
+    {n:4, label:"domain graph"},
+    {n:5, label:"llm matrix"},
+    {n:6, label:"edit · review"},
+    {n:7, label:"outbox"},
+    {n:8, label:"done"},
+  ];
+  let current = 0;
+  let maxReached = 0;
+  let configApplied = false;
+
+  function buildStepper(){
+    stepperEl.innerHTML = "";
+    STAGES.forEach((s,i)=>{
+      if(i>0){ const a=document.createElement("span"); a.className="arr"; a.textContent="·"; a.setAttribute("aria-hidden","true"); stepperEl.appendChild(a); }
+      const b = document.createElement("button");
+      b.className = "step"; b.dataset.stage = s.n;
+      b.innerHTML = `<span class="num">${s.n}</span><span>${s.label}</span>`;
+      b.addEventListener("click", ()=>{ if(s.n<=maxReached && s.n>0) goStage(s.n); });
+      stepperEl.appendChild(b);
+    });
+    paintStepper();
+  }
+  function paintStepper(){
+    [...stepperEl.querySelectorAll(".step")].forEach(b=>{
+      const n = +b.dataset.stage;
+      b.classList.toggle("current", n===current);
+      b.classList.toggle("done", n<current && n<=maxReached);
+      b.disabled = (n===0) || (n>maxReached);
+    });
+  }
+
+  /* ---------- stage navigation ---------- */
+  function goStage(n){
+    if(n>maxReached) maxReached = n;
+    current = n;
+    document.querySelectorAll(".screen").forEach(s=>{
+      s.classList.toggle("active", +s.dataset.stage===n);
+    });
+    paintStepper();
+    window.scrollTo({top:0, behavior: reduceMotion?"auto":"smooth"});
+    if(n===5) ensureResolvePainted();
+    if(n===7 && !outboxRan) runOutbox(false);
+    if(n===8) paintEnd();
+  }
+  // wire all data-go buttons
+  document.addEventListener("click",(e)=>{
+    const btn = e.target.closest("[data-go]");
+    if(!btn) return;
+    const n = +btn.dataset.go;
+    if(btn.id==="toEditBtn"){ openEditor("cohort"); }
+    goStage(n);
+  });
+
+  /* ============================================================
+     LOGIN -> resolving session -> derived role
+     ============================================================ */
+  const loginForm = document.getElementById("loginForm");
+  const ssoBtn = document.getElementById("ssoBtn");
+
+  async function doResolve(){
+    loginCard.style.transition = "opacity .4s ease, transform .4s ease";
+    loginCard.style.opacity = "0"; loginCard.style.transform = "translateY(-10px)";
+    await wait(360);
+    loginCard.style.display = "none";
+    resolving.classList.add("show");
+
+    const steps = [...resolving.querySelectorAll(".rstep")];
+    for(let i=0;i<steps.length;i++){
+      steps[i].classList.add("on","spin-on");
+      await wait(700);
+      steps[i].classList.remove("spin-on");
+      steps[i].classList.add("done");
+      await wait(220);
+    }
+    await wait(520);
+
+    // enter the control plane
+    loginStage.classList.add("gone");
+    topbar.classList.remove("hidden");
+    screensEl.style.display = "block";
+    maxReached = 1;
+    goStage(1);
+  }
+  loginForm.addEventListener("submit",(e)=>{ e.preventDefault(); doResolve(); });
+  ssoBtn.addEventListener("click", ()=>{ doResolve(); });
+
+  /* ============================================================
+     STAGE 3 — structure tree expand/collapse
+     ============================================================ */
+  document.getElementById("tree").addEventListener("click",(e)=>{
+    const row = e.target.closest(".trow");
+    if(!row) return;
+    const node = row.parentElement;
+    if(!node.querySelector(".tkids")) return;
+    const open = node.classList.toggle("open");
+    node.setAttribute("aria-expanded", open?"true":"false");
+  });
+
+  /* ============================================================
+     STAGE 4 — validate graph
+     ============================================================ */
+  document.getElementById("validateGraph").addEventListener("click", async ()=>{
+    const res = document.getElementById("validityResult");
+    const txt = document.getElementById("validityText");
+    res.style.display = "inline-flex";
+    res.querySelector(".ck").textContent = "…";
+    txt.textContent = "walking edges · checking for cycles & unknown concepts…";
+    await wait(680);
+    res.querySelector(".ck").textContent = "✓";
+    txt.textContent = "8 concepts · 6 edges · acyclic — no cycles, no invalid edges. Topological order resolved.";
+  });
+
+  /* ============================================================
+     STAGE 5 — resolution explainer (most-specific-first)
+     ============================================================ */
+  const resolveChain = document.getElementById("resolveChain");
+  const resolvePick  = document.getElementById("resolvePick");
+  const RESOLVE = {
+    amara: {
+      order: [
+        {tier:"learner",  label:"learner · Amara",  set:true,  val:"instruction_only"},
+        {tier:"cohort",   label:"cohort · Go-Spring-24", set:false},
+        {tier:"program",  label:"program · BE 2026", set:false},
+        {tier:"tenant",   label:"tenant · acme",     set:true,  val:"anthropic/claude · 0.2"},
+      ],
+      winIdx: 0,
+      pick: 'Most-specific match is the <b>learner</b> override → effective config = <b>instruction_only</b>. The tutor model is off for Amara; the runtime authors her scaffolds. The tenant default is never reached.'
+    },
+    diego: {
+      order: [
+        {tier:"learner",  label:"learner · Diego",   set:false},
+        {tier:"cohort",   label:"cohort · Go-Spring-24", set:false},
+        {tier:"program",  label:"program · BE 2026", set:false},
+        {tier:"tenant",   label:"tenant · acme",     set:true,  val:"anthropic/claude · 0.2"},
+      ],
+      winIdx: 3,
+      pick: 'No learner, cohort, or program override → resolution falls through to the <b>tenant default</b> = <b>anthropic/claude · temp 0.2 · 512</b>. Diego gets generated tutoring.'
+    }
+  };
+  let resolvePaintedFor = null;
+  function paintResolve(who){
+    const r = RESOLVE[who];
+    resolveChain.innerHTML = "";
+    r.order.forEach((s,i)=>{
+      const el = document.createElement("span");
+      const win = (i===r.winIdx);
+      el.className = "rstage" + (win?" win":"");
+      el.innerHTML = `<span class="ord">${i+1}</span>${s.label}${s.set?` · <b>set</b>`:` · —`}`;
+      resolveChain.appendChild(el);
+      if(i<r.order.length-1){ const a=document.createElement("span"); a.className="ra"; a.textContent="→"; resolveChain.appendChild(a); }
+    });
+    resolvePick.innerHTML = r.pick;
+    resolvePaintedFor = who;
+  }
+  function ensureResolvePainted(){ if(!resolvePaintedFor) paintResolve("amara"); }
+  document.querySelectorAll(".rt-btn").forEach(b=>{
+    b.addEventListener("click",()=>{
+      document.querySelectorAll(".rt-btn").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      paintResolve(b.dataset.learner);
+    });
+  });
+  // clicking an editable matrix row opens the editor for that scope
+  document.querySelectorAll("tr.editable").forEach(tr=>{
+    const open = ()=>{ openEditor(tr.dataset.scope); goStage(6); };
+    tr.addEventListener("click", open);
+    tr.addEventListener("keydown",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); open(); } });
+  });
+
+  /* ============================================================
+     STAGE 6 — editor + live diff + review state
+     ============================================================ */
+  const SCOPES = {
+    cohort: {
+      type:"cohort", id:"cohort:go-spring-24", name:"Go-Spring-24 · cohort",
+      title:"Edit cohort scope.",
+      dek:"Set an explicit LLM configuration on <em>Go-Spring-24</em>. Nothing is applied until you pass the review state below: a live field diff, the blast radius, and an explicit confirmation.",
+      // current effective (inherited from tenant)
+      base:{ provider:"anthropic", model:"claude", temp:0.2, max:512, inherited:true },
+      learners:18,
+    },
+    learner: {
+      type:"learner", id:"learner:learner-1", name:"Amara Okafor · learner",
+      title:"Edit learner scope.",
+      dek:"Amara (learner-1) currently has an <em>instruction_only</em> override. Editing here changes the most-specific config in the whole hierarchy — review carefully before applying.",
+      base:{ provider:"instruction_only", model:"—", temp:null, max:null, inherited:false },
+      learners:1,
+    }
+  };
+  let editScope = "cohort";
+
+  const fProvider = document.getElementById("fProvider");
+  const fModel    = document.getElementById("fModel");
+  const fTemp     = document.getElementById("fTemp");
+  const fTempVal  = document.getElementById("fTempVal");
+  const fTempLabel= document.getElementById("fTempLabel");
+  const fMax      = document.getElementById("fMax");
+  const confirmChk= document.getElementById("confirmChk");
+  const applyBtn  = document.getElementById("applyBtn");
+  const diffRows  = document.getElementById("diffRows");
+  const impactText= document.getElementById("impactText");
+  const gateNote  = document.getElementById("gateNote");
+
+  function openEditor(scope){
+    editScope = scope;
+    const s = SCOPES[scope];
+    document.getElementById("editTitle").textContent = s.title;
+    document.getElementById("editDek").innerHTML = s.dek;
+    document.getElementById("editScopeName").textContent = s.name;
+    document.getElementById("scopeTypeVal").textContent = s.type;
+    document.getElementById("scopeIdVal").textContent = s.id;
+    document.getElementById("confirmScope").textContent = s.id;
+    // seed form from base
+    fProvider.value = s.base.provider==="instruction_only" ? "instruction_only" : "anthropic";
+    fModel.value = (s.base.model && s.base.model!=="—") ? s.base.model : "claude";
+    fTemp.value = (s.base.temp==null) ? 0.2 : s.base.temp;
+    fMax.value  = (s.base.max==null) ? 512 : s.base.max;
+    confirmChk.checked = false;
+    syncTempLabel();
+    syncProviderEnable();
+    renderDiff();
+  }
+
+  function syncTempLabel(){ fTempVal.textContent = (+fTemp.value).toFixed(1); fTempLabel.textContent = (+fTemp.value).toFixed(1); }
+  function syncProviderEnable(){
+    const instr = fProvider.value==="instruction_only";
+    fModel.disabled = instr; fTemp.disabled = instr; fMax.disabled = instr;
+    fModel.style.opacity = instr?".45":"1";
+  }
+
+  function currentForm(){
+    const instr = fProvider.value==="instruction_only";
+    return {
+      provider: instr ? "instruction_only" : "anthropic",
+      model: instr ? "—" : fModel.value,
+      temp: instr ? null : +fTemp.value,
+      max: instr ? null : +fMax.value
+    };
+  }
+  function fmt(v){ return v==null ? "—" : String(v); }
+
+  function renderDiff(){
+    const s = SCOPES[editScope];
+    const base = s.base, now = currentForm();
+    const fields = [
+      {k:"provider", label:"provider"},
+      {k:"model",    label:"model"},
+      {k:"temp",     label:"temperature"},
+      {k:"max",      label:"max_tokens"},
+    ];
+    diffRows.innerHTML = "";
+    let changedCount = 0;
+    fields.forEach(f=>{
+      const before = fmt(base[f.k]);
+      const after  = fmt(now[f.k]);
+      const changed = before !== after;
+      if(changed) changedCount++;
+      const row = document.createElement("div");
+      row.className = "diffrow " + (changed?"changed":"unchanged");
+      if(changed){
+        row.innerHTML = `<span class="dk">${f.label}</span><span class="dv">`+
+          `<span class="from">${before}</span><span class="arr">→</span><span class="to">${after}</span></span>`;
+      }else{
+        row.innerHTML = `<span class="dk">${f.label}</span><span class="dv"><span class="same">${after} · unchanged</span></span>`;
+      }
+      diffRows.appendChild(row);
+    });
+
+    // impact text — blast radius
+    const inheritNote = base.inherited
+      ? `This cohort currently <b>inherits</b> the tenant default; saving writes an <b>explicit</b> override at this scope.`
+      : `This scope already has an explicit config; saving replaces it.`;
+    if(changedCount===0){
+      impactText.innerHTML = `No field differs from the current effective config — there is nothing to apply. ${inheritNote}`;
+    }else{
+      impactText.innerHTML = `Affects up to <b>${s.learners} learner${s.learners>1?"s":""}</b> in scope <b>${s.id}</b>. `+
+        `${changedCount} field${changedCount>1?"s":""} change. ${inheritNote}`;
+    }
+
+    updateGate(changedCount);
+    return changedCount;
+  }
+
+  function updateGate(changedCount){
+    const ok = confirmChk.checked && changedCount>0;
+    applyBtn.disabled = !ok;
+    if(changedCount===0){ gateNote.textContent = "No field differs — change a value to enable Apply."; }
+    else if(!confirmChk.checked){ gateNote.textContent = "Check the confirmation to enable Apply (dangerous-change gate)."; }
+    else { gateNote.textContent = "Review passed — Apply is armed."; }
+  }
+
+  [fProvider].forEach(el=> el.addEventListener("change",()=>{ syncProviderEnable(); renderDiff(); }));
+  [fModel,fMax].forEach(el=> el.addEventListener("input", renderDiff));
+  fModel.addEventListener("change", renderDiff);
+  fTemp.addEventListener("input",()=>{ syncTempLabel(); renderDiff(); });
+  confirmChk.addEventListener("change",()=> renderDiff());
+
+  // store what was applied for outbox + end
+  let appliedConfig = null;
+  function doApply(){
+    if(applyBtn.disabled) return;
+    const s = SCOPES[editScope];
+    appliedConfig = Object.assign({scope_type:s.type, scope_id:s.id, learners:s.learners, name:s.name}, currentForm());
+    configApplied = true;
+    maxReached = Math.max(maxReached, 7);
+    goStage(7);
+  }
+  applyBtn.addEventListener("click", doApply);
+  document.addEventListener("keydown",(e)=>{
+    if((e.metaKey||e.ctrlKey) && e.key==="Enter" && current===6 && !applyBtn.disabled){ e.preventDefault(); doApply(); }
+  });
+
+  /* ============================================================
+     STAGE 7 — event outbox monitor
+     ============================================================ */
+  const outboxStatus = document.getElementById("outboxStatus");
+  const outboxList   = document.getElementById("outboxList");
+  const txFailBtn    = document.getElementById("txFailBtn");
+  const txSimNote    = document.getElementById("txSimNote");
+  let outboxRan = false;
+  let outboxBusy = false;
+
+  function priorEvents(){
+    // a couple of prior, already-published events for context (real fixture flavor)
+    const prior = [
+      {name:"MembershipGranted", meta:"learner-1 · role=learner · seq #4468"},
+      {name:"SyllabusBound", meta:"cohort:go-spring-24 · domain=go-backend · by trainer kohler · seq #4465"},
+    ];
+    prior.forEach(p=>{
+      const e = document.createElement("div");
+      e.className = "evt";
+      e.innerHTML =
+        `<span class="evico" aria-hidden="true">◇</span>`+
+        `<div class="evbody"><div class="evname">${p.name}</div><div class="evmeta">${p.meta}</div></div>`+
+        `<span class="evstatus pub"><span class="sd"></span>published</span>`;
+      outboxList.appendChild(e);
+    });
+  }
+
+  async function runOutbox(fail){
+    if(outboxBusy) return;
+    outboxBusy = true;
+    if(txFailBtn){ txFailBtn.disabled = true; }
+    const cfg = appliedConfig || {scope_type:"cohort", scope_id:"cohort:go-spring-24", learners:18, provider:"anthropic", model:"claude", temp:0.2, max:512};
+    outboxStatus.classList.remove("done");
+    outboxStatus.querySelector(".spin").style.display = "";
+    outboxStatus.querySelector("span:last-child").innerHTML = fail
+      ? `committing write &amp; emitting event · <span class="src">transactional outbox</span>`
+      : `committing write &amp; emitting event · <span class="src">transactional outbox</span>`;
+    outboxList.innerHTML = "";
+    const payload = cfg.provider==="instruction_only"
+      ? `provider=instruction_only`
+      : `provider=${cfg.provider}/${cfg.model} temp=${cfg.temp} max=${cfg.max}`;
+
+    await wait(720);
+
+    if(fail){
+      // write fails -> the WHOLE transaction (config write + event insert) rolls back.
+      outboxStatus.classList.add("done");
+      outboxStatus.querySelector(".spin").style.display = "none";
+      outboxStatus.querySelector("span:last-child").innerHTML =
+        `write failed · <span class="src" style="color:var(--oxblood)">transaction rolled back — nothing persisted</span>`;
+
+      const evt = document.createElement("div");
+      evt.className = "evt rolled";
+      evt.innerHTML =
+        `<span class="evico" aria-hidden="true">↺</span>`+
+        `<div class="evbody"><div class="evname">LlmConfigurationUpdated</div>`+
+          `<div class="evmeta">scope ${cfg.scope_id} · ${payload} · seq —</div></div>`+
+        `<span class="evstatus rolled"><span class="sd"></span>rolled back</span>`;
+      outboxList.appendChild(evt);
+      priorEvents();
+
+      if(txSimNote){ txSimNote.innerHTML = `Because the event is inserted in the <b>same transaction</b> as the write, the failed write took the event with it — <b>no event was ever published</b>. Replay the happy path below.`; }
+      if(txFailBtn){ txFailBtn.disabled = false; txFailBtn.textContent = "Replay successful commit ↺"; txFailBtn.dataset.mode = "ok"; }
+      outboxBusy = false;
+      return;
+    }
+
+    outboxStatus.classList.add("done");
+    outboxStatus.querySelector(".spin").style.display = "none";
+    outboxStatus.querySelector("span:last-child").innerHTML =
+      `committed · <span class="src">write + event in one transaction</span>`;
+
+    // the fresh event, unpublished -> published
+    const evt = document.createElement("div");
+    evt.className = "evt fresh";
+    evt.innerHTML =
+      `<span class="evico" aria-hidden="true">◇</span>`+
+      `<div class="evbody"><div class="evname">LlmConfigurationUpdated</div>`+
+        `<div class="evmeta">scope ${cfg.scope_id} · ${payload} · seq #4471</div></div>`+
+      `<span class="evstatus unpub"><span class="sd"></span>unpublished</span>`;
+    outboxList.appendChild(evt);
+    priorEvents();
+
+    await wait(1400);
+    const st = evt.querySelector(".evstatus");
+    st.className = "evstatus pub";
+    st.innerHTML = `<span class="sd"></span>published`;
+    evt.classList.remove("fresh");
+    outboxRan = true;
+    if(txFailBtn){ txFailBtn.disabled = false; txFailBtn.textContent = "Simulate a write failure ↺"; txFailBtn.dataset.mode = "fail"; }
+    if(txSimNote){ txSimNote.innerHTML = `Replays the commit with the write forced to fail — watch the event refuse to publish.`; }
+    outboxBusy = false;
+  }
+
+  if(txFailBtn){
+    txFailBtn.addEventListener("click", ()=>{
+      runOutbox(txFailBtn.dataset.mode !== "ok");
+    });
+  }
+
+  /* ============================================================
+     STAGE 8 — END summary
+     ============================================================ */
+  function paintEnd(){
+    const cfg = appliedConfig || {scope_type:"cohort", scope_id:"cohort:go-spring-24", learners:18, provider:"anthropic", model:"claude", temp:0.2, max:512, name:"Go-Spring-24 · cohort"};
+    document.getElementById("endScopeMeta").textContent = `scope · ${cfg.scope_id}`;
+    const val = cfg.provider==="instruction_only"
+      ? `instruction_only <span style="color:var(--amber)">(no LLM)</span>`
+      : `${cfg.provider}/${cfg.model} · temp ${cfg.temp} · max ${cfg.max}`;
+    const rows = [
+      ["scope", `<b>${cfg.scope_type}</b> · ${cfg.scope_id}`],
+      ["effective config", val],
+      ["affected", `up to <b>${cfg.learners}</b> learner${cfg.learners>1?"s":""}`],
+      ["resolution", `most-specific-first · learner overrides still win`],
+      ["event", `<b>LlmConfigurationUpdated</b> · published`],
+      ["runtime authority", `mastery · reviews · misconceptions · alerts — unchanged`],
+    ];
+    const host = document.getElementById("endSummary");
+    host.innerHTML = "";
+    rows.forEach(([k,v])=>{
+      const r = document.createElement("div");
+      r.className="end-row";
+      r.innerHTML = `<span class="ek">${k}</span><span class="ev">${v}</span>`;
+      host.appendChild(r);
+    });
+  }
+
+  /* ---------- boot ---------- */
+  buildStepper();
+  // focus the email field gently on load
+  setTimeout(()=>{ if(!reduceMotion){ const em=document.getElementById("email"); if(em) em.focus(); } }, 700);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LORE · Zen / Lecture — Amara Okafor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Fraunces:ital,opsz,wght@0,9..144,300..500;1,9..144,300..400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f6f2ea;
+    --paper-deep:#efe9dd;
+    --card:#fbf8f2;
+    --ink:#23211b;
+    --ink-soft:#4c483e;
+    --ink-faint:#7c766a;
+    --ink-ghost:#a79e8c;
+    --line:#ddd4c3;
+    --line-soft:#e8e0d2;
+    --accent:#2a4f3e;
+    --accent-deep:#173127;
+    --accent-soft:#e4ece6;
+    --oxblood:#7c2531;
+    --oxblood-soft:#f1dfe0;
+    --amber:#9a6a16;
+    --amber-soft:#f3e8cf;
+    --shadow:0 1px 2px rgba(35,33,27,.05), 0 36px 90px -46px rgba(35,33,27,.5);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible,[role="option"]:focus-visible,textarea:focus-visible{
+    outline:2px solid var(--accent);outline-offset:3px;border-radius:6px;
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(130% 90% at 50% -8%, #fbf7ef 0%, rgba(251,247,239,0) 58%),
+      radial-gradient(90% 70% at 92% 112%, #ece3d3 0%, rgba(236,227,211,0) 52%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Newsreader", Georgia, serif;
+    font-size:19px; line-height:1.6;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    min-height:100vh; overflow-x:hidden;
+  }
+  ::selection{background:var(--accent);color:#f6f2ea}
+  a{color:inherit}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,monospace}
+
+  /* ---- ambient chrome, dimmable during reading ---- */
+  .chrome{transition:opacity .7s ease, filter .7s ease}
+  body.reading .chrome{opacity:.07; filter:blur(2px); pointer-events:none}
+  body.reading .chrome.keep{opacity:.34; filter:none}
+
+  .gallery-badge{
+    position:fixed;top:16px;left:18px;z-index:300;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.07em;
+    text-decoration:none;color:var(--ink-faint);
+    background:rgba(251,248,242,.72);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    transition:.25s ease;opacity:0;animation:chromeIn .8s .2s ease both;
+  }
+  .gallery-badge:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+  @keyframes chromeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  .ident{
+    position:fixed;top:16px;right:18px;z-index:300;
+    display:flex;align-items:center;gap:10px;
+    opacity:0;animation:chromeIn .8s .3s ease both;
+  }
+  .ident .avatar{
+    width:30px;height:30px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 30% 28%, #3a6c55, #2a4f3e);
+    color:#f6f2ea;display:grid;place-items:center;
+    font-family:"Fraunces",serif;font-weight:500;font-size:13px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .ident .who{line-height:1.2;text-align:right}
+  .ident .who .n{font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:500;color:var(--ink)}
+  .ident .who .r{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-faint)}
+
+  .brand-whisper{
+    position:fixed;bottom:16px;left:20px;z-index:200;
+    font-family:"Fraunces",serif;font-size:15px;letter-spacing:-.01em;color:var(--ink-ghost);
+    opacity:0;animation:chromeIn .9s .45s ease both;pointer-events:none;
+  }
+  .brand-whisper b{font-style:italic;font-weight:400;color:var(--accent)}
+
+  .mode-pill{
+    position:fixed;bottom:16px;right:20px;z-index:200;
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    color:var(--ink-faint);display:flex;align-items:center;gap:8px;
+    opacity:0;animation:chromeIn .9s .5s ease both;
+  }
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);transition:.3s}
+  body.fallback .mode-dot{background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+  .mode-pill .lbl b{color:var(--ink-soft);font-weight:600}
+
+  /* ================= VOID STAGE ================= */
+  .stage{
+    min-height:100vh; position:relative;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:120px 28px;
+  }
+  .void{
+    width:100%;max-width:620px;margin:0 auto;text-align:center;
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .void.gone{opacity:0;transform:translateY(-16px);pointer-events:none}
+
+  .kicker{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:26px;
+    display:flex;align-items:center;justify-content:center;gap:13px;
+    opacity:0;animation:riseIn 1s .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .kicker .rl{flex:0 0 40px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
+  .kicker .rl.r{background:linear-gradient(90deg,var(--line),transparent)}
+
+  .mark{
+    display:inline-flex;align-items:center;gap:6px;vertical-align:middle;
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.1em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:500;white-space:nowrap;
+  }
+  .mark.runtime{background:var(--accent);color:#f6f2ea}
+  .mark.llm{background:var(--accent-soft);color:var(--accent-deep);border:1px solid #c7dccd}
+  .mark.fallbk{background:var(--amber-soft);color:#6f4d10;border:1px solid #e3cd9d}
+  .mark .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+
+  /* the standfirst / dek — the single runtime intent, set as elegant prose */
+  .standfirst{
+    font-family:"Fraunces",serif;font-weight:330;font-size:33px;line-height:1.38;
+    letter-spacing:-.012em;color:var(--ink);
+    font-variation-settings:"opsz" 80;margin:0 auto;max-width:560px;
+    opacity:0;animation:riseIn 1.1s .65s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .standfirst em{font-style:italic;color:var(--accent);font-weight:400}
+  .standfirst .neg{color:var(--oxblood);font-style:normal;font-weight:500;
+    font-family:"Spline Sans Mono",monospace;font-size:.56em;letter-spacing:-.01em}
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .dek-meta{
+    margin-top:30px;display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;align-items:center;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);
+    opacity:0;animation:riseInQuiet 1.1s .82s cubic-bezier(.2,.7,.2,1) both;
+  }
+  /* the metric pills are secondary to the hero line: they rise to a quieter rest */
+  @keyframes riseInQuiet{from{opacity:0;transform:translateY(14px)}to{opacity:.82;transform:none}}
+  .metric{display:inline-flex;align-items:baseline;gap:6px;
+    background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px}
+  .metric .k{letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--ink-ghost)}
+  .metric .v{font-weight:600;color:var(--ink-soft)}
+  .metric .v.bad{color:var(--oxblood)}
+  .metric .v.warn{color:var(--amber)}
+
+  .recovery{
+    margin-top:20px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;
+    letter-spacing:.04em;color:var(--amber);display:inline-flex;align-items:center;gap:7px;
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:999px;padding:4px 13px;
+    opacity:0;animation:riseIn 1.1s .98s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .recovery svg{width:12px;height:12px}
+
+  /* the single caret/field to begin */
+  .begin{
+    margin-top:52px;width:100%;max-width:420px;margin-left:auto;margin-right:auto;
+    opacity:0;animation:riseIn 1.1s 1.14s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .begin-line{
+    display:flex;align-items:center;gap:13px;justify-content:center;
+    border-bottom:1px solid var(--line);padding:11px 4px 13px;cursor:text;
+    transition:border-color .4s ease;position:relative;
+  }
+  .begin.focused .begin-line{border-color:var(--accent)}
+  body.fallback .begin.focused .begin-line{border-color:var(--amber)}
+  .begin .glyph{
+    font-family:"Spline Sans Mono",monospace;font-size:19px;font-weight:500;color:var(--accent);
+    flex:0 0 auto;user-select:none;transition:color .3s;line-height:1;
+  }
+  body.fallback .begin .glyph{color:var(--amber)}
+  .field-wrap{flex:1 1 auto;position:relative;min-height:28px;text-align:left;display:flex;align-items:center}
+  .field{
+    width:100%;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:17px;line-height:1.5;
+    color:var(--ink);padding:0;margin:0;overflow:hidden;caret-color:transparent;
+  }
+  .field::placeholder{color:var(--ink-ghost)}
+  .caret{
+    position:absolute;width:8px;height:21px;background:var(--accent);border-radius:1px;
+    top:50%;transform:translateY(-50%);left:0;pointer-events:none;opacity:0;
+    transition:left .05s linear;animation:blink 1.05s steps(1) infinite;
+  }
+  body.fallback .caret{background:var(--amber)}
+  .begin.focused .caret{opacity:1}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+  .whisper-hint{
+    margin-top:18px;text-align:center;font-family:"Spline Sans Mono",monospace;
+    font-size:10.5px;letter-spacing:.06em;color:var(--ink-ghost);
+    transition:opacity .35s ease;
+  }
+  .whisper-hint kbd{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;background:var(--card);
+    border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink-soft);
+  }
+  .begin.focused .whisper-hint{opacity:0;pointer-events:none}
+
+  /* bounded sanctioned moves under the void field (revealed on focus) */
+  .moves{
+    margin-top:18px;display:flex;flex-direction:column;gap:1px;
+    max-height:0;overflow:hidden;opacity:0;
+    transition:max-height .4s ease, opacity .35s ease;
+  }
+  .begin.focused .moves.armed{max-height:380px;opacity:1}
+  .moves-head{
+    font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-ghost);padding:4px 6px 8px;text-align:left;
+    display:flex;justify-content:space-between;
+  }
+  .moves-head .ct{color:var(--accent)}
+  .move{
+    display:flex;align-items:baseline;gap:14px;padding:8px 8px;border-radius:8px;cursor:pointer;
+    text-align:left;transition:background .14s;
+  }
+  .move[aria-selected="true"],.move:hover{background:var(--accent-soft)}
+  .move-key{font-family:"Spline Sans Mono",monospace;font-size:13px;font-weight:600;color:var(--accent);
+    flex:0 0 auto;min-width:166px}
+  .move-desc{font-family:"Newsreader",serif;font-size:15px;color:var(--ink-soft);flex:1 1 auto;line-height:1.3}
+  .move-tag{font-family:"Spline Sans Mono",monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-ghost);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+  .move.is-disabled{opacity:.32;cursor:not-allowed}
+  .move.is-disabled:hover{background:transparent}
+
+  /* ================= FULL-BLEED READING TAKEOVER ================= */
+  .takeover{
+    position:fixed;inset:0;z-index:150;
+    background:
+      radial-gradient(130% 90% at 50% -10%, #fbf7ef 0%, rgba(251,247,239,0) 56%),
+      var(--paper);
+    overflow-y:auto;
+    opacity:0;pointer-events:none;
+    transition:opacity .7s ease;
+  }
+  .takeover.show{opacity:1;pointer-events:auto}
+  body.reading{overflow:hidden}
+
+  /* the reading column — optimal measure, big margins, generous leading */
+  .article{
+    width:100%;max-width:41.5em;     /* ~63ch of the 21px reading body */
+    margin:0 auto;padding:130px 30px 200px;
+    opacity:0;transform:translateY(18px);
+    transition:opacity .8s ease, transform .8s ease;
+  }
+  .takeover.show .article{opacity:1;transform:none}
+
+  .article-head{
+    margin-bottom:46px;
+    opacity:0;animation:none;
+  }
+  .article-head.in{opacity:1;transition:opacity .6s ease}
+  .article-kicker{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-bottom:18px;
+    display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  }
+  /* the runtime intent becomes a quiet dek above the reading */
+  .article-dek{
+    font-family:"Fraunces",serif;font-weight:330;font-size:25px;line-height:1.42;
+    letter-spacing:-.01em;color:var(--ink-soft);margin:0;
+    font-variation-settings:"opsz" 60;
+  }
+  .article-dek em{font-style:italic;color:var(--accent);font-weight:400}
+
+  /* the calm generating status, resolves to a quiet LLM mark */
+  .gen-status{
+    display:flex;align-items:center;gap:11px;margin:30px 0 4px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.03em;color:var(--ink-faint);
+    transition:opacity .5s ease;
+  }
+  .gen-status .spin{
+    width:13px;height:13px;border-radius:50%;flex:0 0 auto;
+    border:2px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite;
+  }
+  body.fallback .gen-status .spin{border-top-color:var(--amber)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .gen-status.done .spin{display:none}
+  .gen-status .check{display:none}
+  .gen-status.done .check{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);color:#fff;font-size:9px}
+  body.fallback .gen-status.done .check{background:var(--amber)}
+  .gen-status .src{color:var(--ink-soft);font-weight:600}
+
+  /* the long-form reading body — the hero */
+  .read{
+    font-family:"Newsreader",serif;font-size:21px;line-height:1.72;color:var(--ink);
+    letter-spacing:.002em;
+  }
+  .read p{margin:0 0 1.5em;}
+  .read p:first-letter{}
+  .read .lead-cap::first-letter{
+    font-family:"Fraunces",serif;font-weight:380;font-size:3.4em;line-height:.84;
+    float:left;margin:.04em .09em -.02em 0;color:var(--accent);
+  }
+  .read strong{font-weight:600;color:var(--ink)}
+  .read em.term{font-style:italic;color:var(--accent-deep)}
+
+  /* the LLM-generated mark at the column edge */
+  .edge-mark{
+    position:relative;margin:0 0 30px;display:flex;align-items:center;gap:10px;
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.05em;color:var(--ink-ghost);
+  }
+  .edge-mark .ln{flex:1 1 auto;height:1px;background:var(--line-soft)}
+
+  /* airy, generously padded code block within the flow */
+  pre.code{
+    margin:2em 0;background:#1d2521;border-radius:14px;padding:28px 30px;overflow-x:auto;
+    font-family:"Spline Sans Mono",monospace;font-size:14.5px;line-height:1.8;color:#d9e3db;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05), 0 26px 60px -34px rgba(29,37,33,.6);
+  }
+  pre.code .cap{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:#7e8f84;margin-bottom:14px}
+  pre.code .kw{color:#9ec8ad}
+  pre.code .fn{color:#e6c98a}
+  pre.code .str{color:#c9a98a}
+  pre.code .cm{color:#71837a;font-style:italic}
+  pre.code .err{color:#e3909c}
+
+  /* instruction-only numbered scaffold — still airy and readable */
+  ol.scaffold{margin:1.4em 0 0;padding-left:0;list-style:none;counter-reset:step}
+  ol.scaffold li{
+    counter-increment:step;position:relative;padding:16px 0 16px 54px;
+    font-family:"Newsreader",serif;font-size:19px;line-height:1.62;color:var(--ink-soft);
+    border-bottom:1px dashed var(--line-soft);
+  }
+  ol.scaffold li:last-child{border-bottom:none}
+  ol.scaffold li::before{
+    content:counter(step,decimal-leading-zero);position:absolute;left:0;top:18px;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;font-weight:600;color:var(--amber);
+    background:var(--amber-soft);border:1px solid #e6d3a6;border-radius:7px;
+    width:34px;height:25px;display:grid;place-items:center;
+  }
+  ol.scaffold li b{color:var(--ink);font-weight:600;font-family:"Spline Sans Mono",monospace;font-size:.86em}
+
+  /* faint unobtrusive footer rail of moves — only surfaces on intent */
+  .rail{
+    position:fixed;left:0;right:0;bottom:0;z-index:170;
+    display:flex;justify-content:center;
+    padding:14px 24px 18px;
+    background:linear-gradient(to top, var(--paper) 28%, rgba(246,242,234,0));
+    opacity:0;transform:translateY(14px);pointer-events:none;
+    transition:opacity .45s ease, transform .45s ease;
+  }
+  .rail.surface{opacity:1;transform:none;pointer-events:auto}
+  .rail-inner{
+    display:flex;flex-wrap:wrap;gap:7px;align-items:center;justify-content:center;
+    max-width:760px;
+  }
+  .rail .gl{font-family:"Spline Sans Mono",monospace;font-size:9px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink-ghost);margin-right:6px}
+  .gesture{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;
+    transition:.18s ease;display:inline-flex;align-items:center;gap:6px;
+  }
+  .gesture:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+  .gesture .g{color:var(--accent);font-weight:600}
+  .gesture.danger:hover{border-color:var(--oxblood);color:var(--oxblood)}
+  .gesture.danger .g{color:var(--oxblood)}
+  .gesture:disabled{opacity:.38;cursor:not-allowed;transform:none}
+
+  /* inline gesture / why response, set as a continuing passage */
+  .inline-resp{
+    margin:0 0 1.6em;border-left:2px solid var(--accent-soft);padding:2px 0 2px 22px;
+    font-family:"Newsreader",serif;font-size:19px;line-height:1.68;color:var(--ink-soft);
+  }
+  .inline-resp.runtime-resp{border-left-color:var(--accent)}
+  .inline-resp.fallbk-resp{border-left-color:#e3cd9d}
+  .inline-resp .rtag{display:inline-flex;margin-bottom:11px}
+
+  /* evidence — a single understated field continuing the column */
+  .evidence{
+    margin-top:2.6em;padding-top:2em;border-top:1px solid var(--line-soft);
+  }
+  .evidence-head{
+    font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-ghost);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .evidence-prompt{
+    font-family:"Newsreader",serif;font-style:italic;font-size:20px;line-height:1.6;
+    color:var(--ink-soft);margin:0 0 18px;
+  }
+  .evidence-row{display:flex;align-items:flex-start;gap:13px}
+  .evidence .glyph{font-family:"Spline Sans Mono",monospace;font-size:17px;color:var(--accent);padding-top:2px}
+  body.fallback .evidence .glyph{color:var(--amber)}
+  .evidence textarea{
+    flex:1 1 auto;border:none;background:transparent;outline:none;resize:none;
+    font-family:"Spline Sans Mono",monospace;font-size:14.5px;line-height:1.72;color:var(--ink);
+    min-height:48px;overflow:hidden;
+  }
+  .evidence textarea::placeholder{color:var(--ink-ghost)}
+  .evidence-foot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:12px;flex-wrap:wrap}
+  .evidence-foot .hint{font-family:"Spline Sans Mono",monospace;font-size:10.5px;color:var(--ink-ghost)}
+  .submit{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.04em;color:#f6f2ea;background:var(--accent);border:1px solid var(--accent-deep);
+    border-radius:9px;padding:9px 17px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .submit:hover{background:var(--accent-deep);transform:translateY(-1px)}
+  .submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .submit kbd{font-family:inherit;font-size:10px;background:rgba(255,255,255,.16);border-radius:4px;padding:1px 5px}
+
+  /* the state delta — a serene closing passage, in-column (no modal) */
+  .delta-close{
+    margin-top:2.6em;padding-top:2em;border-top:1px solid var(--line-soft);
+    opacity:0;transform:translateY(10px);transition:opacity .6s ease, transform .6s ease;
+  }
+  .delta-close.show{opacity:1;transform:none}
+  .delta-kicker{
+    font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:20px;display:flex;align-items:center;gap:9px;
+  }
+  .delta-kicker .ico{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .delta-rows{display:flex;flex-direction:column;gap:13px;margin-bottom:28px}
+  .drow{display:flex;align-items:baseline;gap:14px;font-family:"Spline Sans Mono",monospace;font-size:13px;flex-wrap:wrap}
+  .drow .dk{flex:0 0 158px;color:var(--ink-faint);letter-spacing:.03em}
+  .drow .dv{display:flex;align-items:baseline;gap:9px;color:var(--ink);flex:1 1 auto;flex-wrap:wrap}
+  .drow .from{color:var(--ink-ghost)}
+  .drow .arr{color:var(--accent)}
+  .drow .to{font-weight:700;color:var(--accent)}
+  .drow .to.warn{color:var(--amber)}
+  .drow .to.bad{color:var(--oxblood)}
+  .drow .note{font-family:"Newsreader",serif;font-style:italic;font-size:13.5px;color:var(--ink-faint)}
+  .delta-prose{
+    font-family:"Newsreader",serif;font-size:20px;line-height:1.7;color:var(--ink-soft);
+    font-style:italic;margin:0 0 26px;
+  }
+  .continue{
+    appearance:none;cursor:pointer;font-family:"Spline Sans Mono",monospace;font-size:11.5px;font-weight:600;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:transparent;
+    border:1px solid var(--accent);border-radius:999px;padding:9px 18px;transition:.18s ease;
+  }
+  .continue:hover{background:var(--accent);color:#f6f2ea}
+
+  /* ---- streaming cursor that trails the prose ---- */
+  .stream-cursor{
+    display:inline-block;width:8px;height:1.02em;background:var(--accent);
+    vertical-align:-2px;margin-left:1px;border-radius:1px;animation:blink 1s steps(1) infinite;
+  }
+  body.fallback .stream-cursor{background:var(--amber)}
+  .w{opacity:0;animation:wordIn .3s ease forwards}
+  @keyframes wordIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+  /* paragraphs fade up before they begin streaming */
+  .read p, .inline-resp{}
+
+  /* breath flash between intents */
+  .breath{
+    position:fixed;inset:0;z-index:160;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;opacity:0;
+    font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-ghost);
+  }
+  .breath.show{opacity:1;transition:opacity .5s ease}
+
+  @media (max-width:680px){
+    body{font-size:18px}
+    .standfirst{font-size:26px}
+    .article{padding:96px 22px 200px}
+    .read{font-size:19px}
+    .article-dek{font-size:21px}
+    .drow .dk{flex-basis:120px}
+    .move-key{min-width:128px;font-size:12px}
+    .brand-whisper,.mode-pill{display:none}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;scroll-behavior:auto}
+    .caret,.stream-cursor{animation:none;opacity:1}
+    .w{opacity:1;animation:none}
+  }
+</style>
+</head>
+<body>
+  <a class="gallery-badge chrome keep" href="../">&larr; gallery index</a>
+
+  <div class="ident chrome" aria-label="Learner identity">
+    <div class="who">
+      <div class="n">Amara Okafor</div>
+      <div class="r">learner-1 · Go-Spring-24</div>
+    </div>
+    <div class="avatar" aria-hidden="true">AO</div>
+  </div>
+
+  <div class="brand-whisper chrome" aria-hidden="true"><b>LORE</b> · learning runtime</div>
+
+  <div class="mode-pill chrome keep" role="status" aria-live="polite">
+    <span class="mode-dot" aria-hidden="true"></span>
+    <span class="lbl">tutor · <b id="modeLabel">anthropic/claude</b></span>
+  </div>
+
+  <main class="stage">
+    <!-- THE VOID: a single runtime intent set as a standfirst + one caret -->
+    <section class="void" id="void">
+      <div class="kicker chrome">
+        <span class="rl"></span>
+        <span class="mark runtime"><span class="dot"></span>runtime decided</span>
+        <span class="rl r"></span>
+      </div>
+      <h1 class="standfirst" id="standfirst">
+        Today, we sit with <em>persistence</em> — and the rollback you keep forgetting.
+      </h1>
+
+      <div class="dek-meta chrome" id="dekMeta">
+        <span class="metric"><span class="k">mastery</span><span class="v bad" id="mMastery">0.41 ↓</span></span>
+        <span class="metric"><span class="k">retention</span><span class="v bad">0.38</span></span>
+        <span class="metric"><span class="k">misconception</span><span class="v warn">forgot-tx-rollback</span></span>
+        <span class="metric"><span class="k">gate</span><span class="v">transactions · locked</span></span>
+      </div>
+
+      <div class="chrome">
+        <span class="recovery" id="recovery" title="The runtime deliberately lowered load after 2 failed attempts.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/>
+          </svg>
+          overload recovery — load lowered after 2 failed attempts, so we read slowly
+        </span>
+      </div>
+
+      <!-- the single field to begin reading -->
+      <section class="begin" id="begin" aria-label="Begin the reading">
+        <div class="begin-line" id="beginLine">
+          <span class="glyph" aria-hidden="true">&rsaquo;</span>
+          <div class="field-wrap">
+            <span class="caret" id="caret"></span>
+            <textarea class="field" id="field" rows="1" spellcheck="false" autocomplete="off"
+              aria-label="Begin reading, or summon a sanctioned move"
+              placeholder="press ⏎ to begin reading"></textarea>
+          </div>
+        </div>
+
+        <div class="whisper-hint" id="whisperHint">
+          a single reading waits · press <kbd>⏎</kbd> to begin, or <kbd>/</kbd> for the sanctioned moves
+        </div>
+
+        <div class="moves" id="moves" role="listbox" aria-label="Sanctioned runtime moves">
+          <div class="moves-head"><span>sanctioned runtime moves</span><span class="ct" id="movesCount">7</span></div>
+          <div id="moveList"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- FULL-BLEED long-form reading takeover -->
+  <div class="takeover" id="takeover" aria-live="polite" aria-hidden="true">
+    <article class="article" id="article"></article>
+  </div>
+
+  <!-- faint footer rail of sanctioned moves, surfaces on intent -->
+  <div class="rail" id="rail" aria-hidden="true">
+    <div class="rail-inner" id="railInner"></div>
+  </div>
+
+  <!-- breath flash between intents -->
+  <div class="breath" id="breath" aria-hidden="true"></div>
+
+<script>
+(function(){
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- elements ---------- */
+  const body = document.body;
+  const voidEl = document.getElementById("void");
+  const begin = document.getElementById("begin");
+  const beginLine = document.getElementById("beginLine");
+  const field = document.getElementById("field");
+  const caret = document.getElementById("caret");
+  const moves = document.getElementById("moves");
+  const moveList = document.getElementById("moveList");
+  const movesCount = document.getElementById("movesCount");
+  const takeover = document.getElementById("takeover");
+  const article = document.getElementById("article");
+  const rail = document.getElementById("rail");
+  const railInner = document.getElementById("railInner");
+  const breath = document.getElementById("breath");
+  const modeLabel = document.getElementById("modeLabel");
+
+  /* ---------- state ---------- */
+  let mode = "llm";          // "llm" | "fallback"
+  let practiceShown = false;
+  let busy = false;
+  let selIdx = 0;
+  let mastery = 0.41;
+  let retention = 0.38;
+  let attempts = 0;          // regenerate flavor
+  let cleared = 0;           // successful evidence rounds
+  let railTimer = null;
+
+  /* ---------- sanctioned command set ---------- */
+  const COMMANDS = [
+    { key:"/start",               desc:"Begin reading the persistence repair",        tag:"generate", needsPractice:false },
+    { key:"/explain-differently", desc:"Reframe the idea another way",                tag:"gesture",  needsPractice:true  },
+    { key:"/example",             desc:"Read one more worked example",                tag:"gesture",  needsPractice:true  },
+    { key:"/stuck",               desc:"Ask the runtime for a lighter scaffold",      tag:"gesture",  needsPractice:true  },
+    { key:"/why",                 desc:"Why did the runtime choose this reading?",    tag:"meta",     needsPractice:false },
+    { key:"/fallback",            desc:"Tutor off — instruction-only scaffold",       tag:"runtime",  needsPractice:false },
+    { key:"/regenerate",          desc:"Discard & re-summon this reading",            tag:"generate", needsPractice:true  },
+  ];
+
+  /* ---------- custom caret over transparent textarea ---------- */
+  const mirror = document.createElement("div");
+  Object.assign(mirror.style,{
+    position:"absolute",visibility:"hidden",whiteSpace:"pre",
+    left:"0",top:"0",pointerEvents:"none"
+  });
+  field.parentNode.appendChild(mirror);
+  function syncMirrorFont(){
+    const cs = getComputedStyle(field);
+    mirror.style.font = cs.font; mirror.style.letterSpacing = cs.letterSpacing;
+  }
+  function updateCaret(){
+    syncMirrorFont();
+    mirror.textContent = field.value.substring(0, field.selectionEnd) || "";
+    caret.style.left = mirror.offsetWidth + "px";
+  }
+  function autoGrow(el){ el.style.height="auto"; el.style.height = el.scrollHeight + "px"; }
+
+  /* ---------- moves list (bounded, fuzzy by prefix) ---------- */
+  function renderMoves(filter){
+    moveList.innerHTML = "";
+    const f = (filter||"").toLowerCase();
+    const items = COMMANDS.filter(c => !f || c.key.toLowerCase().startsWith(f));
+    movesCount.textContent = items.length;
+    items.forEach((c,i)=>{
+      const disabled = c.needsPractice && !practiceShown;
+      const el = document.createElement("div");
+      el.className = "move" + (disabled ? " is-disabled":"");
+      el.setAttribute("role","option");
+      el.dataset.key = c.key; el.dataset.disabled = disabled ? "1":"0"; el.tabIndex = -1;
+      el.innerHTML =
+        `<span class="move-key">${c.key}</span>`+
+        `<span class="move-desc">${c.desc}</span>`+
+        `<span class="move-tag">${c.tag}</span>`;
+      el.addEventListener("mousedown",(e)=>{ e.preventDefault(); if(!disabled) runCommand(c.key); });
+      el.addEventListener("mouseenter",()=>{ selIdx=i; paintSel(); });
+      moveList.appendChild(el);
+    });
+    selIdx = Math.min(selIdx, Math.max(0, items.length-1));
+    paintSel();
+    return items;
+  }
+  function paintSel(){
+    [...moveList.children].forEach((el,i)=> el.setAttribute("aria-selected", i===selIdx ? "true":"false"));
+    const cur = moveList.children[selIdx];
+    if(cur) cur.scrollIntoView({block:"nearest"});
+  }
+  function armMoves(){ moves.classList.add("armed"); }
+  function disarmMoves(){ moves.classList.remove("armed"); }
+
+  /* ---------- world dimming during reading ---------- */
+  function setReading(on){ body.classList.toggle("reading", !!on); }
+
+  /* ============================================================
+     STREAMING ENGINE — the hero: humane, reading-paced reveal
+     ============================================================ */
+
+  /* stream a single paragraph word-by-word at a calm cadence */
+  function streamWords(target, text, opts){
+    opts = opts || {};
+    const speed = opts.speed || 46;      // calmer than command variant
+    const words = text.split(/(\s+)/);
+    let i = 0;
+    const cursor = document.createElement("span");
+    cursor.className = "stream-cursor";
+    target.appendChild(cursor);
+    return new Promise(resolve=>{
+      if(reduceMotion){ cursor.remove(); target.insertAdjacentText("beforeend", text); return resolve(); }
+      function tick(){
+        if(i >= words.length){ cursor.remove(); return resolve(); }
+        const span = document.createElement("span");
+        span.className = "w"; span.innerHTML = words[i];
+        target.insertBefore(span, cursor);
+        i++; followStream();
+        // gentle pauses at sentence and clause boundaries — let the eye land
+        const w = words[i-1] || "";
+        let pause = 0;
+        if(/[.!?]["']?$/.test(w)) pause = 260;        // sentence
+        else if(/[,;:—]$/.test(w)) pause = 120;        // clause
+        setTimeout(tick, speed + Math.random()*26 + pause);
+      }
+      tick();
+    });
+  }
+
+  /* reveal a pre-built block (code / scaffold li) with a soft fade */
+  function revealBlock(el){
+    return new Promise(resolve=>{
+      el.style.opacity="0"; el.style.transform="translateY(8px)";
+      el.style.transition="opacity .5s ease, transform .5s ease";
+      requestAnimationFrame(()=>{ el.style.opacity="1"; el.style.transform="none"; });
+      followStream();
+      setTimeout(resolve, reduceMotion?0:520);
+    });
+  }
+
+  function followStream(){
+    if(reduceMotion) return;
+    const cursor = takeover.querySelector(".stream-cursor");
+    const target = cursor || article.lastElementChild;
+    if(target) target.scrollIntoView({block:"center",behavior:"smooth"});
+  }
+
+  /* a paragraph-pacing helper: a beat of stillness between paragraphs */
+  function paragraphBeat(){ return wait(reduceMotion?0:420); }
+
+  /* ---------- content fixtures (the persistence / forgot-tx-rollback reading) ---------- */
+  const LLM_PARAS = [
+    "A teammate on your service just shipped a small function to record a new enrollment. It looks innocent. It opens a database transaction, inserts one row, and returns. Under a quiet afternoon it works perfectly — which is exactly why the bug will wait for the worst possible moment to appear.",
+    "Here is the function, more or less as they wrote it. Read it the way you would read a paragraph — left to right, noticing where the path forks.",
+    "<<CODE>>",
+    "Look at the error branch. When <em class=\"term\">InsertEnrollment</em> fails, the function returns the error and walks away. But the transaction it opened with <em class=\"term\">BeginTx</em> is still hanging open. Nothing ever calls <strong>Rollback</strong>, and nothing ever calls <strong>Commit</strong>. The connection is left holding a half-finished unit of work.",
+    "Under load this is where persistence quietly breaks. The pooled connection stays pinned to a doomed transaction; locks it took are held a little too long; and depending on the driver, the partial insert can linger until something forces it shut. The function returned an error, but the database was never told to forget what it had started.",
+    "The repair is small and exact. On the error branch — before you return — call <strong>tx.Rollback()</strong>, so the partial write is discarded and the connection is released. Keep returning the original insert error, not the rollback's. That is the move you keep skipping; that is the one we are here to make automatic."
+  ];
+
+  const LLM_QUESTION =
+    "So: rewrite the error branch so every path that opened a transaction reaches exactly one ending. Add the rollback, preserve the original error, and leave the success path on Commit.";
+
+  const CODE_HTML =
+`<pre class="code" aria-label="Go function with a missing rollback"><span class="cap">record_enrollment.go · the function as written</span><span class="kw">func</span> <span class="fn">RecordEnrollment</span>(ctx context.Context, db *sql.DB, e Enrollment) <span class="kw">error</span> {
+    tx, err := db.<span class="fn">BeginTx</span>(ctx, <span class="kw">nil</span>)
+    <span class="kw">if</span> err != <span class="kw">nil</span> {
+        <span class="kw">return</span> err
+    }
+
+    <span class="cm">// inserts the enrollment row inside the open tx</span>
+    <span class="kw">if</span> err := <span class="fn">InsertEnrollment</span>(ctx, tx, e); err != <span class="kw">nil</span> {
+        <span class="err">return err   // ← leaks the tx: no tx.Rollback() here</span>
+    }
+
+    <span class="kw">return</span> tx.<span class="fn">Commit</span>()
+}</pre>`;
+
+  const FALLBACK_LEAD =
+    "The tutor model is off for you (override: instruction_only). That is fine — the runtime still owns the task, and it will hand you the same repair as a calm, numbered scaffold. No prose generated by a model; just the steps, set so they are still easy to read.";
+
+  const FALLBACK_STEPS = [
+    "Open the failing function <b>RecordEnrollment</b> and find the error branch right after <b>InsertEnrollment</b> returns a non-nil error.",
+    "Notice that this branch does <b>return err</b> directly. The transaction opened by <b>BeginTx</b> is never closed on this path.",
+    "Before returning, call <b>tx.Rollback()</b> so the partial insert is discarded and the connection is released back to the pool.",
+    "Handle Rollback's own error gracefully — log or join it — but still return the <b>original</b> insert error to the caller.",
+    "Confirm the success path still ends in <b>tx.Commit()</b>. Commit and Rollback are mutually exclusive endings.",
+    "Say the invariant aloud in one line: every BeginTx path must reach exactly one of Commit or Rollback."
+  ];
+
+  const GESTURE_TEXT = {
+    "/explain-differently":
+      "Picture the transaction as a sealed envelope. BeginTx opens it; Commit seals and mails it; Rollback shreds it. Your error branch opens the envelope, then walks out of the room — the letter is neither mailed nor shredded, it just sits there. Adding tx.Rollback() on that branch means every envelope you open reaches one of its two honest endings.",
+    "/example":
+      "Here is the same shape wearing different clothes. A money transfer debits one account, then errors before it can credit the other, and returns. Without a rollback, the debit survives on its own — money simply vanishes. The fix is identical to yours: roll the transaction back on the error path so the half-done work is discarded as a whole.",
+    "/stuck":
+      "Let's go lighter — three lines, nothing more. One: find the error branch that returns. Two: add tx.Rollback() on the line just before it. Three: keep returning the original error. That single inserted line is the entire fix; wrapping the rollback's own error is optional polish you can add once the reflex is there."
+  };
+
+  const WHY_TEXT =
+    "The runtime chose persistence over advancing for three reasons it can name precisely. Retention has fallen to 0.38 with a spaced review two days overdue, so FSRS wants this concept revisited now. Mastery sits at 0.41 and is declining under BKT. And one misconception — forgot-tx-rollback — is still active from your last two attempts. In the concept graph, transactions depends on persistence, so it stays locked until this is repaired. This rationale is runtime-owned and stays true no matter what the tutor model does; the reading itself is the disposable, regenerable part.";
+
+  /* ============================================================
+     /start — theatrical full-bleed reading takeover
+     ============================================================ */
+  async function openTakeover(){
+    setReading(true);
+    takeover.classList.add("show");
+    takeover.setAttribute("aria-hidden","false");
+    voidEl.classList.add("gone");
+    article.scrollTop = 0;
+    if(takeover.parentNode) takeover.scrollTop = 0;
+    await wait(reduceMotion?0:120);
+  }
+
+  /* the article head: quiet dek (the runtime intent) + generating status */
+  function buildArticleHead(srcLabel, dekHTML, markHTML){
+    const head = document.createElement("header");
+    head.className = "article-head";
+    head.innerHTML =
+      `<div class="article-kicker">${markHTML}<span>persistence · forgot-tx-rollback</span></div>`+
+      `<p class="article-dek">${dekHTML}</p>`+
+      `<div class="gen-status" id="genStatus"><span class="spin"></span><span class="check">✓</span>`+
+        `<span>generating from <span class="src">TutorInstruction · ${srcLabel}</span></span></div>`;
+    article.appendChild(head);
+    requestAnimationFrame(()=> head.classList.add("in"));
+    return head;
+  }
+  function resolveStatus(statusEl, finalText, markHTML){
+    statusEl.classList.add("done");
+    statusEl.querySelector("span:last-child").innerHTML =
+      `resolved · <span class="src">${finalText}</span> ${markHTML}`;
+  }
+
+  /* LLM reading: paragraph-by-paragraph stream into the column */
+  async function renderLLMReading(isRegen){
+    busy = true;
+    article.innerHTML = "";
+    const dek = "Now — repair <em>persistence</em> before advancing. A short reading, then your fix.";
+    const head = buildArticleHead("claude · temp 0.2", dek,
+      `<span class="mark llm"><span class="dot"></span>llm generated · claude</span>`);
+    const status = document.getElementById("genStatus");
+
+    // the edge mark, then the reading body
+    const edge = document.createElement("div");
+    edge.className = "edge-mark";
+    edge.innerHTML = `<span>the reading</span><span class="ln"></span><span>~2 min · streamed</span>`;
+    article.appendChild(edge);
+    await revealBlock(edge);
+
+    const read = document.createElement("div");
+    read.className = "read";
+    article.appendChild(read);
+
+    await wait(reduceMotion?0:480);
+
+    const paras = isRegen
+      ? ["Same repair, re-summoned in fresh words. " + LLM_PARAS[0]].concat(LLM_PARAS.slice(1))
+      : LLM_PARAS;
+
+    for(let i=0;i<paras.length;i++){
+      if(paras[i] === "<<CODE>>"){
+        const slot = document.createElement("div");
+        slot.innerHTML = CODE_HTML;
+        const codeEl = slot.firstElementChild;
+        read.appendChild(codeEl);
+        await revealBlock(codeEl);
+        await paragraphBeat();
+        continue;
+      }
+      const p = document.createElement("p");
+      if(i===0) p.className = "lead-cap"; // drop cap on the first paragraph
+      read.appendChild(p);
+      await streamWords(p, paras[i], {speed:46});
+      await paragraphBeat();
+    }
+
+    // the practice question, set apart but in the same calm rhythm
+    const q = document.createElement("p");
+    q.innerHTML = "<strong></strong>";
+    read.appendChild(q);
+    await streamWords(q.querySelector("strong"), LLM_QUESTION, {speed:44});
+
+    resolveStatus(status, "claude · temp 0.2", `<span class="mark llm">llm generated</span>`);
+    mountEvidence(read);
+    practiceShown = true; busy = false;
+  }
+
+  /* instruction-only reading: same task as a numbered runtime scaffold */
+  async function renderFallbackReading(){
+    busy = true;
+    article.innerHTML = "";
+    const dek = "Tutor off. The runtime authors the same repair as a calm, numbered scaffold.";
+    const head = buildArticleHead("runtime author · instruction_only", dek,
+      `<span class="mark fallbk"><span class="dot"></span>instruction-only · runtime authored</span>`);
+    const status = document.getElementById("genStatus");
+
+    const edge = document.createElement("div");
+    edge.className = "edge-mark";
+    edge.innerHTML = `<span>runtime scaffold</span><span class="ln"></span><span>no llm</span>`;
+    article.appendChild(edge);
+    await revealBlock(edge);
+
+    const read = document.createElement("div");
+    read.className = "read";
+    article.appendChild(read);
+
+    await wait(reduceMotion?0:440);
+
+    const lead = document.createElement("p");
+    read.appendChild(lead);
+    await streamWords(lead, FALLBACK_LEAD, {speed:44});
+    await paragraphBeat();
+
+    const ol = document.createElement("ol");
+    ol.className = "scaffold";
+    read.appendChild(ol);
+    for(let i=0;i<FALLBACK_STEPS.length;i++){
+      const li = document.createElement("li");
+      li.innerHTML = FALLBACK_STEPS[i];
+      ol.appendChild(li);
+      await revealBlock(li);
+      await wait(reduceMotion?0:150);
+    }
+
+    resolveStatus(status, "instruction_only", `<span class="mark fallbk">runtime authored</span>`);
+    mountEvidence(read);
+    practiceShown = true; busy = false;
+  }
+
+  /* ---------- evidence: a single understated field continuing the column ---------- */
+  function mountEvidence(read){
+    const ev = document.createElement("section");
+    ev.className = "evidence";
+    ev.id = "evidence";
+    ev.innerHTML =
+      `<div class="evidence-head"><span>your fix · evidence</span><span>persistence · attempt ${attempts+1}</span></div>`+
+      `<p class="evidence-prompt">Write the rollback you would add — describe it, or paste the corrected error branch.</p>`+
+      `<div class="evidence-row">`+
+        `<span class="glyph" aria-hidden="true">&rsaquo;</span>`+
+        `<textarea id="evField" rows="3" spellcheck="false" placeholder="the corrected error branch…"></textarea>`+
+      `</div>`+
+      `<div class="evidence-foot">`+
+        `<span class="hint">runtime scores this against BKT + the active misconception</span>`+
+        `<button class="submit" id="evSubmit">submit evidence <kbd>⌘⏎</kbd></button>`+
+      `</div>`;
+    read.appendChild(ev);
+
+    const ef = ev.querySelector("#evField");
+    const sb = ev.querySelector("#evSubmit");
+    ef.value = "if err := InsertEnrollment(ctx, tx, e); err != nil {\n    tx.Rollback()\n    return err\n}";
+    autoGrow(ef);
+    ef.addEventListener("input",()=>{ autoGrow(ef); sb.disabled = ef.value.trim().length < 3; });
+    ef.addEventListener("keydown",(ev2)=>{
+      if((ev2.metaKey||ev2.ctrlKey) && ev2.key==="Enter"){ ev2.preventDefault(); if(!sb.disabled) submitEvidence(); }
+    });
+    sb.addEventListener("click", submitEvidence);
+
+    // surface the move rail now that there is something to act on
+    armRail();
+    setTimeout(()=>{ if(!reduceMotion) ef.focus(); }, reduceMotion?0:400);
+  }
+
+  /* ---------- inline gesture / why responses, as continuing passages ---------- */
+  async function renderGesture(key){
+    busy = true;
+    const read = article.querySelector(".read");
+    const ev = document.getElementById("evidence");
+    const resp = document.createElement("div");
+    resp.className = "inline-resp " + (mode==="fallback"?"fallbk-resp":"");
+    const tag = mode==="fallback"
+      ? `<span class="rtag mark fallbk"><span class="dot"></span>instruction-only · ${key}</span><br>`
+      : `<span class="rtag mark llm"><span class="dot"></span>llm generated · ${key}</span><br>`;
+    resp.innerHTML = tag + `<span class="rbody"></span>`;
+    if(ev) read.insertBefore(resp, ev); else read.appendChild(resp);
+    await revealBlock(resp);
+    await streamWords(resp.querySelector(".rbody"), GESTURE_TEXT[key], {speed:45});
+    busy = false;
+  }
+
+  async function renderWhy(){
+    busy = true;
+    const read = article.querySelector(".read");
+    const ev = document.getElementById("evidence");
+    const resp = document.createElement("div");
+    resp.className = "inline-resp runtime-resp";
+    resp.innerHTML = `<span class="rtag mark runtime"><span class="dot"></span>runtime decided · /why</span><br><span class="rbody"></span>`;
+    if(ev) read.insertBefore(resp, ev); else read.appendChild(resp);
+    await revealBlock(resp);
+    await streamWords(resp.querySelector(".rbody"), WHY_TEXT, {speed:44});
+    busy = false;
+  }
+
+  /* /why summoned from the void (before /start): a calm centered reading */
+  async function renderWhyFromVoid(){
+    busy = true;
+    setReading(true);
+    await openTakeover();
+    article.innerHTML = "";
+    buildArticleHead("runtime · authoritative",
+      "Why this reading, and why now.",
+      `<span class="mark runtime"><span class="dot"></span>runtime decided · /why</span>`);
+    const status = document.getElementById("genStatus");
+    const read = document.createElement("div");
+    read.className = "read";
+    article.appendChild(read);
+    await wait(reduceMotion?0:360);
+    const p = document.createElement("p");
+    p.className = "lead-cap";
+    read.appendChild(p);
+    await streamWords(p, WHY_TEXT, {speed:44});
+    resolveStatus(status, "runtime rationale", `<span class="mark runtime">runtime owned</span>`);
+
+    const backWrap = document.createElement("p");
+    backWrap.style.marginTop = "2em";
+    backWrap.innerHTML = `<button class="continue" id="whyBack">← back to the line</button>`;
+    read.appendChild(backWrap);
+    backWrap.querySelector("#whyBack").addEventListener("click", returnToVoidLine);
+    busy = false;
+  }
+
+  function returnToVoidLine(){
+    takeover.classList.remove("show"); takeover.setAttribute("aria-hidden","true");
+    setReading(false);
+    voidEl.classList.remove("gone");
+    disarmRail();
+    setTimeout(()=>{ if(!reduceMotion) field.focus(); }, reduceMotion?0:200);
+  }
+
+  /* ============================================================
+     submit evidence -> serene in-column state delta -> collapse
+     ============================================================ */
+  async function submitEvidence(){
+    if(busy) return;
+    busy = true;
+    const ev = document.getElementById("evidence");
+    ev.querySelectorAll("textarea, .submit").forEach(el=> el.disabled = true);
+    railInner.querySelectorAll(".gesture").forEach(b=> b.disabled = true);
+
+    const read = article.querySelector(".read");
+    const close = document.createElement("section");
+    close.className = "delta-close";
+    close.innerHTML =
+      `<div class="delta-kicker"><span class="ico"></span>state delta · runtime committed</div>`+
+      `<div class="gen-status" id="deltaStatus"><span class="spin"></span><span class="check">✓</span>`+
+        `<span>committing · <span class="src">BKT update + FSRS reschedule</span></span></div>`+
+      `<div class="delta-rows" id="deltaRows" style="margin-top:20px"></div>`+
+      `<p class="delta-prose" id="deltaProse"></p>`+
+      `<button class="continue" id="continueBtn">accept &amp; breathe out → next intent</button>`;
+    read.appendChild(close);
+    requestAnimationFrame(()=> close.classList.add("show"));
+    followStream();
+
+    await wait(reduceMotion?0:620);
+
+    const prevM = mastery, prevR = retention;
+    mastery = Math.min(0.66, +(mastery + 0.06).toFixed(2));
+    retention = Math.min(0.7, +(retention + 0.14).toFixed(2));
+    cleared++;
+
+    resolveStatus(document.getElementById("deltaStatus"), "runtime committed",
+      `<span class="mark runtime">runtime decided</span>`);
+
+    const stillLocked = mastery < 0.6;
+    const rows = document.getElementById("deltaRows");
+    const deltas = [
+      `<span class="dk">mastery · persistence</span><span class="dv"><span class="from">${prevM.toFixed(2)}</span><span class="arr">→</span><span class="to">${mastery.toFixed(2)}</span><span class="note">partial credit — rollback present, error not wrapped</span></span>`,
+      `<span class="dk">misconception</span><span class="dv"><span class="to warn">forgot-tx-rollback</span><span class="note">still active — Rollback() error unhandled</span></span>`,
+      `<span class="dk">retention · FSRS</span><span class="dv"><span class="from">${prevR.toFixed(2)}</span><span class="arr">→</span><span class="to">${retention.toFixed(2)}</span><span class="note">review rescheduled +1d (was overdue 2d)</span></span>`,
+      `<span class="dk">load state</span><span class="dv"><span class="to">overload recovery</span><span class="note">held — one clean attempt before lifting</span></span>`,
+      `<span class="dk">gate · transactions</span><span class="dv"><span class="to ${stillLocked?'bad':''}">${stillLocked?'still locked':'unlocking'}</span><span class="note">unlocks at persistence ≥ 0.6</span></span>`,
+    ];
+    for(let i=0;i<deltas.length;i++){
+      const r = document.createElement("div");
+      r.className="drow"; r.innerHTML = deltas[i];
+      r.style.opacity="0"; r.style.transform="translateX(-8px)"; r.style.transition="opacity .4s, transform .4s";
+      rows.appendChild(r);
+      await wait(reduceMotion?0:150);
+      r.style.opacity="1"; r.style.transform="none";
+      followStream();
+    }
+
+    await wait(reduceMotion?0:200);
+    await streamWords(document.getElementById("deltaProse"),
+      "Evidence absorbed. The rollback is there, but the rollback's own error still goes unhandled — so the misconception stays warm and we will read once more. Breathe out; the page resets to the runtime's next chosen move.",
+      {speed:44});
+
+    document.getElementById("continueBtn").addEventListener("click", collapseToNextIntent);
+    followStream();
+    busy = false;
+  }
+
+  /* ---------- collapse the whole reading back to one new standfirst ---------- */
+  async function collapseToNextIntent(){
+    if(busy) return;
+    busy = true;
+
+    disarmRail();
+    takeover.classList.remove("show");
+    takeover.setAttribute("aria-hidden","true");
+    setReading(false);
+
+    // a breath flash
+    breath.textContent = "page cleared · runtime selecting next move…";
+    breath.classList.add("show");
+    await wait(reduceMotion?0:820);
+    breath.classList.remove("show");
+
+    // reset the reading surface
+    article.innerHTML = ""; practiceShown = false; attempts = 0;
+
+    // rewrite the single standfirst (the next runtime move)
+    const sf = document.getElementById("standfirst");
+    sf.innerHTML =
+      `Once more — <em>tighten that rollback</em> so the error is handled, not just discarded. `+
+      `<span class="neg">mastery ${mastery.toFixed(2)} ↑</span> · misconception still warm`;
+
+    const mEl = document.getElementById("mMastery");
+    mEl.textContent = mastery.toFixed(2) + " ↑";
+    mEl.classList.remove("bad"); mEl.classList.add("warn");
+
+    document.getElementById("recovery").innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke-linecap="round"/><circle cx="12" cy="12" r="4"/></svg>overload recovery — one clean attempt away from lifting`;
+
+    // bring the void back in (breathe out)
+    voidEl.classList.remove("gone");
+    field.value=""; autoGrow(field); updateCaret();
+    disarmMoves();
+    await wait(reduceMotion?0:220);
+    if(!reduceMotion) field.focus();
+    busy = false;
+  }
+
+  /* ============================================================
+     the faint move rail — surfaces only on intent
+     ============================================================ */
+  function buildRail(){
+    railInner.innerHTML =
+      `<span class="gl">sanctioned moves</span>`+
+      `<button class="gesture" data-cmd="/explain-differently"><span class="g">/</span>explain differently</button>`+
+      `<button class="gesture" data-cmd="/example"><span class="g">/</span>another example</button>`+
+      `<button class="gesture danger" data-cmd="/stuck"><span class="g">/</span>I'm stuck</button>`+
+      `<button class="gesture" data-cmd="/why"><span class="g">/</span>why this?</button>`+
+      `<button class="gesture" data-cmd="/regenerate"><span class="g">/</span>regenerate</button>`+
+      `<button class="gesture" data-cmd="/fallback" id="railFallback"><span class="g">/</span>fallback</button>`;
+    railInner.querySelectorAll(".gesture").forEach(b=>{
+      b.addEventListener("click",()=> runCommand(b.dataset.cmd));
+    });
+    if(mode==="fallback"){ const rf = railInner.querySelector("#railFallback"); if(rf) rf.disabled = true; }
+  }
+  // the rail is "armed" (allowed to surface) only while reading a practice
+  let railArmed = false;
+  function armRail(){ railArmed = true; buildRail(); surfaceRail(); scheduleRailHide(); }
+  function disarmRail(){ railArmed = false; rail.classList.remove("surface"); rail.setAttribute("aria-hidden","true"); }
+  function surfaceRail(){
+    if(!railArmed) return;
+    rail.classList.add("surface"); rail.setAttribute("aria-hidden","false");
+  }
+  function scheduleRailHide(){
+    if(railTimer) clearTimeout(railTimer);
+    railTimer = setTimeout(()=>{ if(railArmed) rail.classList.remove("surface"); }, 2600);
+  }
+  // surface the rail when the reader shows intent: pointer near the bottom, or a keypress
+  document.addEventListener("mousemove",(e)=>{
+    if(!railArmed) return;
+    if(e.clientY > window.innerHeight - 130){ surfaceRail(); scheduleRailHide(); }
+  });
+  document.addEventListener("keydown",(e)=>{
+    if(!railArmed) return;
+    if(e.key==="/" || e.key==="Tab"){ surfaceRail(); scheduleRailHide(); }
+  });
+  rail.addEventListener("mouseenter",()=>{ if(railTimer) clearTimeout(railTimer); });
+  rail.addEventListener("mouseleave", scheduleRailHide);
+
+  /* ============================================================
+     command dispatcher
+     ============================================================ */
+  async function runCommand(key){
+    if(busy) return;
+    disarmMoves();
+    field.value=""; autoGrow(field); updateCaret();
+
+    switch(key){
+      case "/start":
+        if(practiceShown) return;
+        await openTakeover();
+        if(mode==="fallback") await renderFallbackReading();
+        else await renderLLMReading(false);
+        break;
+
+      case "/fallback":
+        mode = "fallback";
+        body.classList.add("fallback");
+        modeLabel.textContent = "instruction_only";
+        if(!takeover.classList.contains("show")) await openTakeover();
+        await renderFallbackReading();
+        break;
+
+      case "/regenerate":
+        if(!practiceShown) return;
+        attempts++;
+        disarmRail();
+        if(mode==="fallback") await renderFallbackReading();
+        else await renderLLMReading(true);
+        break;
+
+      case "/explain-differently":
+      case "/example":
+      case "/stuck":
+        if(!practiceShown) return;
+        await renderGesture(key);
+        break;
+
+      case "/why":
+        if(practiceShown) await renderWhy();
+        else await renderWhyFromVoid();
+        break;
+    }
+  }
+
+  /* ============================================================
+     void input wiring
+     ============================================================ */
+  function syncFromField(){
+    autoGrow(field); updateCaret();
+    const v = field.value;
+    if(v.startsWith("/")){
+      const items = renderMoves(v);
+      if(items.length) armMoves(); else disarmMoves();
+    } else if(v===""){
+      renderMoves("");
+    } else {
+      disarmMoves();
+    }
+  }
+  field.addEventListener("input", syncFromField);
+  field.addEventListener("click", updateCaret);
+  field.addEventListener("keyup", updateCaret);
+
+  field.addEventListener("focus",()=>{
+    begin.classList.add("focused");
+    renderMoves(field.value.startsWith("/")?field.value:"");
+    armMoves();
+    updateCaret();
+  });
+  field.addEventListener("blur",()=>{
+    begin.classList.remove("focused");
+    setTimeout(disarmMoves,140);
+  });
+  beginLine.addEventListener("mousedown",(e)=>{ if(e.target!==field){ e.preventDefault(); field.focus(); } });
+
+  field.addEventListener("keydown",(e)=>{
+    const open = moves.classList.contains("armed") && begin.classList.contains("focused");
+    const items = [...moveList.querySelectorAll(".move")];
+
+    if(e.key==="/" && field.value===""){ setTimeout(()=>{ renderMoves("/"); armMoves(); },0); return; }
+    if(open && e.key==="ArrowDown"){ e.preventDefault(); selIdx=Math.min(items.length-1,selIdx+1); paintSel(); return; }
+    if(open && e.key==="ArrowUp"){ e.preventDefault(); selIdx=Math.max(0,selIdx-1); paintSel(); return; }
+    if(e.key==="Escape"){ disarmMoves(); field.blur(); return; }
+
+    if(e.key==="Enter" && !e.shiftKey){
+      e.preventDefault();
+      const v = field.value.trim();
+      if(open && v.startsWith("/") && items[selIdx]){
+        if(items[selIdx].dataset.disabled==="1") return;
+        runCommand(items[selIdx].dataset.key); return;
+      }
+      if(v.startsWith("/")){
+        const match = COMMANDS.find(c=>c.key===v) || COMMANDS.find(c=>c.key.startsWith(v));
+        if(match){ runCommand(match.key); return; }
+      }
+      if(v==="" && !practiceShown){ runCommand("/start"); return; }
+    }
+  });
+
+  // Escape from within the reading returns to the void line (when not busy / no delta)
+  document.addEventListener("keydown",(e)=>{
+    if(e.key==="Escape" && takeover.classList.contains("show") && !busy){
+      if(!document.querySelector(".delta-close")) returnToVoidLine();
+    }
+  });
+
+  /* ---------- helpers / boot ---------- */
+  function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  window.addEventListener("resize", updateCaret);
+
+  renderMoves("");
+  setTimeout(()=>{ updateCaret(); }, 220);
+  setTimeout(()=>{ if(!reduceMotion) field.focus(); }, reduceMotion?0:1800);
+})();
+</script>
+</body>
+</html>
