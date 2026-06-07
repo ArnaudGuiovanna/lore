@@ -175,7 +175,7 @@ export default async function AdminHome() {
   // credential store + seed for human names/emails). The backend's GET
   // /memberships is the source of truth for who-holds-which-role; names/emails
   // come from the frontend identity sources. userId enables role re-grant.
-  const credentials = listCredentials();
+  const credentials = await listCredentials();
   const nameForUser = (userId: string): { name: string; email: string } => {
     const cred = credentials.find((c) => c.userId === userId);
     if (cred) return { name: cred.name, email: cred.email };

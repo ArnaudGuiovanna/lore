@@ -1,34 +1,16 @@
-// Admin-scoped credential helpers that live ALONGSIDE the auth foundation's
-// credential store (lib/auth/store.ts) without modifying it. The store owns
-// password hashing + the login mapping; here we only need a role-only update
-// (the login role is read from this store, so a backend membership re-grant must
-// be reflected here too — WITHOUT re-hashing / invalidating the password).
-// Server-only. File-backed, same .gen/users.json the foundation store uses.
+// Admin-scoped credential helper for a role-only update (the login role is read
+// from the credential store, so a backend membership re-grant must be reflected
+// there too — WITHOUT re-hashing / invalidating the password).
+//
+// The foundation store (lib/auth/store.ts) now owns this operation across BOTH
+// backings (Postgres when DATABASE_URL is set, file otherwise), so this thin
+// wrapper simply delegates to it. Server-only.
 import "server-only";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import type { Role } from "@/lib/types";
-import { listCredentials, writeUsersFileSecure } from "@/lib/auth/store";
-
-const FILE = join(process.cwd(), ".gen", "users.json");
+import { setCredentialRole as storeSetCredentialRole } from "@/lib/auth/store";
 
 // Update only the role for a stored credential, identified by LORE user id.
 // Leaves the password hash untouched. Returns true if a row was updated.
-export function setCredentialRole(userId: string, role: Role): boolean {
-  // listCredentials() seeds the file from the backend on first run, so by the
-  // time we read it here it exists and is consistent with the store's view.
-  listCredentials();
-  if (!existsSync(FILE)) return false;
-  let rows: Array<Record<string, unknown>>;
-  try {
-    rows = JSON.parse(readFileSync(FILE, "utf8"));
-  } catch {
-    return false;
-  }
-  const row = rows.find((r) => r.userId === userId);
-  if (!row) return false;
-  row.role = role;
-  // Owner-only write (the file holds bcrypt password hashes).
-  writeUsersFileSecure(JSON.stringify(rows, null, 2));
-  return true;
+export async function setCredentialRole(userId: string, role: Role): Promise<boolean> {
+  return storeSetCredentialRole(userId, role);
 }

@@ -42,7 +42,9 @@ Browser ──HTTPS──> Next.js (LECTURE)  ──server-side bearer JWT──
   bearer token** (role + tenant come from the backend membership), and attaches it
   to `/v1/tenants/...` calls. RBAC is enforced **end-to-end by the backend**.
 - The backend owns identity (users, memberships, roles) but **not passwords**. The
-  front keeps password hashes (bcrypt) in a file-backed credential store.
+  front keeps password hashes (bcrypt) in a **pluggable** credential store: a
+  Postgres table when `DATABASE_URL` is set (durable, multi-node), or a file
+  (`web/.gen/users.json`) for zero-config single-node dev. Same interface either way.
 
 ---
 
@@ -135,10 +137,11 @@ Password (all demo accounts): **`lore123!`** (or your `DEFAULT_SEED_PASSWORD`).
 - **Before first boot:** set `DEFAULT_SEED_PASSWORD` to your own value. The front
   derives the demo credentials from the seeded backend users the **first time** it
   reads the credential store.
-- **After first boot:** the credential store already exists at `web/.gen/users.json`
-  (a Docker volume in the compose setup). Changing `DEFAULT_SEED_PASSWORD` then has
-  **no effect**. To rotate, either delete `web/.gen/users.json` (or the `web-gen`
-  volume) and re-seed, or change passwords programmatically via the credential store
+- **After first boot:** the credential store already exists (file `web/.gen/users.json`,
+  or the `lore_web_credentials` Postgres table if `DATABASE_URL` is set). Changing
+  `DEFAULT_SEED_PASSWORD` then has **no effect**. To rotate, either reset the backing
+  (delete `web/.gen/users.json` / the `web-gen` volume, or truncate the table) and
+  re-seed, or change passwords programmatically via the credential store
   (`web/lib/auth/store.ts`: `setPassword(email, newPassword)` /
   `upsertCredential(...)`). Real users are normally added via invite/signup.
 
@@ -154,6 +157,7 @@ Password (all demo accounts): **`lore123!`** (or your `DEFAULT_SEED_PASSWORD`).
 | `LORE_BOOTSTRAP_TOKEN`  | yes      | `change-me-operator-secret`   | Operator secret; **must match the backend's** `LORE_BOOTSTRAP_TOKEN`. The Next server uses it to mint per-user LORE tokens. Never exposed to the browser. |
 | `SESSION_SECRET`        | yes      | `change-me-...`               | Signs session cookies. Use **>= 32 bytes**. |
 | `DEFAULT_SEED_PASSWORD` | no       | `lore123!`                    | Password for the seeded demo accounts (first boot only). |
+| `DATABASE_URL`          | no       | *(unset → file store)*        | When set, the credential store is **durable** (Postgres `lore_web_credentials` table, auto-created). When unset, passwords are file-backed at `web/.gen/users.json`. See "Credential store durability" below. |
 
 Backend-side (the `lore` service): `JWT_SECRET` (signs per-user tokens),
 `JWT_ALG` (default `HS256`), `LORE_BOOTSTRAP_TOKEN` (must match the front),
@@ -177,6 +181,35 @@ Backend-side (the `lore` service): `JWT_SECRET` (signs per-user tokens),
 
 ---
 
+## Credential store durability
+
+The front holds password hashes (bcrypt) + a login-email → LORE-user-id mapping in
+a **pluggable** credential store (`web/lib/auth/store.ts`), behind a single
+interface (`getByEmail`, `verifyPassword`, `upsertCredential`, `setPassword`,
+`setMustChangePassword`, `listCredentials`). The backing is chosen by one env var:
+
+| `DATABASE_URL` | Backing | Use case |
+|----------------|---------|----------|
+| **unset** | JSON file `web/.gen/users.json` (bcrypt hashes, owner-only `0600`) | Zero-config local dev / single node. Survives restart only on a persisted volume. |
+| **set** | Postgres table `lore_web_credentials` (auto-created on first use) | **Durable**: logins survive restarts and scale beyond one node. |
+
+```bash
+# Make the credential store durable:
+DATABASE_URL=postgres://lore:lore@db:5432/lore  npm run start
+```
+
+On first run, **both** backings seed the demo accounts the same way (from the
+seeded backend users). With Postgres, the `lore_web_credentials` table is created
+with `CREATE TABLE IF NOT EXISTS` and seeded only when empty, so two web nodes can
+boot against the same database safely. The credential store is independent of the
+backend's own `STORE_DRIVER`; you may run a durable credential store regardless.
+
+> Each credential carries a `mustChangePassword` flag (default `false`) and a
+> `setMustChangePassword(email, value)` setter — used by the auth stream to force
+> invited users to set a real password on first login.
+
+---
+
 ## Point at a real / durable backend
 
 1. Stand up the full backend stack: `docker compose -f deploy/docker-compose.yml up`
@@ -197,10 +230,11 @@ Backend-side (the `lore` service): `JWT_SECRET` (signs per-user tokens),
 - The `LORE_BOOTSTRAP_TOKEN` is an **operator master key** (it bypasses backend
   auth to mint tokens and create memberships). Keep it server-side only; never
   ship it to the browser. It is already kept out of client bundles.
-- The credential store is **file-based** (`web/.gen/users.json`), suitable for a
-  **single-node** OF deployment. For scale / HA, move passwords to **Postgres**
-  (swap the implementation in `web/lib/auth/store.ts`; the backend already supports
-  `STORE_DRIVER=postgres` for its own state).
+- The credential store is **pluggable** (see "Credential store durability" below):
+  set `DATABASE_URL` for a durable Postgres backing (passwords survive restarts and
+  scale beyond one node), or leave it unset for the **file-based** backing
+  (`web/.gen/users.json`), suitable for a **single-node** dev/OF deployment. Either
+  way passwords are bcrypt-hashed and the file backing stays owner-only (0600).
 - Terminate TLS in front of the app (reverse proxy) for production.
 - The in-memory backend store loses all data on restart — use Postgres for anything
   you need to keep.

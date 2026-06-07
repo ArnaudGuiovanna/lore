@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   // The login role is read from the credential store (lib/auth/store.ts), so the
   // backend membership re-grant must be reflected there too — role-only, without
   // re-hashing the password. No-op if the user has no local credential yet.
-  const synced = setCredentialRole(userId, role);
+  const synced = await setCredentialRole(userId, role);
 
   return NextResponse.json({ ...r.data, credentialSynced: synced }, { status: 200 });
 }

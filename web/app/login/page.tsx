@@ -13,7 +13,7 @@ export default async function LoginPage() {
   // in (LORE_SHOW_DEMO_LOGINS=1) — never expose seeded credentials in production.
   const showDemo = process.env.LORE_SHOW_DEMO_LOGINS === "1";
   const demo = showDemo
-    ? listCredentials().slice(0, 6).map((c) => ({ email: c.email, role: c.role, name: c.name }))
+    ? (await listCredentials()).slice(0, 6).map((c) => ({ email: c.email, role: c.role, name: c.name }))
     : [];
   const demoPw = showDemo ? process.env.DEFAULT_SEED_PASSWORD || "lore123!" : "";
 

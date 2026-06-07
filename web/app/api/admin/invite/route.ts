@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (getByEmail(email)) {
+  if (await getByEmail(email)) {
     return NextResponse.json(
       { error: "a user with this email already has credentials in this tenant" },
       { status: 409 }
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
 
   // (b) issue a temporary password mapped to the new LORE user id.
   const password = tempPassword();
-  upsertCredential({
+  await upsertCredential({
     email,
     name,
     role,
