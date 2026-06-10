@@ -547,6 +547,25 @@ type GeneratedContent struct {
 	Model         string    `json:"model"`
 	Content       string    `json:"content"`
 	CreatedAt     time.Time `json:"created_at"`
+	// Curation (B-16): trainers review what was taught. REJECTED content is
+	// no longer served from persistence-backed reads.
+	ReviewStatus string     `json:"review_status,omitempty"` // PENDING_REVIEW | APPROVED | REJECTED
+	ReviewedBy   string     `json:"reviewed_by,omitempty"`
+	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
+	ReviewNote   string     `json:"review_note,omitempty"`
+}
+
+// Announcement (B-18) — message du formateur/admin vers une cohorte (ou tout
+// le tenant quand cohort_id est vide).
+type Announcement struct {
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	CohortID   string     `json:"cohort_id,omitempty"`
+	Title      string     `json:"title"`
+	Body       string     `json:"body,omitempty"`
+	CreatedBy  string     `json:"created_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 type LLMConfiguration struct {

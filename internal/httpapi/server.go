@@ -57,6 +57,11 @@ type Repository interface {
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
 	EraseLearnerData(ctx context.Context, tenantID, learnerID string, actorUserID ...string) (map[string]int, error)
 	ListPositioningEvidence(ctx context.Context, tenantID, learnerID, domainID string) ([]core.Interaction, error)
+	ListGeneratedContentForReview(ctx context.Context, tenantID, status string) ([]core.GeneratedContent, error)
+	ReviewGeneratedContent(ctx context.Context, tenantID, contentID, status, note, reviewerID string) (core.GeneratedContent, error)
+	CreateAnnouncement(ctx context.Context, announcement core.Announcement, actorUserID ...string) (core.Announcement, error)
+	ListAnnouncements(ctx context.Context, tenantID, learnerID string) ([]core.Announcement, error)
+	ArchiveAnnouncement(ctx context.Context, tenantID, announcementID string, actorUserID ...string) (core.Announcement, error)
 	CreateDocument(ctx context.Context, doc core.OFDocument, actorUserID ...string) (core.OFDocument, error)
 	NewDocumentVersion(ctx context.Context, tenantID, documentID, title, body string, actorUserID ...string) (core.OFDocument, error)
 	ListDocuments(ctx context.Context, tenantID, learnerID string) ([]core.OFDocument, error)
@@ -240,6 +245,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/learners/{learner_id}/positioning", s.learnerPositioning)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/content-review", s.listContentForReview)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/content-review/{content_id}", s.reviewContent)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/announcements", s.createAnnouncement)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/announcements", s.listAnnouncements)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/announcements/{announcement_id}", s.archiveAnnouncement)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents", s.createDocument)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents", s.listDocuments)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents/{document_id}", s.getDocument)
@@ -851,10 +861,59 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(b.String()))
 }
 
+// --- Curation du contenu (B-16) + annonces (B-18) ---------------------------
+
+func (s *Server) listContentForReview(w http.ResponseWriter, r *http.Request) {
+	contents, err := s.store.ListGeneratedContentForReview(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("status"))
+	respond(w, contents, err, http.StatusOK)
+}
+
+func (s *Server) reviewContent(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	content, err := s.store.ReviewGeneratedContent(r.Context(), r.PathValue("tenant_id"), r.PathValue("content_id"), req.Status, req.Note, actorUserIDFromRequest(r))
+	respond(w, content, err, http.StatusOK)
+}
+
+func (s *Server) createAnnouncement(w http.ResponseWriter, r *http.Request) {
+	var req core.Announcement
+	if !decode(w, r, &req) {
+		return
+	}
+	req.TenantID = r.PathValue("tenant_id")
+	announcement, err := s.store.CreateAnnouncement(r.Context(), req, actorUserIDFromRequest(r))
+	respond(w, announcement, err, http.StatusCreated)
+}
+
+// listAnnouncements: a learner token only sees its cohorts' + tenant-wide.
+func (s *Server) listAnnouncements(w http.ResponseWriter, r *http.Request) {
+	learnerID := ""
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		learnerID = claims.Subject
+	}
+	announcements, err := s.store.ListAnnouncements(r.Context(), r.PathValue("tenant_id"), learnerID)
+	respond(w, announcements, err, http.StatusOK)
+}
+
+func (s *Server) archiveAnnouncement(w http.ResponseWriter, r *http.Request) {
+	announcement, err := s.store.ArchiveAnnouncement(r.Context(), r.PathValue("tenant_id"), r.PathValue("announcement_id"), actorUserIDFromRequest(r))
+	respond(w, announcement, err, http.StatusOK)
+}
+
 // learnerPositioning (B-13): the archivable initial-positioning record — the
 // first corrected assessment per concept (date, score, items). Trainers
 // comment via the admin audit log (action positioning.comment).
 func (s *Server) learnerPositioning(w http.ResponseWriter, r *http.Request) {
+	// Defense in depth: a learner token may only read ITS positioning even if
+	// the route allowlist ever opens this path to learners.
+	if !s.authorizeLearnerCommand(w, r, r.PathValue("learner_id")) {
+		return
+	}
 	evidence, err := s.store.ListPositioningEvidence(r.Context(), r.PathValue("tenant_id"), r.PathValue("learner_id"), r.URL.Query().Get("domain_id"))
 	respond(w, evidence, err, http.StatusOK)
 }
@@ -892,9 +951,19 @@ func (s *Server) getDocument(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	// A learner may only read a document in its scope.
+	// A learner may only read a document in its scope: addressed to it,
+	// addressed to one of its ACTIVE cohorts, or tenant-wide.
 	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
-		if doc.LearnerID != "" && doc.LearnerID != claims.Subject {
+		allowed := false
+		switch {
+		case doc.LearnerID == claims.Subject:
+			allowed = true
+		case doc.LearnerID == "" && doc.CohortID == "":
+			allowed = true
+		case doc.LearnerID == "" && doc.CohortID != "":
+			allowed = s.learnerIsEnrolled(r.Context(), doc.TenantID, doc.CohortID, claims.Subject)
+		}
+		if !allowed {
 			problem(w, http.StatusForbidden, "document is not addressed to this learner")
 			return
 		}
@@ -2479,6 +2548,14 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 	// B-25: the cohort schedule is readable by its learners (read-only).
 	if r.Method == http.MethodGet && len(tail) == 1 &&
 		(tail[0] == "training-sessions" || tail[0] == "training-sessions.ics") {
+		return true
+	}
+	// B-24: a learner needs the syllabus list (read-only) to resolve its path.
+	if r.Method == http.MethodGet && len(tail) == 1 && tail[0] == "syllabi" {
+		return true
+	}
+	// B-18: learners read announcements (handler narrows to their cohorts).
+	if r.Method == http.MethodGet && len(tail) == 1 && tail[0] == "announcements" {
 		return true
 	}
 	// B-10: learners read documents in their scope (handler narrows the list).

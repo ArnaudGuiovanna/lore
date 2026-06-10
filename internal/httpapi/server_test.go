@@ -767,7 +767,12 @@ func TestJWTListEndpointsAuthorizeRoles(t *testing.T) {
 	} {
 		expectJSONStatus(t, server, http.MethodGet, path, nil, nil, http.StatusUnauthorized)
 		expectJSONStatus(t, server, http.MethodGet, path, nil, bearerHeaders(otherToken), http.StatusForbidden)
-		expectJSONStatus(t, server, http.MethodGet, path, nil, bearerHeaders(learnerToken), http.StatusForbidden)
+		// B-24: learners may read syllabi (needed to resolve their parcours), nothing else.
+		if strings.HasSuffix(path, "/syllabi") {
+			_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(learnerToken), http.StatusOK)
+		} else {
+			expectJSONStatus(t, server, http.MethodGet, path, nil, bearerHeaders(learnerToken), http.StatusForbidden)
+		}
 		_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(adminToken), http.StatusOK)
 		_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(trainerToken), http.StatusOK)
 		_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(superToken), http.StatusOK)

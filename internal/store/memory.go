@@ -38,6 +38,7 @@ type MemoryStore struct {
 	assignments           map[string]core.Assignment
 	assignmentSubmissions map[string]core.AssignmentSubmission
 	documents             map[string]core.OFDocument
+	announcements         map[string]core.Announcement
 
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
@@ -81,6 +82,7 @@ func NewMemoryStore() *MemoryStore {
 		assignments:           map[string]core.Assignment{},
 		assignmentSubmissions: map[string]core.AssignmentSubmission{},
 		documents:             map[string]core.OFDocument{},
+		announcements:         map[string]core.Announcement{},
 		domains:               map[string]core.Domain{},
 		concepts:              map[string]core.Concept{},
 		dependencies:          map[string]core.Dependency{},
@@ -1322,6 +1324,9 @@ func (s *MemoryStore) SaveGeneratedContent(_ context.Context, content core.Gener
 	if _, ok := s.instructions[key(content.TenantID, content.InstructionID)]; !ok {
 		return fmt.Errorf("%w: tutor instruction", core.ErrNotFound)
 	}
+	if content.ReviewStatus == "" {
+		content.ReviewStatus = "PENDING_REVIEW"
+	}
 	s.contents[key(content.TenantID, content.ID)] = content
 	event := memoryEvent(content.TenantID, "GeneratedContentCreated", "generated_content", content.ID, content.CreatedAt, map[string]any{"instruction_id": content.InstructionID})
 	s.events[key(content.TenantID, event.ID)] = event
@@ -1333,7 +1338,7 @@ func (s *MemoryStore) ListGeneratedContent(_ context.Context, tenantID, instruct
 	defer s.mu.RUnlock()
 	var result []core.GeneratedContent
 	for _, content := range s.contents {
-		if content.TenantID != tenantID {
+		if content.TenantID != tenantID || content.ReviewStatus == "REJECTED" {
 			continue
 		}
 		if instructionID != "" && content.InstructionID != instructionID {
@@ -1354,9 +1359,52 @@ func (s *MemoryStore) GetGeneratedContent(_ context.Context, tenantID, contentID
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	content, ok := s.contents[key(tenantID, contentID)]
+	if !ok || content.ReviewStatus == "REJECTED" {
+		return core.GeneratedContent{}, fmt.Errorf("%w: generated content", core.ErrNotFound)
+	}
+	return content, nil
+}
+
+// ListGeneratedContentForReview (B-16) — curation queue, REJECTED included.
+func (s *MemoryStore) ListGeneratedContentForReview(_ context.Context, tenantID, status string) ([]core.GeneratedContent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]core.GeneratedContent, 0)
+	for _, content := range s.contents {
+		if content.TenantID != tenantID {
+			continue
+		}
+		if status != "" && content.ReviewStatus != status {
+			continue
+		}
+		result = append(result, content)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	return result, nil
+}
+
+func (s *MemoryStore) ReviewGeneratedContent(_ context.Context, tenantID, contentID, status, note, reviewerID string) (core.GeneratedContent, error) {
+	if status != "APPROVED" && status != "REJECTED" && status != "PENDING_REVIEW" {
+		return core.GeneratedContent{}, fmt.Errorf("%w: review status must be APPROVED, REJECTED or PENDING_REVIEW", core.ErrInvalidInput)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	content, ok := s.contents[key(tenantID, contentID)]
 	if !ok {
 		return core.GeneratedContent{}, fmt.Errorf("%w: generated content", core.ErrNotFound)
 	}
+	now := time.Now().UTC()
+	content.ReviewStatus = status
+	content.ReviewedBy = reviewerID
+	content.ReviewedAt = &now
+	content.ReviewNote = note
+	s.contents[key(tenantID, contentID)] = content
+	s.recordAdminAuditLocked(tenantID, reviewerID, "content.review", "generated_content", contentID, map[string]any{"status": status}, now)
 	return content, nil
 }
 

@@ -1418,9 +1418,9 @@ func (s *PostgresStore) ListGeneratedContent(ctx context.Context, tenantID, inst
 	var contents []core.GeneratedContent
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		sql := `
-			SELECT tenant_id::text, id::text, instruction_id::text, provider, model, content, created_at
+			SELECT tenant_id::text, id::text, instruction_id::text, provider, model, content, created_at, review_status, reviewed_by, reviewed_at, review_note
 			FROM generated_contents
-			WHERE tenant_id = $1`
+			WHERE tenant_id = $1 AND review_status <> 'REJECTED'`
 		args := []any{tenantID}
 		if instructionID != "" {
 			sql += ` AND instruction_id = $2`
@@ -1434,7 +1434,7 @@ func (s *PostgresStore) ListGeneratedContent(ctx context.Context, tenantID, inst
 		defer rows.Close()
 		for rows.Next() {
 			var content core.GeneratedContent
-			if err := rows.Scan(&content.TenantID, &content.ID, &content.InstructionID, &content.Provider, &content.Model, &content.Content, &content.CreatedAt); err != nil {
+			if err := rows.Scan(&content.TenantID, &content.ID, &content.InstructionID, &content.Provider, &content.Model, &content.Content, &content.CreatedAt, &content.ReviewStatus, &content.ReviewedBy, &content.ReviewedAt, &content.ReviewNote); err != nil {
 				return err
 			}
 			contents = append(contents, content)
@@ -1444,14 +1444,73 @@ func (s *PostgresStore) ListGeneratedContent(ctx context.Context, tenantID, inst
 	return contents, pgErr(err)
 }
 
+// ListGeneratedContentForReview (B-16) returns the curation queue, optionally
+// filtered by review status (REJECTED included — that's the point).
+func (s *PostgresStore) ListGeneratedContentForReview(ctx context.Context, tenantID, status string) ([]core.GeneratedContent, error) {
+	var contents []core.GeneratedContent
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		sql := `
+			SELECT tenant_id::text, id::text, instruction_id::text, provider, model, content, created_at, review_status, reviewed_by, reviewed_at, review_note
+			FROM generated_contents
+			WHERE tenant_id = $1`
+		args := []any{tenantID}
+		if status != "" {
+			sql += ` AND review_status = $2`
+			args = append(args, status)
+		}
+		sql += ` ORDER BY created_at DESC, id LIMIT 500`
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var content core.GeneratedContent
+			if err := rows.Scan(&content.TenantID, &content.ID, &content.InstructionID, &content.Provider, &content.Model, &content.Content, &content.CreatedAt, &content.ReviewStatus, &content.ReviewedBy, &content.ReviewedAt, &content.ReviewNote); err != nil {
+				return err
+			}
+			contents = append(contents, content)
+		}
+		return rows.Err()
+	})
+	if contents == nil {
+		contents = []core.GeneratedContent{}
+	}
+	return contents, pgErr(err)
+}
+
+func (s *PostgresStore) ReviewGeneratedContent(ctx context.Context, tenantID, contentID, status, note, reviewerID string) (core.GeneratedContent, error) {
+	if status != "APPROVED" && status != "REJECTED" && status != "PENDING_REVIEW" {
+		return core.GeneratedContent{}, fmt.Errorf("%w: review status must be APPROVED, REJECTED or PENDING_REVIEW", core.ErrInvalidInput)
+	}
+	var content core.GeneratedContent
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		now := time.Now().UTC()
+		row := tx.QueryRow(ctx, `
+			UPDATE generated_contents
+			SET review_status = $3, reviewed_by = $4, reviewed_at = $5, review_note = $6
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, instruction_id::text, provider, model, content, created_at, review_status, reviewed_by, reviewed_at, review_note
+		`, tenantID, contentID, status, reviewerID, now, note)
+		if err := row.Scan(&content.TenantID, &content.ID, &content.InstructionID, &content.Provider, &content.Model, &content.Content, &content.CreatedAt, &content.ReviewStatus, &content.ReviewedBy, &content.ReviewedAt, &content.ReviewNote); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, reviewerID, "content.review", "generated_content", contentID, map[string]any{"status": status}, now))
+	})
+	if err != nil {
+		return core.GeneratedContent{}, pgErr(err)
+	}
+	return content, nil
+}
+
 func (s *PostgresStore) GetGeneratedContent(ctx context.Context, tenantID, contentID string) (core.GeneratedContent, error) {
 	var content core.GeneratedContent
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT tenant_id::text, id::text, instruction_id::text, provider, model, content, created_at
+			SELECT tenant_id::text, id::text, instruction_id::text, provider, model, content, created_at, review_status, reviewed_by, reviewed_at, review_note
 			FROM generated_contents
-			WHERE tenant_id = $1 AND id = $2
-		`, tenantID, contentID).Scan(&content.TenantID, &content.ID, &content.InstructionID, &content.Provider, &content.Model, &content.Content, &content.CreatedAt)
+			WHERE tenant_id = $1 AND id = $2 AND review_status <> 'REJECTED'
+		`, tenantID, contentID).Scan(&content.TenantID, &content.ID, &content.InstructionID, &content.Provider, &content.Model, &content.Content, &content.CreatedAt, &content.ReviewStatus, &content.ReviewedBy, &content.ReviewedAt, &content.ReviewNote)
 	})
 	return content, pgErr(err)
 }
