@@ -1108,6 +1108,272 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Alert" }
 
+  # --- B-26 Banque de questions, devoirs, correction manuelle ---
+  /v1/tenants/{tenant_id}/questions:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Créer une question de banque (QCM single_choice ou short_answer)
+      responses: { "201": { description: Question créée } }
+    get:
+      summary: Lister la banque (filtre ?concept_id=) — la clé de correction n'est jamais servie aux apprenants (route staff)
+      responses: { "200": { description: Questions } }
+  /v1/tenants/{tenant_id}/questions/{question_id}:
+    delete:
+      summary: Archiver une question
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: question_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Question archivée } }
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}/assignments:
+    post:
+      summary: Créer un devoir (échéance, liaison domaine/concept optionnelle vers le BKT)
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: cohort_id, in: path, required: true, schema: { type: string } }
+      responses: { "201": { description: Devoir créé } }
+  /v1/tenants/{tenant_id}/assignments:
+    get:
+      summary: Lister les devoirs (un jeton apprenant est réduit à ses cohortes)
+      parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Devoirs } }
+  /v1/tenants/{tenant_id}/assignments/{assignment_id}/submissions:
+    parameters:
+      - { name: tenant_id, in: path, required: true, schema: { type: string } }
+      - { name: assignment_id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Rendre sa copie (apprenant ; re-soumission libre tant que non notée, 409 ensuite)
+      responses: { "201": { description: Copie rendue }, "409": { description: Déjà notée } }
+    get:
+      summary: Lister les copies (staff = toutes ; un jeton apprenant ne voit que la sienne)
+      responses: { "200": { description: Copies } }
+  /v1/tenants/{tenant_id}/submissions/{submission_id}/grade:
+    post:
+      summary: Corriger (score 0..1 + feedback) — alimente le runtime si le devoir est lié à un concept
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: submission_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Copie notée } }
+
+  # --- B-10 Documents contractuels OF (versionnés) ---
+  /v1/tenants/{tenant_id}/documents:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Créer un document (CONVENTION, CONTRAT, DEVIS, PROGRAMME, REGLEMENT) — capacité manage_documents
+      responses: { "201": { description: Document créé } }
+    get:
+      summary: Lister (dernière version par chaîne ; un apprenant ne voit que son périmètre)
+      responses: { "200": { description: Documents } }
+  /v1/tenants/{tenant_id}/documents/{document_id}:
+    parameters:
+      - { name: tenant_id, in: path, required: true, schema: { type: string } }
+      - { name: document_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Lire un document (scope apprenant vérifié)
+      responses: { "200": { description: Document } }
+    delete:
+      summary: Archiver la chaîne
+      responses: { "200": { description: Document archivé } }
+  /v1/tenants/{tenant_id}/documents/{document_id}/versions:
+    post:
+      summary: Publier une nouvelle version (append-only via root_id)
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: document_id, in: path, required: true, schema: { type: string } }
+      responses: { "201": { description: Nouvelle version } }
+
+  # --- B-08 Profil OF + export Qualiopi ---
+  /v1/tenants/{tenant_id}/profile:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    get:
+      summary: Profil légal de l'OF (raison sociale, SIRET, NDA, signataire...)
+      responses: { "200": { description: Profil } }
+    put:
+      summary: Mettre à jour le profil (capacité manage_documents)
+      responses: { "200": { description: Profil enregistré } }
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}/qualiopi-export:
+    get:
+      summary: Bundle JSON de preuves Qualiopi (profil, progression, temps, enquêtes, réclamations, audit)
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: cohort_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Export de preuves } }
+
+  # --- B-11 Satisfaction + réclamations ---
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}/surveys:
+    post:
+      summary: Créer une enquête HOT (à chaud) ou COLD (à froid) avec questions scale|text
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: cohort_id, in: path, required: true, schema: { type: string } }
+      responses: { "201": { description: Enquête créée } }
+  /v1/tenants/{tenant_id}/surveys:
+    get:
+      summary: Lister les enquêtes (apprenant = ses cohortes)
+      parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Enquêtes } }
+  /v1/tenants/{tenant_id}/surveys/{survey_id}/responses:
+    parameters:
+      - { name: tenant_id, in: path, required: true, schema: { type: string } }
+      - { name: survey_id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Répondre (apprenant inscrit, une réponse par enquête, scale 1..5)
+      responses: { "201": { description: Réponse enregistrée } }
+    get:
+      summary: Lire les réponses (staff)
+      responses: { "200": { description: Réponses } }
+  /v1/tenants/{tenant_id}/complaints:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Déposer une réclamation (identité forcée depuis le jeton apprenant)
+      responses: { "201": { description: Réclamation ouverte } }
+    get:
+      summary: Registre des réclamations (staff)
+      responses: { "200": { description: Réclamations } }
+  /v1/tenants/{tenant_id}/complaints/{complaint_id}:
+    patch:
+      summary: Traiter (statut OPEN→IN_PROGRESS→RESOLVED→CLOSED, résolution) — capacité manage_quality
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: complaint_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Réclamation mise à jour } }
+
+  # --- B-16 Curation + B-18 Annonces ---
+  /v1/tenants/{tenant_id}/content-review:
+    get:
+      summary: File de revue du contenu généré (?status=PENDING_REVIEW|APPROVED|REJECTED)
+      parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Contenus à revoir } }
+  /v1/tenants/{tenant_id}/content-review/{content_id}:
+    post:
+      summary: Approuver ou rejeter (REJECTED disparaît des lectures persistées)
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: content_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Contenu revu } }
+  /v1/tenants/{tenant_id}/announcements:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Publier une annonce (cohorte ou tenant entier)
+      responses: { "201": { description: Annonce publiée } }
+    get:
+      summary: Lister (apprenant = ses cohortes + tenant-wide)
+      responses: { "200": { description: Annonces } }
+  /v1/tenants/{tenant_id}/announcements/{announcement_id}:
+    delete:
+      summary: Archiver une annonce
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: announcement_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Annonce archivée } }
+
+  # --- B-15 Financements + BPF ---
+  /v1/tenants/{tenant_id}/funding-files:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Ouvrir un dossier de financement (CPF, OPCO, FRANCE_TRAVAIL, EMPLOYEUR, AUTOFINANCEMENT, AUTRE) — capacité manage_finance
+      responses: { "201": { description: Dossier créé } }
+    get:
+      summary: Lister (?learner_id=)
+      responses: { "200": { description: Dossiers } }
+  /v1/tenants/{tenant_id}/funding-files/{file_id}:
+    parameters:
+      - { name: tenant_id, in: path, required: true, schema: { type: string } }
+      - { name: file_id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Mettre à jour (statut EN_INSTRUCTION→ACCEPTE/REFUSE/SOLDE, montant, référence)
+      responses: { "200": { description: Dossier mis à jour } }
+    delete:
+      summary: Archiver
+      responses: { "200": { description: Dossier archivé } }
+  /v1/tenants/{tenant_id}/bpf-export:
+    get:
+      summary: Agrégat BPF annuel (?year=) — produits par origine de financement, stagiaires, heures réellement tracées
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: year, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: Rapport BPF } }
+
+  # --- B-28 Textes légaux + consentements / B-14 effacement ---
+  /v1/tenants/{tenant_id}/legal-texts:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Publier une version (CGU, CONFIDENTIALITE, MENTIONS ; version = max+1) — capacité manage_legal
+      responses: { "201": { description: Texte publié } }
+    get:
+      summary: Dernière version par kind (?history=1 pour l'historique, staff)
+      responses: { "200": { description: Textes } }
+  /v1/tenants/{tenant_id}/consents:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Consentir à un texte (identité du jeton ; idempotent par texte)
+      responses: { "201": { description: Consentement enregistré } }
+    get:
+      summary: Registre (staff ; un apprenant ne voit que les siens)
+      responses: { "200": { description: Consentements } }
+  /v1/tenants/{tenant_id}/learners/{learner_id}/data:
+    delete:
+      summary: Effacement RGPD des données d'un apprenant (capacité erase_data, admin uniquement)
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: learner_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Données effacées (résumé) } }
+
+  # --- B-17 Ressources pédagogiques ---
+  /v1/tenants/{tenant_id}/resources:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Partager une ressource (FICHIER base64 ≤ 20 MiB ou LIEN http/https ; cohorte ou tenant)
+      responses: { "201": { description: Ressource créée } }
+    get:
+      summary: Lister (apprenant = ses cohortes + tenant-wide ; jamais les octets)
+      responses: { "200": { description: Ressources } }
+  /v1/tenants/{tenant_id}/resources/{resource_id}/download:
+    get:
+      summary: Télécharger (FICHIER = octets + Content-Disposition ; LIEN = 302)
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: resource_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Contenu }, "302": { description: Redirection } }
+  /v1/tenants/{tenant_id}/resources/{resource_id}:
+    delete:
+      summary: Archiver une ressource
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: resource_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Ressource archivée } }
+
+  # --- B-20 Webhooks signés ---
+  /v1/tenants/{tenant_id}/webhooks:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: S'abonner aux événements (secret HMAC généré serveur, montré une seule fois) — capacité configure_technical
+      responses: { "201": { description: Abonnement créé (avec secret) } }
+    get:
+      summary: Lister les abonnements (sans secret)
+      responses: { "200": { description: Abonnements } }
+  /v1/tenants/{tenant_id}/webhooks/{subscription_id}:
+    delete:
+      summary: Résilier un abonnement
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: subscription_id, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: Abonnement archivé } }
+
+  # --- B-25 Sessions / agenda ---
+  /v1/tenants/{tenant_id}/training-sessions:
+    parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Planifier une session (présentiel, visio via video_url) — capacité manage_sessions
+      responses: { "201": { description: Session créée } }
+    get:
+      summary: Lister (lisible par les apprenants)
+      responses: { "200": { description: Sessions } }
+  /v1/tenants/{tenant_id}/training-sessions.ics:
+    get:
+      summary: Export iCalendar des sessions
+      parameters: [{ name: tenant_id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Flux ICS } }
+
 components:
   securitySchemes:
     bearerAuth:
