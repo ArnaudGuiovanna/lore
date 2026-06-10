@@ -249,3 +249,119 @@ func TestMemoryCohortAnalyticsAggregatesTrainingTime(t *testing.T) {
 		t.Fatalf("unexpected learner time summary: %+v", learnerTime[0])
 	}
 }
+
+func TestMemoryPauseExcludesTimeFromTraining(t *testing.T) {
+	ctx := context.Background()
+	mem := store.NewMemoryStore()
+	tenant, err := mem.CreateTenant(ctx, "Acme", "acme-pause", "")
+	if err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	program, err := mem.CreateProgram(ctx, tenant.ID, "Go Backend")
+	if err != nil {
+		t.Fatalf("program: %v", err)
+	}
+	cohort, err := mem.CreateCohort(ctx, tenant.ID, program.ID, "June", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("cohort: %v", err)
+	}
+	if _, err := mem.EnrollLearner(ctx, tenant.ID, cohort.ID, "learner-1"); err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	graph, err := mem.CreateDomain(ctx, tenant.ID, "trainer-1", "Go", "", "TRAINER",
+		[]core.ConceptDraft{{ID: "c1", Name: "HTTP", Difficulty: 0.4}}, nil)
+	if err != nil {
+		t.Fatalf("domain: %v", err)
+	}
+	engine := runtime.NewEngine(mem)
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "learner-1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	started, err := mem.StartActivity(ctx, tenant.ID, decision.Activity.ID)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	// Pause cannot precede start in the memory store guard.
+	paused, err := mem.PauseActivity(ctx, tenant.ID, decision.Activity.ID)
+	if err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if paused.PausedAt == nil {
+		t.Fatalf("pause did not set paused_at: %+v", paused)
+	}
+	// Pausing twice keeps the original pause open (idempotent).
+	again, err := mem.PauseActivity(ctx, tenant.ID, decision.Activity.ID)
+	if err != nil {
+		t.Fatalf("second pause: %v", err)
+	}
+	if again.PausedAt == nil || !again.PausedAt.Equal(*paused.PausedAt) {
+		t.Fatalf("second pause moved paused_at: %+v vs %+v", again.PausedAt, paused.PausedAt)
+	}
+
+	// Complete 90 minutes later with the pause still open: the dangling pause is
+	// folded in, so effectively no active time is counted (small real-clock slack).
+	completedAt := started.StartedAt.Add(90 * time.Minute)
+	engine.WithClock(func() time.Time { return completedAt })
+	if _, err := engine.SubmitAssessment(ctx, core.AssessmentSubmissionCommand{
+		TenantID:   tenant.ID,
+		LearnerID:  "learner-1",
+		ActivityID: decision.Activity.ID,
+		Answers: []core.AssessmentAnswer{
+			{ItemID: "concept-check", ChoiceID: decision.Activity.ConceptID},
+		},
+	}); err != nil {
+		t.Fatalf("submit assessment: %v", err)
+	}
+
+	analytics, err := mem.CohortAnalytics(ctx, tenant.ID, cohort.ID)
+	if err != nil {
+		t.Fatalf("analytics: %v", err)
+	}
+	seconds, ok := analytics["training_time_seconds"].(int64)
+	if !ok {
+		t.Fatalf("training_time_seconds missing: %+v", analytics)
+	}
+	if seconds > 5 {
+		t.Fatalf("paused time was counted as training: %d seconds", seconds)
+	}
+}
+
+func TestMemoryResumeClosesPause(t *testing.T) {
+	ctx := context.Background()
+	mem := store.NewMemoryStore()
+	tenant, err := mem.CreateTenant(ctx, "Acme", "acme-resume", "")
+	if err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	graph, err := mem.CreateDomain(ctx, tenant.ID, "trainer-1", "Go", "", "TRAINER",
+		[]core.ConceptDraft{{ID: "c1", Name: "HTTP", Difficulty: 0.4}}, nil)
+	if err != nil {
+		t.Fatalf("domain: %v", err)
+	}
+	engine := runtime.NewEngine(mem)
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "learner-1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if _, err := mem.PauseActivity(ctx, tenant.ID, decision.Activity.ID); err == nil {
+		t.Fatalf("pausing a PLANNED activity should fail")
+	}
+	if _, err := mem.StartActivity(ctx, tenant.ID, decision.Activity.ID); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if _, err := mem.PauseActivity(ctx, tenant.ID, decision.Activity.ID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	resumed, err := mem.ResumeActivity(ctx, tenant.ID, decision.Activity.ID)
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if resumed.PausedAt != nil {
+		t.Fatalf("resume left paused_at set: %+v", resumed)
+	}
+	if resumed.PausedSeconds < 0 {
+		t.Fatalf("negative paused seconds: %+v", resumed)
+	}
+}

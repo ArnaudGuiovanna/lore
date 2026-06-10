@@ -1159,6 +1159,49 @@ func (s *MemoryStore) StartActivity(_ context.Context, tenantID, activityID stri
 	return activity, nil
 }
 
+func (s *MemoryStore) PauseActivity(_ context.Context, tenantID, activityID string) (core.Activity, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	activity, ok := s.activities[key(tenantID, activityID)]
+	if !ok {
+		return core.Activity{}, fmt.Errorf("%w: activity", core.ErrNotFound)
+	}
+	if activity.Status != core.ActivityStarted || activity.CompletedAt != nil {
+		return core.Activity{}, fmt.Errorf("%w: only a started activity can be paused", core.ErrInvalidInput)
+	}
+	now := time.Now().UTC()
+	if activity.PausedAt == nil {
+		activity.PausedAt = &now
+	}
+	s.activities[key(tenantID, activityID)] = activity
+	event := memoryEvent(tenantID, "ActivityPaused", "activity", activityID, now, map[string]any{"learner_id": activity.LearnerID})
+	s.events[key(tenantID, event.ID)] = event
+	return activity, nil
+}
+
+func (s *MemoryStore) ResumeActivity(_ context.Context, tenantID, activityID string) (core.Activity, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	activity, ok := s.activities[key(tenantID, activityID)]
+	if !ok {
+		return core.Activity{}, fmt.Errorf("%w: activity", core.ErrNotFound)
+	}
+	if activity.Status != core.ActivityStarted || activity.CompletedAt != nil {
+		return core.Activity{}, fmt.Errorf("%w: only a started activity can be resumed", core.ErrInvalidInput)
+	}
+	now := time.Now().UTC()
+	if activity.PausedAt != nil {
+		if now.After(*activity.PausedAt) {
+			activity.PausedSeconds += int64(now.Sub(*activity.PausedAt).Seconds())
+		}
+		activity.PausedAt = nil
+	}
+	s.activities[key(tenantID, activityID)] = activity
+	event := memoryEvent(tenantID, "ActivityResumed", "activity", activityID, now, map[string]any{"learner_id": activity.LearnerID})
+	s.events[key(tenantID, event.ID)] = event
+	return activity, nil
+}
+
 func (s *MemoryStore) SaveInteractionDelta(_ context.Context, delta core.StateDelta, activity core.Activity) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1189,8 +1232,19 @@ func (s *MemoryStore) saveInteractionDeltaLocked(delta core.StateDelta, activity
 	if delta.Interaction.TenantID != activity.TenantID || delta.After.TenantID != activity.TenantID || delta.Snapshot.TenantID != activity.TenantID {
 		return fmt.Errorf("%w: interaction delta", core.ErrTenantMismatch)
 	}
-	if _, ok := s.activities[key(activity.TenantID, activity.ID)]; !ok {
+	stored, ok := s.activities[key(activity.TenantID, activity.ID)]
+	if !ok {
 		return fmt.Errorf("%w: activity", core.ErrNotFound)
+	}
+	// Preserve pause accounting recorded since the engine read the activity, and
+	// fold any still-open pause into paused_seconds at completion.
+	activity.PausedSeconds = stored.PausedSeconds
+	activity.PausedAt = stored.PausedAt
+	if activity.CompletedAt != nil && activity.PausedAt != nil {
+		if activity.CompletedAt.After(*activity.PausedAt) {
+			activity.PausedSeconds += int64(activity.CompletedAt.Sub(*activity.PausedAt).Seconds())
+		}
+		activity.PausedAt = nil
 	}
 	s.activities[key(activity.TenantID, activity.ID)] = activity
 	s.interactions[key(delta.Interaction.TenantID, delta.Interaction.ID)] = delta.Interaction
@@ -1419,7 +1473,7 @@ func (s *MemoryStore) CohortAnalytics(_ context.Context, tenantID, cohortID stri
 		if activity.TenantID != tenantID || !learners[activity.LearnerID] {
 			continue
 		}
-		seconds := trackedActivitySeconds(activity.StartedAt, activity.CompletedAt)
+		seconds := trackedActivitySeconds(activity.StartedAt, activity.CompletedAt, activity.PausedSeconds)
 		if seconds <= 0 {
 			continue
 		}
@@ -1449,15 +1503,18 @@ func (s *MemoryStore) CohortAnalytics(_ context.Context, tenantID, cohortID stri
 	}, nil
 }
 
-func trackedActivitySeconds(startedAt, completedAt *time.Time) int64 {
+func trackedActivitySeconds(startedAt, completedAt *time.Time, pausedSeconds int64) int64 {
 	if startedAt == nil || completedAt == nil || !completedAt.After(*startedAt) {
 		return 0
 	}
-	duration := completedAt.Sub(*startedAt)
-	if duration > maxTrackedActivityDuration {
-		duration = maxTrackedActivityDuration
+	seconds := int64(completedAt.Sub(*startedAt).Seconds()) - pausedSeconds
+	if seconds < 0 {
+		seconds = 0
 	}
-	return int64(duration.Seconds())
+	if cap := int64(maxTrackedActivityDuration.Seconds()); seconds > cap {
+		seconds = cap
+	}
+	return seconds
 }
 
 func hoursFromSeconds(seconds int64) float64 {

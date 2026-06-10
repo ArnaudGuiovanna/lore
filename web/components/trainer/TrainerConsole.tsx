@@ -284,6 +284,7 @@ export function TrainerConsole({
           analytics={analytics}
           learners={learners}
           cohortName={cohortName}
+          cohortId={cohortId}
           onInspect={() => setSection("inspection")}
         />
       ) : null}

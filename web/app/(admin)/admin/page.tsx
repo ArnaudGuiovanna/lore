@@ -37,6 +37,8 @@ interface CohortAnalytics {
   active_misconceptions: number;
   learner_count: number;
   state_count: number;
+  // FOAD training time (B-07) — pauses excluded, per-activity capped.
+  training_hours?: number;
 }
 
 // A backend llm-configuration is only "really set" when it has a non-zero timestamp.
@@ -361,6 +363,8 @@ export default async function AdminHome() {
           events={events}
           learnerCount={analytics ? analytics.learner_count : roster.length}
           avgMastery={analytics ? analytics.average_mastery : null}
+          trainingHours={analytics && typeof analytics.training_hours === "number" ? analytics.training_hours : null}
+          trainingTimeCsvHref={cohortId ? `/api/analytics/training-time?cohortId=${encodeURIComponent(cohortId)}` : undefined}
           openAlerts={openAlerts.length}
           highAlerts={highAlerts}
           backendOk={backendOk}

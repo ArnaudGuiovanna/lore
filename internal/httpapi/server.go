@@ -58,6 +58,8 @@ type Repository interface {
 	ListDomains(ctx context.Context, tenantID string) ([]core.Domain, error)
 	ReplaceDomainGraph(ctx context.Context, tenantID, domainID string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error)
 	StartActivity(ctx context.Context, tenantID, activityID string) (core.Activity, error)
+	PauseActivity(ctx context.Context, tenantID, activityID string) (core.Activity, error)
+	ResumeActivity(ctx context.Context, tenantID, activityID string) (core.Activity, error)
 	ListDueReviews(ctx context.Context, tenantID, learnerID string, now time.Time) ([]core.ReviewCard, error)
 	GetInstruction(ctx context.Context, tenantID, instructionID string) (core.TutorInstruction, error)
 	SaveGeneratedContent(ctx context.Context, content core.GeneratedContent) error
@@ -207,6 +209,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/learners/{learner_id}/activities/next", s.nextActivity)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/activities/{activity_id}/start", s.startActivity)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/activities/{activity_id}/pause", s.pauseActivity)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/activities/{activity_id}/resume", s.resumeActivity)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/interactions", s.recordInteraction)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/learners/{learner_id}/assessments/plan", s.planAssessment)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/assessments/{activity_id}/submit", s.submitAssessment)
@@ -795,6 +799,16 @@ func (s *Server) nextActivity(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) startActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := s.store.StartActivity(r.Context(), r.PathValue("tenant_id"), r.PathValue("activity_id"))
+	respond(w, activity, err, http.StatusOK)
+}
+
+func (s *Server) pauseActivity(w http.ResponseWriter, r *http.Request) {
+	activity, err := s.store.PauseActivity(r.Context(), r.PathValue("tenant_id"), r.PathValue("activity_id"))
+	respond(w, activity, err, http.StatusOK)
+}
+
+func (s *Server) resumeActivity(w http.ResponseWriter, r *http.Request) {
+	activity, err := s.store.ResumeActivity(r.Context(), r.PathValue("tenant_id"), r.PathValue("activity_id"))
 	respond(w, activity, err, http.StatusOK)
 }
 

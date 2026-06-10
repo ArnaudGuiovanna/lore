@@ -80,6 +80,16 @@ func TestRESTRuntimeAndGenerationFlow(t *testing.T) {
 		t.Fatalf("activity was not started: %+v", started)
 	}
 
+	// B-07: pause then resume — pause opens paused_at, resume closes it.
+	paused := postJSON[core.Activity](t, server, "/v1/tenants/"+tenant.ID+"/activities/"+decision.Activity.ID+"/pause", map[string]any{}, http.StatusOK)
+	if paused.PausedAt == nil {
+		t.Fatalf("pause did not set paused_at: %+v", paused)
+	}
+	resumed := postJSON[core.Activity](t, server, "/v1/tenants/"+tenant.ID+"/activities/"+decision.Activity.ID+"/resume", map[string]any{}, http.StatusOK)
+	if resumed.PausedAt != nil {
+		t.Fatalf("resume left paused_at open: %+v", resumed)
+	}
+
 	delta := postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", decision.Activity.ConceptID), http.StatusCreated)
 	if delta.After.Mastery <= delta.Before.Mastery {
 		t.Fatalf("mastery did not increase")

@@ -609,6 +609,32 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Activity" }
 
+  /v1/tenants/{tenant_id}/activities/{activity_id}/pause:
+    post:
+      description: Pause the training-time clock on a started activity (B-07). Idempotent while paused.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/ActivityID"
+      responses:
+        "200":
+          description: Activity paused
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Activity" }
+
+  /v1/tenants/{tenant_id}/activities/{activity_id}/resume:
+    post:
+      description: Close the open pause on a started activity (B-07).
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/ActivityID"
+      responses:
+        "200":
+          description: Activity resumed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Activity" }
+
   /v1/tenants/{tenant_id}/interactions:
     post:
       parameters:
@@ -1268,6 +1294,13 @@ components:
         created_at: { type: string, format: date-time }
         started_at: { type: string, format: date-time }
         completed_at: { type: string, format: date-time }
+        paused_seconds:
+          type: integer
+          description: Accumulated paused time excluded from training time (B-07).
+        paused_at:
+          type: string
+          format: date-time
+          description: Set while a pause is open; folded into paused_seconds on resume/completion.
     TutorInstruction:
       type: object
       properties:

@@ -42,11 +42,10 @@ func newPostgresTestStore(t *testing.T) (*store.PostgresStore, *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("new postgres store: %v", err)
 	}
-	if err := st.ApplyMigrationFile(ctx, "000001_init", "../../db/migrations/000001_init.sql"); err != nil {
-		t.Fatalf("apply migration: %v", err)
-	}
-	if err := st.ApplyMigrationFile(ctx, "000002_admin_crud", "../../db/migrations/000002_admin_crud.sql"); err != nil {
-		t.Fatalf("apply admin migration: %v", err)
+	// Apply the whole migrations directory so new migrations are exercised
+	// automatically (files are applied in lexical order).
+	if err := st.ApplyMigrationsPath(ctx, "../../db/migrations"); err != nil {
+		t.Fatalf("apply migrations: %v", err)
 	}
 	t.Cleanup(func() {
 		st.Close()

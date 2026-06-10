@@ -333,6 +333,11 @@ type Activity struct {
 	CreatedAt        time.Time      `json:"created_at"`
 	StartedAt        *time.Time     `json:"started_at,omitempty"`
 	CompletedAt      *time.Time     `json:"completed_at,omitempty"`
+	// Pause accounting (B-07): paused_seconds accumulates closed pause intervals;
+	// paused_at is set while a pause is open. Training time = completed-started
+	// minus paused_seconds, capped.
+	PausedSeconds int64      `json:"paused_seconds,omitempty"`
+	PausedAt      *time.Time `json:"paused_at,omitempty"`
 }
 
 type TutorInstruction struct {

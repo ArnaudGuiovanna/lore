@@ -19,6 +19,8 @@ export function Overview({
   avgMastery,
   openAlerts,
   highAlerts,
+  trainingHours,
+  trainingTimeCsvHref,
   onGoto,
 }: {
   tenantName: string;
@@ -31,6 +33,8 @@ export function Overview({
   avgMastery: number | null;
   openAlerts: number;
   highAlerts: number;
+  trainingHours?: number | null;
+  trainingTimeCsvHref?: string;
   onGoto: () => void;
 }) {
   const tenantCfg = matrix.find((m) => m.tier === "tenant")?.config ?? null;
@@ -61,7 +65,19 @@ export function Overview({
           tone={openAlerts > 0 ? "amber" : "ink"}
           hint={highAlerts > 0 ? `${highAlerts} élevée(s) · émises par le runtime` : "émises par le runtime"}
         />
+        <Metric
+          label="Heures de formation"
+          value={trainingHours != null ? `${trainingHours.toFixed(1)} h` : "—"}
+          hint="FOAD · pauses exclues"
+        />
       </div>
+      {trainingTimeCsvHref ? (
+        <p style={{ margin: 0 }}>
+          <a className="mono" style={{ fontSize: 12, color: "var(--accent)" }} href={trainingTimeCsvHref}>
+            ↓ temps de formation par apprenant (CSV)
+          </a>
+        </p>
+      ) : null}
 
       <Panel
         kicker="Faits du tenant"

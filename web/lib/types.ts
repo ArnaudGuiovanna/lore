@@ -50,6 +50,7 @@ export interface Activity {
   tenant_id: string; id: string; learner_id: string; domain_id: string; concept_id: string;
   activity_type: ActivityType; difficulty_target: number; status: ActivityStatus;
   instruction_id: string; audit_rationale: string; created_at: string; started_at?: string | null; completed_at?: string | null;
+  paused_seconds?: number; paused_at?: string | null;
 }
 export interface TutorInstruction {
   id: string; tenant_id: string; learner_id: string; domain_id: string; concept_id?: string; activity_id: string;

@@ -47,6 +47,8 @@ export function AdminConsole({
   avgMastery,
   openAlerts,
   highAlerts,
+  trainingHours,
+  trainingTimeCsvHref,
   backendOk,
 }: {
   tenantSlug: string;
@@ -64,6 +66,8 @@ export function AdminConsole({
   avgMastery: number | null;
   openAlerts: number;
   highAlerts: number;
+  trainingHours?: number | null;
+  trainingTimeCsvHref?: string;
   backendOk: boolean;
 }) {
   const [section, setSection] = useState<Section>("overview");
@@ -130,6 +134,8 @@ export function AdminConsole({
           tenantName={tenantName}
           tenantSlug={tenantSlug}
           domainName={graph.domainName}
+          trainingHours={trainingHours}
+          trainingTimeCsvHref={trainingTimeCsvHref}
           learnerCount={learnerCount}
           cohortName={program.cohorts[0]?.name ?? "—"}
           programName={program.name}

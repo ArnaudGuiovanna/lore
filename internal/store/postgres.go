@@ -1190,10 +1190,10 @@ func (s *PostgresStore) GetActivity(ctx context.Context, tenantID, activityID st
 	var instruction core.TutorInstruction
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `
-			SELECT tenant_id::text, id::text, learner_id::text, domain_id::text, concept_id::text, activity_type, difficulty, status, instruction_id::text, audit_rationale, created_at, started_at, completed_at
+			SELECT tenant_id::text, id::text, learner_id::text, domain_id::text, concept_id::text, activity_type, difficulty, status, instruction_id::text, audit_rationale, created_at, started_at, completed_at, paused_seconds, paused_at
 			FROM activities
 			WHERE tenant_id = $1 AND id = $2
-		`, tenantID, activityID).Scan(&activity.TenantID, &activity.ID, &activity.LearnerID, &activity.DomainID, &activity.ConceptID, &activity.ActivityType, &activity.DifficultyTarget, &activity.Status, &activity.InstructionID, &activity.AuditRationale, &activity.CreatedAt, &activity.StartedAt, &activity.CompletedAt); err != nil {
+		`, tenantID, activityID).Scan(&activity.TenantID, &activity.ID, &activity.LearnerID, &activity.DomainID, &activity.ConceptID, &activity.ActivityType, &activity.DifficultyTarget, &activity.Status, &activity.InstructionID, &activity.AuditRationale, &activity.CreatedAt, &activity.StartedAt, &activity.CompletedAt, &activity.PausedSeconds, &activity.PausedAt); err != nil {
 			return err
 		}
 		var constraintsRaw, variantsRaw, contextRaw []byte
@@ -1238,6 +1238,48 @@ func (s *PostgresStore) StartActivity(ctx context.Context, tenantID, activityID 
 	return activity, nil
 }
 
+func (s *PostgresStore) PauseActivity(ctx context.Context, tenantID, activityID string) (core.Activity, error) {
+	var activity core.Activity
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `
+			UPDATE activities
+			SET paused_at = COALESCE(paused_at, now())
+			WHERE tenant_id = $1 AND id = $2 AND status = 'STARTED' AND completed_at IS NULL
+			RETURNING tenant_id::text, id::text, learner_id::text, domain_id::text, concept_id::text, activity_type, difficulty, status, instruction_id::text, audit_rationale, created_at, started_at, completed_at, paused_seconds, paused_at
+		`, tenantID, activityID).Scan(&activity.TenantID, &activity.ID, &activity.LearnerID, &activity.DomainID, &activity.ConceptID, &activity.ActivityType, &activity.DifficultyTarget, &activity.Status, &activity.InstructionID, &activity.AuditRationale, &activity.CreatedAt, &activity.StartedAt, &activity.CompletedAt, &activity.PausedSeconds, &activity.PausedAt); err != nil {
+			return err
+		}
+		return insertEvent(ctx, tx, newStoreEvent(tenantID, "ActivityPaused", "activity", activityID, time.Now().UTC(), map[string]any{"learner_id": activity.LearnerID}))
+	})
+	if err != nil {
+		return core.Activity{}, pgErr(err)
+	}
+	return activity, nil
+}
+
+func (s *PostgresStore) ResumeActivity(ctx context.Context, tenantID, activityID string) (core.Activity, error) {
+	var activity core.Activity
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `
+			UPDATE activities
+			SET paused_seconds = paused_seconds + CASE
+					WHEN paused_at IS NOT NULL THEN GREATEST(EXTRACT(EPOCH FROM (now() - paused_at))::bigint, 0)
+					ELSE 0
+				END,
+				paused_at = NULL
+			WHERE tenant_id = $1 AND id = $2 AND status = 'STARTED' AND completed_at IS NULL
+			RETURNING tenant_id::text, id::text, learner_id::text, domain_id::text, concept_id::text, activity_type, difficulty, status, instruction_id::text, audit_rationale, created_at, started_at, completed_at, paused_seconds, paused_at
+		`, tenantID, activityID).Scan(&activity.TenantID, &activity.ID, &activity.LearnerID, &activity.DomainID, &activity.ConceptID, &activity.ActivityType, &activity.DifficultyTarget, &activity.Status, &activity.InstructionID, &activity.AuditRationale, &activity.CreatedAt, &activity.StartedAt, &activity.CompletedAt, &activity.PausedSeconds, &activity.PausedAt); err != nil {
+			return err
+		}
+		return insertEvent(ctx, tx, newStoreEvent(tenantID, "ActivityResumed", "activity", activityID, time.Now().UTC(), map[string]any{"learner_id": activity.LearnerID}))
+	})
+	if err != nil {
+		return core.Activity{}, pgErr(err)
+	}
+	return activity, nil
+}
+
 func (s *PostgresStore) SaveInteractionDelta(ctx context.Context, delta core.StateDelta, activity core.Activity) error {
 	return pgErr(s.withTenantTx(ctx, activity.TenantID, func(tx pgx.Tx) error {
 		return saveInteractionDeltaTx(ctx, tx, delta, activity)
@@ -1274,9 +1316,17 @@ func saveInteractionDeltaTx(ctx context.Context, tx pgx.Tx, delta core.StateDelt
 	if delta.Interaction.TenantID != activity.TenantID || delta.After.TenantID != activity.TenantID || delta.Snapshot.TenantID != activity.TenantID {
 		return fmt.Errorf("%w: interaction delta", core.ErrTenantMismatch)
 	}
+	// Completion folds any still-open pause into paused_seconds so the training
+	// time aggregation never counts a dangling pause as active time.
 	if _, err := tx.Exec(ctx, `
 		UPDATE activities
-		SET status = $3, completed_at = $4
+		SET status = $3,
+			completed_at = $4,
+			paused_seconds = paused_seconds + CASE
+				WHEN paused_at IS NOT NULL AND $4::timestamptz > paused_at THEN EXTRACT(EPOCH FROM ($4::timestamptz - paused_at))::bigint
+				ELSE 0
+			END,
+			paused_at = NULL
 		WHERE tenant_id = $1 AND id = $2
 	`, activity.TenantID, activity.ID, string(activity.Status), activity.CompletedAt); err != nil {
 		return err
@@ -1653,7 +1703,7 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 			activity_time AS (
 				SELECT
 					a.learner_id,
-					COALESCE(SUM(LEAST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint, $3::bigint)), 0)::bigint AS seconds
+					COALESCE(SUM(LEAST(GREATEST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint - a.paused_seconds, 0), $3::bigint)), 0)::bigint AS seconds
 				FROM activities a
 				JOIN learners l ON l.learner_id = a.learner_id
 				WHERE a.tenant_id = $1
@@ -1691,7 +1741,7 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 					  AND a.completed_at IS NOT NULL
 					  AND a.completed_at > a.started_at
 				))::int AS activity_count,
-				COALESCE(SUM(LEAST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint, $3::bigint)) FILTER (
+				COALESCE(SUM(LEAST(GREATEST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint - a.paused_seconds, 0), $3::bigint)) FILTER (
 					WHERE a.started_at IS NOT NULL
 					  AND a.completed_at IS NOT NULL
 					  AND a.completed_at > a.started_at

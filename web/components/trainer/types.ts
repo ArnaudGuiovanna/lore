@@ -9,7 +9,22 @@ export interface CohortAnalytics {
   state_count: number;
   average_mastery: number;
   active_misconceptions: number;
+  // FOAD training time (B-07): paused intervals excluded, per-activity capped.
+  training_time_seconds?: number;
+  training_hours?: number;
+  learner_time?: TrainingTimeSummary[];
   [k: string]: unknown;
+}
+
+// Per-learner training time as aggregated by the backend (B-07).
+export interface TrainingTimeSummary {
+  tenant_id: string;
+  program_id: string;
+  cohort_id: string;
+  learner_id: string;
+  activity_count: number;
+  training_time_seconds: number;
+  training_hours: number;
 }
 
 // One learner's rolled-up runtime signal for the cohort roster + inspection.

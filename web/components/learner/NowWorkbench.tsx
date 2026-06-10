@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { StreamReader } from "@/components/runtime/StreamReader";
 import { CodeBlock } from "@/components/runtime/CodeBlock";
 import { SourceMark } from "@/components/runtime/SourceMark";
@@ -196,6 +196,22 @@ export function NowWorkbench({
   const formId = useId();
 
   const misconception = planned?.misconception ?? intent.misconception;
+
+  // FOAD time honesty (B-07): while an activity is underway, pause the training
+  // clock when the tab is hidden and resume it when the learner comes back.
+  useEffect(() => {
+    const activityId = planned?.activityId;
+    if (!activityId || (phase !== "reading" && phase !== "evidence")) return;
+    const onVisibility = () => {
+      const endpoint = document.visibilityState === "hidden" ? "pause" : "resume";
+      void fetch(`/api/activities/${encodeURIComponent(activityId)}/${endpoint}`, {
+        method: "POST",
+        keepalive: true,
+      }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [planned?.activityId, phase]);
   const localFallback = useMemo(
     () => localInstructionOnlyContent(intent, misconception, "activité planifiée sans contenu généré"),
     [intent, misconception]
@@ -242,6 +258,12 @@ export function NowWorkbench({
       });
       setAnswers({});
       setPhase("reading");
+      // Mark the start boundary for training-time tracking (B-07). Best-effort:
+      // a failed start never blocks the learner from working.
+      const startedId = String(activity.id ?? "");
+      if (startedId) {
+        void fetch(`/api/activities/${encodeURIComponent(startedId)}/start`, { method: "POST" }).catch(() => {});
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impossible de planifier votre prochaine étape.");
     } finally {

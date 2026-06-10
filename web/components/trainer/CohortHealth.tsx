@@ -18,13 +18,19 @@ export function CohortHealth({
   analytics,
   learners,
   cohortName,
+  cohortId,
   onInspect,
 }: {
   analytics: CohortAnalytics | null;
   learners: LearnerRow[];
   cohortName: string;
+  cohortId?: string;
   onInspect?: (id: string) => void;
 }) {
+  // Per-learner FOAD hours (B-07) — paused intervals excluded by the backend.
+  const hoursByLearner = new Map(
+    (analytics?.learner_time ?? []).map((t) => [t.learner_id, t.training_hours])
+  );
   // signal score: open alerts, relearning, low mastery → top.
   const sorted = [...learners].sort(
     (a, b) =>
@@ -74,6 +80,20 @@ export function CohortHealth({
       align: "right",
       mono: true,
       render: (r) => <span style={{ color: r.due ? "var(--amber)" : "var(--muted)" }}>{r.due}</span>,
+    },
+    {
+      key: "hours",
+      header: "Heures",
+      align: "right",
+      mono: true,
+      render: (r) => {
+        const hours = hoursByLearner.get(r.id);
+        return hours === undefined ? (
+          <span className="quiet">—</span>
+        ) : (
+          <span>{hours.toFixed(1)} h</span>
+        );
+      },
     },
     {
       key: "openAlerts",
@@ -138,7 +158,22 @@ export function CohortHealth({
             value={analytics ? analytics.active_misconceptions : "—"}
             tone={(analytics?.active_misconceptions ?? 0) > 0 ? "alarm" : "ink"}
           />
+          <Metric
+            label="heures de formation (FOAD)"
+            value={analytics?.training_hours !== undefined ? `${analytics.training_hours.toFixed(1)} h` : "—"}
+          />
         </div>
+        {cohortId ? (
+          <p style={{ marginTop: 14, marginBottom: 0 }}>
+            <a
+              className="mono"
+              style={{ fontSize: 12, color: "var(--accent)" }}
+              href={`/api/analytics/training-time?cohortId=${encodeURIComponent(cohortId)}`}
+            >
+              ↓ exporter le temps de formation par apprenant (CSV)
+            </a>
+          </p>
+        ) : null}
       </Panel>
 
       <Panel
