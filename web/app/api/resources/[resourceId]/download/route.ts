@@ -41,10 +41,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ resourc
   }
 
   // FICHIER : on streame les octets sans les recharger en mémoire.
+  // Anti-XSS stocké : le type MIME vient du formateur, donc un HTML/SVG servi
+  // same-origin exécuterait du script avec le cookie de session. On force les
+  // types actifs en octet-stream, on impose attachment et un CSP sandbox.
   const headers = new Headers();
-  headers.set("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
+  const rawType = upstream.headers.get("content-type") || "application/octet-stream";
+  const activeContent = /^(text\/html|application\/xhtml|image\/svg|application\/xml|text\/xml|application\/javascript|text\/javascript)/i.test(
+    rawType
+  );
+  headers.set("Content-Type", activeContent ? "application/octet-stream" : rawType);
   headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Content-Security-Policy", "sandbox; default-src 'none'");
   const disposition = upstream.headers.get("content-disposition");
-  if (disposition) headers.set("Content-Disposition", disposition);
+  headers.set(
+    "Content-Disposition",
+    disposition && /attachment/i.test(disposition) ? disposition : `attachment; filename="ressource-${resourceId}"`
+  );
   return new Response(upstream.body, { status: 200, headers });
 }

@@ -1082,7 +1082,10 @@ func (s *Server) downloadResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mimeType := resource.MimeType
-	if mimeType == "" {
+	// Anti-XSS stocké : le type MIME est fourni par le formateur — un contenu
+	// actif (HTML/SVG/XML/JS) servi tel quel exécuterait du script chez le
+	// client. On le neutralise en octet-stream et on sandboxe la réponse.
+	if mimeType == "" || activeContentType(mimeType) {
 		mimeType = "application/octet-stream"
 	}
 	fileName := resource.FileName
@@ -1091,9 +1094,22 @@ func (s *Server) downloadResource(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", mimeType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(resource.Content)
+}
+
+// activeContentType: MIME types a browser may execute when rendered
+// same-origin — never served verbatim for user-uploaded resources.
+func activeContentType(mimeType string) bool {
+	lowered := strings.ToLower(mimeType)
+	for _, prefix := range []string{"text/html", "application/xhtml", "image/svg", "application/xml", "text/xml", "application/javascript", "text/javascript"} {
+		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) archiveResource(w http.ResponseWriter, r *http.Request) {
