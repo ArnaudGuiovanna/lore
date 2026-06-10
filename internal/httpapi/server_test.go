@@ -2016,3 +2016,60 @@ func TestManagerRoleCapabilities(t *testing.T) {
 	// Lecture reporting : autorisée.
 	_ = getJSONWithHeaders[[]core.Learner](t, server, "/v1/tenants/"+tenant.ID+"/learners", headers, http.StatusOK)
 }
+
+func TestResourcesUploadAndLearnerScope(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	trainer := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "res-trainer@example.test", "name": "T"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "res-learner@example.test", "name": "L"}, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": trainer.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, bootstrapHeaders(), http.StatusCreated)
+	trainerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": trainer.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	learnerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": learner.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	program := postJSONWithHeadersValue[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "P"}, bootstrapHeaders(), http.StatusCreated)
+	cohortA := postJSONWithHeadersValue[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "A"}, bootstrapHeaders(), http.StatusCreated)
+	cohortB := postJSONWithHeadersValue[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "B"}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.CohortEnrollment](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohortA.ID+"/enrollments", map[string]any{"learner_id": learner.ID}, bootstrapHeaders(), http.StatusCreated)
+
+	payload := base64.StdEncoding.EncodeToString([]byte("contenu pdf"))
+	fileRes := postJSONWithHeadersValue[core.Resource](t, server, "/v1/tenants/"+tenant.ID+"/resources", map[string]any{
+		"title": "Support cohorte A", "kind": "FICHIER", "cohort_id": cohortA.ID,
+		"file_name": "support.pdf", "mime_type": "application/pdf", "content_base64": payload,
+	}, bearerHeaders(trainerToken), http.StatusCreated)
+	if fileRes.SizeBytes != int64(len("contenu pdf")) {
+		t.Fatalf("size_bytes = %d", fileRes.SizeBytes)
+	}
+	_ = postJSONWithHeadersValue[core.Resource](t, server, "/v1/tenants/"+tenant.ID+"/resources", map[string]any{
+		"title": "Lien tenant", "kind": "LIEN", "url": "https://example.test/cours",
+	}, bearerHeaders(trainerToken), http.StatusCreated)
+	hidden := postJSONWithHeadersValue[core.Resource](t, server, "/v1/tenants/"+tenant.ID+"/resources", map[string]any{
+		"title": "Support cohorte B", "kind": "FICHIER", "cohort_id": cohortB.ID,
+		"content_base64": payload,
+	}, bearerHeaders(trainerToken), http.StatusCreated)
+	// Un apprenant ne televerse pas.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/resources", map[string]any{"title": "x", "kind": "LIEN", "url": "https://x.test"}, bearerHeaders(learnerToken), http.StatusForbidden)
+
+	// Scope apprenant : cohorte A + tenant-wide, pas la cohorte B.
+	visible := getJSONWithHeaders[[]core.Resource](t, server, "/v1/tenants/"+tenant.ID+"/resources", bearerHeaders(learnerToken), http.StatusOK)
+	if len(visible) != 2 {
+		t.Fatalf("learner should see 2 resources, got %+v", visible)
+	}
+	all := getJSONWithHeaders[[]core.Resource](t, server, "/v1/tenants/"+tenant.ID+"/resources", bearerHeaders(trainerToken), http.StatusOK)
+	if len(all) != 3 {
+		t.Fatalf("trainer should see 3 resources, got %d", len(all))
+	}
+
+	// Téléchargement : octets exacts pour la ressource autorisée, 404 hors scope.
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/"+tenant.ID+"/resources/"+fileRes.ID+"/download", nil)
+	req.Header.Set("Authorization", "Bearer "+learnerToken)
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK || resp.Body.String() != "contenu pdf" {
+		t.Fatalf("download status=%d body=%q", resp.Code, resp.Body.String())
+	}
+	if ct := resp.Header().Get("Content-Type"); ct != "application/pdf" {
+		t.Fatalf("content-type = %s", ct)
+	}
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenant.ID+"/resources/"+hidden.ID+"/download", nil, bearerHeaders(learnerToken), http.StatusNotFound)
+}

@@ -642,6 +642,26 @@ type Consent struct {
 	ConsentedAt time.Time `json:"consented_at"`
 }
 
+// Resource (B-17) — support pédagogique : fichier stocké en base ou lien
+// externe, visible du tenant entier (cohort_id vide) ou d'une cohorte.
+// Content n'est jamais sérialisé : le téléchargement passe par /download.
+type Resource struct {
+	TenantID    string     `json:"tenant_id"`
+	ID          string     `json:"id"`
+	CohortID    string     `json:"cohort_id,omitempty"`
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	Kind        string     `json:"kind"` // FICHIER | LIEN
+	URL         string     `json:"url,omitempty"`
+	FileName    string     `json:"file_name,omitempty"`
+	MimeType    string     `json:"mime_type,omitempty"`
+	SizeBytes   int64      `json:"size_bytes"`
+	Content     []byte     `json:"-"`
+	UploadedBy  string     `json:"uploaded_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+}
+
 type LLMConfiguration struct {
 	TenantID         string    `json:"tenant_id"`
 	ScopeType        string    `json:"scope_type,omitempty"`

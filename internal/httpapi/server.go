@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -71,6 +72,10 @@ type Repository interface {
 	ListLegalTexts(ctx context.Context, tenantID string, history bool) ([]core.LegalText, error)
 	RecordConsent(ctx context.Context, tenantID, userID, legalTextID string) (core.Consent, error)
 	ListConsents(ctx context.Context, tenantID, userID string) ([]core.Consent, error)
+	CreateResource(ctx context.Context, resource core.Resource, actorUserID ...string) (core.Resource, error)
+	ListResources(ctx context.Context, tenantID, learnerID string) ([]core.Resource, error)
+	GetResourceContent(ctx context.Context, tenantID, resourceID, learnerID string) (core.Resource, error)
+	ArchiveResource(ctx context.Context, tenantID, resourceID string, actorUserID ...string) (core.Resource, error)
 	CreateDocument(ctx context.Context, doc core.OFDocument, actorUserID ...string) (core.OFDocument, error)
 	NewDocumentVersion(ctx context.Context, tenantID, documentID, title, body string, actorUserID ...string) (core.OFDocument, error)
 	ListDocuments(ctx context.Context, tenantID, learnerID string) ([]core.OFDocument, error)
@@ -268,6 +273,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/legal-texts", s.listLegalTexts)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/consents", s.recordConsent)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/consents", s.listConsents)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/resources", s.createResource)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/resources", s.listResources)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/resources/{resource_id}/download", s.downloadResource)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/resources/{resource_id}", s.archiveResource)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents", s.createDocument)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents", s.listDocuments)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents/{document_id}", s.getDocument)
@@ -974,6 +983,91 @@ func (s *Server) bpfExport(w http.ResponseWriter, r *http.Request) {
 	}
 	report, err := s.store.BPFExport(r.Context(), r.PathValue("tenant_id"), year)
 	respond(w, report, err, http.StatusOK)
+}
+
+// --- Ressources pédagogiques (B-17) ------------------------------------------
+
+// createResource: trainers and admins share supports (middleware already
+// blocks learners). Files arrive base64-encoded — handouts, not videos.
+func (s *Server) createResource(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CohortID      string `json:"cohort_id"`
+		Title         string `json:"title"`
+		Description   string `json:"description"`
+		Kind          string `json:"kind"`
+		URL           string `json:"url"`
+		FileName      string `json:"file_name"`
+		MimeType      string `json:"mime_type"`
+		ContentBase64 string `json:"content_base64"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	var content []byte
+	if req.ContentBase64 != "" {
+		decoded, err := base64.StdEncoding.DecodeString(req.ContentBase64)
+		if err != nil {
+			problem(w, http.StatusBadRequest, "content_base64 is not valid base64")
+			return
+		}
+		content = decoded
+	}
+	resource, err := s.store.CreateResource(r.Context(), core.Resource{
+		TenantID:    r.PathValue("tenant_id"),
+		CohortID:    req.CohortID,
+		Title:       req.Title,
+		Description: req.Description,
+		Kind:        req.Kind,
+		URL:         req.URL,
+		FileName:    req.FileName,
+		MimeType:    req.MimeType,
+		Content:     content,
+	}, actorUserIDFromRequest(r))
+	respond(w, resource, err, http.StatusCreated)
+}
+
+// listResources: a learner token only sees tenant-wide + its cohorts'.
+func (s *Server) listResources(w http.ResponseWriter, r *http.Request) {
+	learnerID := ""
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		learnerID = claims.Subject
+	}
+	resources, err := s.store.ListResources(r.Context(), r.PathValue("tenant_id"), learnerID)
+	respond(w, resources, err, http.StatusOK)
+}
+
+func (s *Server) downloadResource(w http.ResponseWriter, r *http.Request) {
+	learnerID := ""
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		learnerID = claims.Subject
+	}
+	resource, err := s.store.GetResourceContent(r.Context(), r.PathValue("tenant_id"), r.PathValue("resource_id"), learnerID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	if resource.Kind == "LIEN" {
+		http.Redirect(w, r, resource.URL, http.StatusFound)
+		return
+	}
+	mimeType := resource.MimeType
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	fileName := resource.FileName
+	if fileName == "" {
+		fileName = "ressource"
+	}
+	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(resource.Content)
+}
+
+func (s *Server) archiveResource(w http.ResponseWriter, r *http.Request) {
+	resource, err := s.store.ArchiveResource(r.Context(), r.PathValue("tenant_id"), r.PathValue("resource_id"), actorUserIDFromRequest(r))
+	respond(w, resource, err, http.StatusOK)
 }
 
 // --- Textes légaux + consentements (B-28) ------------------------------------
@@ -2667,6 +2761,10 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 	}
 	// B-18: learners read announcements (handler narrows to their cohorts).
 	if r.Method == http.MethodGet && len(tail) == 1 && tail[0] == "announcements" {
+		return true
+	}
+	// B-17: learners read and download the resources in their scope.
+	if r.Method == http.MethodGet && tail[0] == "resources" && (len(tail) == 1 || (len(tail) == 3 && tail[2] == "download")) {
 		return true
 	}
 	// B-28: learners read the current legal texts, record their own consent

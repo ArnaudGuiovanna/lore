@@ -42,6 +42,7 @@ type MemoryStore struct {
 	fundingFiles          map[string]core.FundingFile
 	legalTexts            map[string]core.LegalText
 	consents              map[string]core.Consent
+	resources             map[string]core.Resource
 
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
@@ -89,6 +90,7 @@ func NewMemoryStore() *MemoryStore {
 		fundingFiles:          map[string]core.FundingFile{},
 		legalTexts:            map[string]core.LegalText{},
 		consents:              map[string]core.Consent{},
+		resources:             map[string]core.Resource{},
 		domains:               map[string]core.Domain{},
 		concepts:              map[string]core.Concept{},
 		dependencies:          map[string]core.Dependency{},
