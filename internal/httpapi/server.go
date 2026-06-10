@@ -150,6 +150,7 @@ type Server struct {
 	llmModel       string
 	tokens         *auth.TokenService
 	bootstrapToken string
+	oidc           *auth.OIDCVerifier
 	cache          cache.Cache
 	metrics        *observability.Metrics
 	metricsToken   string
@@ -205,6 +206,28 @@ func (s *Server) EnableJWTService(svc *auth.TokenService) {
 // administrator can be provisioned before any JWT exists.
 func (s *Server) EnableBootstrap(token string) {
 	s.bootstrapToken = token
+}
+
+// EnableOIDC accepts externally-issued OIDC tokens (B-20) alongside the local
+// token service: verification falls back to the IdP's JWKS when the local
+// verification fails.
+func (s *Server) EnableOIDC(verifier *auth.OIDCVerifier) {
+	s.oidc = verifier
+}
+
+// verifyBearer verifies a bearer token against the local service first, then
+// the OIDC verifier when configured.
+func (s *Server) verifyBearer(ctx context.Context, token string) (auth.Claims, error) {
+	claims, err := s.tokens.Verify(token)
+	if err == nil {
+		return claims, nil
+	}
+	if s.oidc != nil {
+		if oidcClaims, oidcErr := s.oidc.Verify(ctx, token); oidcErr == nil {
+			return oidcClaims, nil
+		}
+	}
+	return auth.Claims{}, err
 }
 
 // EnableMetricsToken protects GET /metrics with a static bearer token suitable
@@ -1306,8 +1329,21 @@ func (s *Server) submitAssignment(w http.ResponseWriter, r *http.Request) {
 	respond(w, submission, err, http.StatusCreated)
 }
 
+// listAssignmentSubmissions: staff read the whole copy pile; a learner token
+// only ever sees its own submission (note + feedback included).
 func (s *Server) listAssignmentSubmissions(w http.ResponseWriter, r *http.Request) {
 	submissions, err := s.store.ListAssignmentSubmissions(r.Context(), r.PathValue("tenant_id"), r.PathValue("assignment_id"))
+	if err == nil {
+		if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+			own := make([]core.AssignmentSubmission, 0, 1)
+			for _, submission := range submissions {
+				if submission.LearnerID == claims.Subject {
+					own = append(own, submission)
+				}
+			}
+			submissions = own
+		}
+	}
 	respond(w, submissions, err, http.StatusOK)
 }
 
@@ -2505,7 +2541,7 @@ func (s *Server) callerClaims(r *http.Request) (auth.Claims, bool) {
 	if !strings.HasPrefix(header, "Bearer ") {
 		return auth.Claims{}, false
 	}
-	claims, err := s.tokens.Verify(strings.TrimPrefix(header, "Bearer "))
+	claims, err := s.verifyBearer(r.Context(), strings.TrimPrefix(header, "Bearer "))
 	if err != nil {
 		return auth.Claims{}, false
 	}
@@ -2683,7 +2719,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			problem(w, http.StatusUnauthorized, "bearer token is required")
 			return
 		}
-		claims, err := s.tokens.Verify(strings.TrimPrefix(header, "Bearer "))
+		claims, err := s.verifyBearer(r.Context(), strings.TrimPrefix(header, "Bearer "))
 		if err != nil {
 			problem(w, http.StatusUnauthorized, err.Error())
 			return
@@ -2784,6 +2820,10 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 		return true
 	}
 	if r.Method == http.MethodPost && len(tail) == 3 && tail[0] == "assignments" && tail[2] == "submissions" {
+		return true
+	}
+	// B-26: a learner reads its own submission state (handler narrows the list).
+	if r.Method == http.MethodGet && len(tail) == 3 && tail[0] == "assignments" && tail[2] == "submissions" {
 		return true
 	}
 	// B-11: learners read surveys, answer them (ownership enforced in handler)

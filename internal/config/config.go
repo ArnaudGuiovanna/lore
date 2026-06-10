@@ -20,6 +20,8 @@ type Config struct {
 	JWTPublicKey   string
 	BootstrapToken string
 	MetricsToken   string
+	OIDCIssuer     string
+	OIDCAudience   string
 	LLMProvider    string
 	LLMModel       string
 	OllamaBaseURL  string
@@ -43,6 +45,8 @@ func Load() Config {
 		JWTPublicKey:   fileOrValue("JWT_PUBLIC_KEY"),
 		BootstrapToken: getenv("LORE_BOOTSTRAP_TOKEN", ""),
 		MetricsToken:   getenv("LORE_METRICS_TOKEN", ""),
+		OIDCIssuer:     getenv("OIDC_ISSUER", ""),
+		OIDCAudience:   getenv("OIDC_AUDIENCE", ""),
 		LLMProvider:    getenv("LORE_LLM_PROVIDER", "ollama"),
 		LLMModel:       getenv("LORE_LLM_MODEL", "gemma4"),
 		OllamaBaseURL:  getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),

@@ -156,6 +156,36 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
 
+  # B-21: automated daily backups. pg_dump (custom format) every 24h into the
+  # `backups` named volume, pruned past BACKUP_RETENTION_DAYS. Restore with
+  # `make restore-db` or pg_restore. Copy the volume off-host for real DR.
+  db-backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-lore}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        while true; do
+          ts=$$(date -u +%Y%m%d-%H%M%S) &&
+          pg_dump -Fc -d "$$POSTGRES_DB" -f "/backups/lore-$$ts.dump" &&
+          echo "backup ok: lore-$$ts.dump" ||
+          echo "BACKUP FAILED at $$ts" >&2;
+          find /backups -name 'lore-*.dump' -mtime +$$BACKUP_RETENTION_DAYS -delete;
+          sleep $$BACKUP_INTERVAL_SECONDS;
+        done
+
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -177,5 +207,6 @@ services:
 volumes:
   pgdata:
   web-gen:
+  backups:
   caddy_data:
   caddy_config:

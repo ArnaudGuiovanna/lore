@@ -54,6 +54,10 @@ func main() {
 	if cfg.BootstrapToken != "" {
 		server.EnableBootstrap(cfg.BootstrapToken)
 	}
+	if err := configureOIDC(server, cfg); err != nil {
+		slog.Error("oidc configuration failed", "err", err)
+		os.Exit(1)
+	}
 	if cfg.RedisURL != "" {
 		redisCache, err := cache.NewRedisCache(cfg.RedisURL)
 		if err != nil {
@@ -112,6 +116,22 @@ func configureAuth(server *httpapi.Server, cfg config.Config) error {
 	default:
 		return fmt.Errorf("unsupported JWT_ALG %q (use HS256 or RS256)", cfg.JWTAlgorithm)
 	}
+}
+
+// configureOIDC (B-20): accept externally-issued OIDC tokens when an issuer
+// and audience are configured. Discovery/JWKS are lazy and rotate on unknown
+// kid.
+func configureOIDC(server *httpapi.Server, cfg config.Config) error {
+	issuer := strings.TrimSpace(cfg.OIDCIssuer)
+	audience := strings.TrimSpace(cfg.OIDCAudience)
+	if issuer == "" && audience == "" {
+		return nil
+	}
+	if issuer == "" || audience == "" {
+		return fmt.Errorf("OIDC_ISSUER and OIDC_AUDIENCE must both be set to enable OIDC")
+	}
+	server.EnableOIDC(auth.NewOIDCVerifier(issuer, audience))
+	return nil
 }
 
 func isProductionLike(env string) bool {
