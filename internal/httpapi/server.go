@@ -55,6 +55,14 @@ type Repository interface {
 	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
 	EraseLearnerData(ctx context.Context, tenantID, learnerID string, actorUserID ...string) (map[string]int, error)
+	CreateSurvey(ctx context.Context, survey core.SatisfactionSurvey, actorUserID ...string) (core.SatisfactionSurvey, error)
+	ListSurveys(ctx context.Context, tenantID, cohortID string) ([]core.SatisfactionSurvey, error)
+	GetSurvey(ctx context.Context, tenantID, surveyID string) (core.SatisfactionSurvey, error)
+	SubmitSurveyResponse(ctx context.Context, response core.SurveyResponse) (core.SurveyResponse, error)
+	ListSurveyResponses(ctx context.Context, tenantID, surveyID string) ([]core.SurveyResponse, error)
+	CreateComplaint(ctx context.Context, complaint core.Complaint) (core.Complaint, error)
+	ListComplaints(ctx context.Context, tenantID string) ([]core.Complaint, error)
+	UpdateComplaint(ctx context.Context, tenantID, complaintID, status, resolution string, actorUserID ...string) (core.Complaint, error)
 	CreateCohortInvite(ctx context.Context, tenantID, cohortID string, expiresAt *time.Time, maxUses int, actorUserID ...string) (core.CohortInvite, error)
 	ListCohortInvites(ctx context.Context, tenantID, cohortID string) ([]core.CohortInvite, error)
 	RevokeCohortInvite(ctx context.Context, tenantID, inviteID string, actorUserID ...string) (core.CohortInvite, error)
@@ -215,6 +223,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/surveys", s.createSurvey)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/surveys", s.listSurveys)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/surveys/{survey_id}", s.getSurvey)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/surveys/{survey_id}/responses", s.submitSurveyResponse)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/surveys/{survey_id}/responses", s.listSurveyResponses)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/complaints", s.createComplaint)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/complaints", s.listComplaints)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/complaints/{complaint_id}", s.updateComplaint)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites", s.createCohortInvite)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites", s.listCohortInvites)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/invites/{invite_id}", s.revokeCohortInvite)
@@ -800,6 +816,107 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="lore-sessions.ics"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// --- Satisfaction & réclamations (B-11) ------------------------------------
+
+func (s *Server) createSurvey(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Kind      string                `json:"kind"`
+		Title     string                `json:"title"`
+		Questions []core.SurveyQuestion `json:"questions"`
+		OpensAt   *time.Time            `json:"opens_at"`
+		ClosesAt  *time.Time            `json:"closes_at"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	survey, err := s.store.CreateSurvey(r.Context(), core.SatisfactionSurvey{
+		TenantID:  r.PathValue("tenant_id"),
+		CohortID:  r.PathValue("cohort_id"),
+		Kind:      req.Kind,
+		Title:     req.Title,
+		Questions: req.Questions,
+		OpensAt:   req.OpensAt,
+		ClosesAt:  req.ClosesAt,
+	}, actorUserIDFromRequest(r))
+	respond(w, survey, err, http.StatusCreated)
+}
+
+func (s *Server) listSurveys(w http.ResponseWriter, r *http.Request) {
+	surveys, err := s.store.ListSurveys(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("cohort_id"))
+	respond(w, surveys, err, http.StatusOK)
+}
+
+func (s *Server) getSurvey(w http.ResponseWriter, r *http.Request) {
+	survey, err := s.store.GetSurvey(r.Context(), r.PathValue("tenant_id"), r.PathValue("survey_id"))
+	respond(w, survey, err, http.StatusOK)
+}
+
+func (s *Server) submitSurveyResponse(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LearnerID string         `json:"learner_id"`
+		Answers   map[string]any `json:"answers"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if !s.authorizeLearnerCommand(w, r, req.LearnerID) {
+		return
+	}
+	response, err := s.store.SubmitSurveyResponse(r.Context(), core.SurveyResponse{
+		TenantID:  r.PathValue("tenant_id"),
+		SurveyID:  r.PathValue("survey_id"),
+		LearnerID: req.LearnerID,
+		Answers:   req.Answers,
+	})
+	respond(w, response, err, http.StatusCreated)
+}
+
+func (s *Server) listSurveyResponses(w http.ResponseWriter, r *http.Request) {
+	responses, err := s.store.ListSurveyResponses(r.Context(), r.PathValue("tenant_id"), r.PathValue("survey_id"))
+	respond(w, responses, err, http.StatusOK)
+}
+
+func (s *Server) createComplaint(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		OpenedBy    string `json:"opened_by"`
+		LearnerID   string `json:"learner_id"`
+		Subject     string `json:"subject"`
+		Description string `json:"description"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	complaint, err := s.store.CreateComplaint(r.Context(), core.Complaint{
+		TenantID:    r.PathValue("tenant_id"),
+		OpenedBy:    req.OpenedBy,
+		LearnerID:   req.LearnerID,
+		Subject:     req.Subject,
+		Description: req.Description,
+	})
+	respond(w, complaint, err, http.StatusCreated)
+}
+
+func (s *Server) listComplaints(w http.ResponseWriter, r *http.Request) {
+	complaints, err := s.store.ListComplaints(r.Context(), r.PathValue("tenant_id"))
+	respond(w, complaints, err, http.StatusOK)
+}
+
+func (s *Server) updateComplaint(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		Status     string `json:"status"`
+		Resolution string `json:"resolution"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	complaint, err := s.store.UpdateComplaint(r.Context(), tenantID, r.PathValue("complaint_id"), req.Status, req.Resolution, actorUserIDFromRequest(r))
+	respond(w, complaint, err, http.StatusOK)
 }
 
 // eraseLearnerData (B-14) purges every runtime trace of one learner in this
@@ -1964,6 +2081,17 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 		return true
 	}
 	if r.Method == http.MethodPost && len(tail) == 1 && tail[0] == "interactions" {
+		return true
+	}
+	// B-11: learners read surveys, answer them (ownership enforced in handler)
+	// and may open a complaint.
+	if r.Method == http.MethodGet && tail[0] == "surveys" && len(tail) <= 2 {
+		return true
+	}
+	if r.Method == http.MethodPost && len(tail) == 3 && tail[0] == "surveys" && tail[2] == "responses" {
+		return true
+	}
+	if r.Method == http.MethodPost && len(tail) == 1 && tail[0] == "complaints" {
 		return true
 	}
 	if r.Method == http.MethodPost && len(tail) == 3 && tail[0] == "assessments" && tail[2] == "submit" {

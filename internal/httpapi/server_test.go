@@ -1260,6 +1260,63 @@ func bootstrapHeaders() map[string]string {
 	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
+// B-11: satisfaction surveys + complaints register lifecycle.
+func TestSatisfactionAndComplaints(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	program := postJSON[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go"}, http.StatusCreated)
+	cohort := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, http.StatusCreated)
+
+	survey := postJSON[core.SatisfactionSurvey](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/surveys", map[string]any{
+		"kind":  "HOT",
+		"title": "À chaud — fin de formation",
+		"questions": []map[string]any{
+			{"id": "q1", "prompt": "Recommanderiez-vous cette formation ?", "kind": "scale"},
+			{"id": "q2", "prompt": "Un commentaire ?", "kind": "text"},
+		},
+	}, http.StatusCreated)
+
+	// Invalid rating is rejected; valid response accepted; duplicate refused.
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/"+tenant.ID+"/surveys/"+survey.ID+"/responses",
+		jsonBody(map[string]any{"learner_id": "l1", "answers": map[string]any{"q1": 9}}))
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("out-of-range rating accepted: %d %s", resp.Code, resp.Body.String())
+	}
+	_ = postJSON[core.SurveyResponse](t, server, "/v1/tenants/"+tenant.ID+"/surveys/"+survey.ID+"/responses",
+		map[string]any{"learner_id": "l1", "answers": map[string]any{"q1": 4, "q2": "Très clair."}}, http.StatusCreated)
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/v1/tenants/"+tenant.ID+"/surveys/"+survey.ID+"/responses",
+		jsonBody(map[string]any{"learner_id": "l1", "answers": map[string]any{"q1": 5}}))
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("duplicate response accepted: %d %s", resp.Code, resp.Body.String())
+	}
+	responses := getJSON[[]core.SurveyResponse](t, server, "/v1/tenants/"+tenant.ID+"/surveys/"+survey.ID+"/responses", http.StatusOK)
+	if len(responses) != 1 || responses[0].LearnerID != "l1" {
+		t.Fatalf("unexpected responses: %+v", responses)
+	}
+
+	// Complaints: open → process → resolve, with the register listing it all.
+	complaint := postJSON[core.Complaint](t, server, "/v1/tenants/"+tenant.ID+"/complaints", map[string]any{
+		"opened_by": "l1",
+		"subject":   "Salle inaccessible PMR",
+	}, http.StatusCreated)
+	if complaint.Status != "OPEN" {
+		t.Fatalf("new complaint not OPEN: %+v", complaint)
+	}
+	resolved := patchJSON[core.Complaint](t, server, "/v1/tenants/"+tenant.ID+"/complaints/"+complaint.ID,
+		map[string]any{"status": "RESOLVED", "resolution": "Changement de salle effectué."}, http.StatusOK)
+	if resolved.Status != "RESOLVED" || resolved.ClosedAt == nil {
+		t.Fatalf("complaint not resolved: %+v", resolved)
+	}
+	register := getJSON[[]core.Complaint](t, server, "/v1/tenants/"+tenant.ID+"/complaints", http.StatusOK)
+	if len(register) != 1 {
+		t.Fatalf("register should hold one complaint: %+v", register)
+	}
+}
+
 // B-14: RGPD erasure removes every runtime trace of the learner.
 func TestEraseLearnerData(t *testing.T) {
 	server := newTestServer()

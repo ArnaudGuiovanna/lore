@@ -203,6 +203,52 @@ type AdminAuditLog struct {
 	CreatedAt   time.Time      `json:"created_at"`
 }
 
+// SatisfactionSurvey (B-11) — à chaud (HOT) right after training, à froid
+// (COLD) weeks later. Questions: [{id, prompt, kind: "scale"|"text"}].
+type SatisfactionSurvey struct {
+	TenantID   string           `json:"tenant_id"`
+	ID         string           `json:"id"`
+	CohortID   string           `json:"cohort_id"`
+	Kind       string           `json:"kind"` // HOT | COLD
+	Title      string           `json:"title"`
+	Questions  []SurveyQuestion `json:"questions"`
+	OpensAt    *time.Time       `json:"opens_at,omitempty"`
+	ClosesAt   *time.Time       `json:"closes_at,omitempty"`
+	CreatedBy  string           `json:"created_by,omitempty"`
+	CreatedAt  time.Time        `json:"created_at"`
+	ArchivedAt *time.Time       `json:"archived_at,omitempty"`
+}
+
+type SurveyQuestion struct {
+	ID     string `json:"id"`
+	Prompt string `json:"prompt"`
+	Kind   string `json:"kind"` // scale (1..5) | text
+}
+
+type SurveyResponse struct {
+	TenantID    string         `json:"tenant_id"`
+	ID          string         `json:"id"`
+	SurveyID    string         `json:"survey_id"`
+	LearnerID   string         `json:"learner_id"`
+	Answers     map[string]any `json:"answers"` // question id -> number|string
+	SubmittedAt time.Time      `json:"submitted_at"`
+}
+
+// Complaint (B-11) — RNQ-required register entry with a processing workflow.
+type Complaint struct {
+	TenantID    string     `json:"tenant_id"`
+	ID          string     `json:"id"`
+	OpenedBy    string     `json:"opened_by,omitempty"`
+	LearnerID   string     `json:"learner_id,omitempty"`
+	Subject     string     `json:"subject"`
+	Description string     `json:"description,omitempty"`
+	Status      string     `json:"status"` // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+	Resolution  string     `json:"resolution,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	ClosedAt    *time.Time `json:"closed_at,omitempty"`
+}
+
 // CohortInvite (B-23) is a shareable self-enrollment code for a cohort. The
 // code is the bearer secret; redemption is performed by the trusted web tier.
 type CohortInvite struct {
