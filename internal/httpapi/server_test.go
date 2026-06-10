@@ -1260,6 +1260,54 @@ func bootstrapHeaders() map[string]string {
 	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
+// B-14: RGPD erasure removes every runtime trace of the learner.
+func TestEraseLearnerData(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", "c1"), http.StatusCreated)
+
+	states := getJSON[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/state", http.StatusOK)
+	if len(states) == 0 {
+		t.Fatalf("expected learner state before erasure")
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/tenants/"+tenant.ID+"/learners/l1/data", nil)
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("erase status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var erased struct {
+		Erased map[string]int `json:"erased"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &erased); err != nil {
+		t.Fatalf("decode erase response: %v", err)
+	}
+	for _, expected := range []string{"learner_states", "activities", "interactions", "pedagogical_snapshots"} {
+		if erased.Erased[expected] == 0 {
+			t.Fatalf("expected %s to be erased, got %+v", expected, erased.Erased)
+		}
+	}
+
+	states = getJSON[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/state", http.StatusOK)
+	if len(states) != 0 {
+		t.Fatalf("learner states survived erasure: %+v", states)
+	}
+	snapshots := getJSON[[]core.PedagogicalSnapshot](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/snapshots", http.StatusOK)
+	if len(snapshots) != 0 {
+		t.Fatalf("snapshots survived erasure: %+v", snapshots)
+	}
+}
+
 // B-25: planned sessions are exportable as an iCalendar feed.
 func TestTrainingSessionsICSExport(t *testing.T) {
 	server := newTestServer()

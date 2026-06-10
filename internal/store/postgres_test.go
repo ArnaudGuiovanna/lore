@@ -743,3 +743,50 @@ func TestPostgresCourseModulesAndLearnerPath(t *testing.T) {
 		t.Fatalf("archived module still listed: %v %+v", err, modules)
 	}
 }
+
+// B-14: Postgres erasure removes every runtime trace of the learner.
+func TestPostgresEraseLearnerData(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+	tenantID, domainID := seedDomain(t, st, "Acme", "acme-erase")
+	user, err := st.CreateUser(ctx, "erase-me@example.test", "Erase Me")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := st.AddMembership(ctx, tenantID, user.ID, core.RoleLearner); err != nil {
+		t.Fatalf("membership: %v", err)
+	}
+	engine := runtime.NewEngine(st)
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenantID, LearnerID: user.ID, DomainID: domainID})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if _, err := engine.SubmitAssessment(ctx, core.AssessmentSubmissionCommand{
+		TenantID:   tenantID,
+		LearnerID:  user.ID,
+		ActivityID: decision.Activity.ID,
+		Answers:    []core.AssessmentAnswer{{ItemID: "concept-check", ChoiceID: decision.Activity.ConceptID}},
+	}); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+
+	counts, err := st.EraseLearnerData(ctx, tenantID, user.ID, "admin-1")
+	if err != nil {
+		t.Fatalf("erase: %v", err)
+	}
+	for _, expected := range []string{"learner_states", "activities", "interactions"} {
+		if counts[expected] == 0 {
+			t.Fatalf("expected %s erased, got %+v", expected, counts)
+		}
+	}
+	states, err := st.ListLearnerState(ctx, tenantID, user.ID)
+	if err != nil {
+		t.Fatalf("list states: %v", err)
+	}
+	if len(states) != 0 {
+		t.Fatalf("states survived erasure: %+v", states)
+	}
+	if counts["users_anonymized"] != 1 {
+		t.Fatalf("user identity was not tombstoned: %+v", counts)
+	}
+}

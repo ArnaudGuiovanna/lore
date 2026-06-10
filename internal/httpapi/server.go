@@ -54,6 +54,7 @@ type Repository interface {
 	CreateSyllabus(ctx context.Context, tenantID, title, description string, objectives, outcomes map[string]any) (core.Syllabus, error)
 	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
+	EraseLearnerData(ctx context.Context, tenantID, learnerID string, actorUserID ...string) (map[string]int, error)
 	CreateCohortInvite(ctx context.Context, tenantID, cohortID string, expiresAt *time.Time, maxUses int, actorUserID ...string) (core.CohortInvite, error)
 	ListCohortInvites(ctx context.Context, tenantID, cohortID string) ([]core.CohortInvite, error)
 	RevokeCohortInvite(ctx context.Context, tenantID, inviteID string, actorUserID ...string) (core.CohortInvite, error)
@@ -213,6 +214,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/syllabi", s.listSyllabi)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites", s.createCohortInvite)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites", s.listCohortInvites)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/invites/{invite_id}", s.revokeCohortInvite)
@@ -798,6 +800,24 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="lore-sessions.ics"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// eraseLearnerData (B-14) purges every runtime trace of one learner in this
+// tenant and tombstones the identity. Admin-only and irreversible — the audit
+// log records the action with row counts but no personal data.
+func (s *Server) eraseLearnerData(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	learnerID := r.PathValue("learner_id")
+	counts, err := s.store.EraseLearnerData(r.Context(), tenantID, learnerID, actorUserIDFromRequest(r))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	s.invalidateLearnerState(r.Context(), tenantID, learnerID)
+	writeJSON(w, http.StatusOK, map[string]any{"erased": counts})
 }
 
 // --- Cohort invites (B-23) -------------------------------------------------
