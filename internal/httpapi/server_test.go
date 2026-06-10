@@ -1260,6 +1260,57 @@ func bootstrapHeaders() map[string]string {
 	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
+// B-08/B-09: tenant legal profile + audit-ready Qualiopi bundle.
+func TestTenantProfileAndQualiopiExport(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "Acme Formation", "slug": "acme"}, http.StatusCreated)
+	program := postJSON[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go"}, http.StatusCreated)
+	cohort := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, http.StatusCreated)
+	_ = postJSON[core.CohortEnrollment](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/enrollments", map[string]any{"learner_id": "l1"}, http.StatusCreated)
+
+	// Legal profile round-trip.
+	req := httptest.NewRequest(http.MethodPut, "/v1/tenants/"+tenant.ID+"/profile",
+		jsonBody(map[string]any{"profile": map[string]any{"siret": "123 456 789 00012", "nda": "11 75 12345 75", "signataire": "S. Aalto, directrice"}}))
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("update profile status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	profile := getJSON[map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/profile", http.StatusOK)
+	p, _ := profile["profile"].(map[string]any)
+	if p["siret"] != "123 456 789 00012" {
+		t.Fatalf("profile not persisted: %+v", profile)
+	}
+
+	// Qualiopi bundle carries identity + progress + satisfaction + complaints.
+	survey := postJSON[core.SatisfactionSurvey](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/surveys", map[string]any{
+		"kind": "HOT", "title": "À chaud",
+		"questions": []map[string]any{{"id": "q1", "prompt": "Note ?", "kind": "scale"}},
+	}, http.StatusCreated)
+	_ = postJSON[core.SurveyResponse](t, server, "/v1/tenants/"+tenant.ID+"/surveys/"+survey.ID+"/responses",
+		map[string]any{"learner_id": "l1", "answers": map[string]any{"q1": 4}}, http.StatusCreated)
+	_ = postJSON[core.Complaint](t, server, "/v1/tenants/"+tenant.ID+"/complaints", map[string]any{"subject": "Acoustique"}, http.StatusCreated)
+
+	export := getJSON[map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/qualiopi-export", http.StatusOK)
+	org, _ := export["organisme"].(map[string]any)
+	orgProfile, _ := org["profile"].(map[string]any)
+	if orgProfile["nda"] != "11 75 12345 75" {
+		t.Fatalf("export missing legal profile: %+v", export)
+	}
+	if export["progress"] == nil || export["satisfaction"] == nil || export["complaints"] == nil {
+		t.Fatalf("export incomplete: %+v", export)
+	}
+	satisfaction, _ := export["satisfaction"].([]any)
+	if len(satisfaction) != 1 {
+		t.Fatalf("expected one survey summary: %+v", export["satisfaction"])
+	}
+	first, _ := satisfaction[0].(map[string]any)
+	averages, _ := first["scale_averages"].(map[string]any)
+	if averages["q1"] != float64(4) {
+		t.Fatalf("scale average wrong: %+v", first)
+	}
+}
+
 // B-11: satisfaction surveys + complaints register lifecycle.
 func TestSatisfactionAndComplaints(t *testing.T) {
 	server := newTestServer()

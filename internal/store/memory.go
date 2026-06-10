@@ -132,6 +132,23 @@ func (s *MemoryStore) GetTenant(_ context.Context, tenantID string) (core.Tenant
 	return tenant, nil
 }
 
+// UpdateTenantProfile (B-09/B-10) replaces the tenant's legal profile.
+func (s *MemoryStore) UpdateTenantProfile(_ context.Context, tenantID string, profile map[string]any, actorUserID ...string) (core.Tenant, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tenant, ok := s.tenants[tenantID]
+	if !ok {
+		return core.Tenant{}, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	if profile == nil {
+		profile = map[string]any{}
+	}
+	tenant.Profile = profile
+	s.tenants[tenantID] = tenant
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "tenant_profile.update", "tenant", tenantID, nil, time.Now().UTC())
+	return tenant, nil
+}
+
 func (s *MemoryStore) ListTenants(_ context.Context) ([]core.Tenant, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -64,15 +64,35 @@ func (s *PostgresStore) CreateTenant(ctx context.Context, name, slug, parentID s
 
 func (s *PostgresStore) GetTenant(ctx context.Context, tenantID string) (core.Tenant, error) {
 	var tenant core.Tenant
+	var profileRaw []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT id::text, COALESCE(parent_id::text, ''), name, slug, status, created_at
+		SELECT id::text, COALESCE(parent_id::text, ''), name, slug, status, created_at, profile
 		FROM tenants
 		WHERE id = $1
-	`, tenantID).Scan(&tenant.ID, &tenant.ParentID, &tenant.Name, &tenant.Slug, &tenant.Status, &tenant.CreatedAt)
+	`, tenantID).Scan(&tenant.ID, &tenant.ParentID, &tenant.Name, &tenant.Slug, &tenant.Status, &tenant.CreatedAt, &profileRaw)
 	if err != nil {
 		return core.Tenant{}, pgErr(err)
 	}
+	decodeJSON(profileRaw, &tenant.Profile)
 	return tenant, nil
+}
+
+// UpdateTenantProfile (B-09/B-10) replaces the tenant's legal profile.
+func (s *PostgresStore) UpdateTenantProfile(ctx context.Context, tenantID string, profile map[string]any, actorUserID ...string) (core.Tenant, error) {
+	if profile == nil {
+		profile = map[string]any{}
+	}
+	_, err := s.pool.Exec(ctx, `UPDATE tenants SET profile = $2 WHERE id = $1`, tenantID, mustJSON(profile))
+	if err != nil {
+		return core.Tenant{}, pgErr(err)
+	}
+	err = s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "tenant_profile.update", "tenant", tenantID, nil, time.Now().UTC()))
+	})
+	if err != nil {
+		return core.Tenant{}, pgErr(err)
+	}
+	return s.GetTenant(ctx, tenantID)
 }
 
 func (s *PostgresStore) ListTenants(ctx context.Context) ([]core.Tenant, error) {

@@ -26,6 +26,7 @@ type Repository interface {
 	runtime.Store
 	CreateTenant(ctx context.Context, name, slug, parentID string) (core.Tenant, error)
 	GetTenant(ctx context.Context, tenantID string) (core.Tenant, error)
+	UpdateTenantProfile(ctx context.Context, tenantID string, profile map[string]any, actorUserID ...string) (core.Tenant, error)
 	ListTenants(ctx context.Context) ([]core.Tenant, error)
 	CreateUser(ctx context.Context, email, name string) (core.User, error)
 	AddMembership(ctx context.Context, tenantID, userID string, role core.Role, actorUserID ...string) (core.Membership, error)
@@ -223,6 +224,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/profile", s.getTenantProfile)
+	mux.HandleFunc("PUT /v1/tenants/{tenant_id}/profile", s.updateTenantProfile)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts/{cohort_id}/qualiopi-export", s.qualiopiExport)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/surveys", s.createSurvey)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/surveys", s.listSurveys)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/surveys/{survey_id}", s.getSurvey)
@@ -818,6 +822,140 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(b.String()))
 }
 
+// --- Profil OF + dossier Qualiopi (B-08/B-09) -------------------------------
+
+func (s *Server) getTenantProfile(w http.ResponseWriter, r *http.Request) {
+	tenant, err := s.store.GetTenant(r.Context(), r.PathValue("tenant_id"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	if tenant.Profile == nil {
+		tenant.Profile = map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": tenant.ID, "name": tenant.Name, "profile": tenant.Profile})
+}
+
+func (s *Server) updateTenantProfile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		Profile map[string]any `json:"profile"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	tenant, err := s.store.UpdateTenantProfile(r.Context(), tenantID, req.Profile, actorUserIDFromRequest(r))
+	respond(w, tenant, err, http.StatusOK)
+}
+
+// qualiopiExport (B-08) assembles the audit-ready evidence bundle for one
+// cohort: identity, sessions, per-learner progress/hours, satisfaction
+// aggregates and the complaints register. JSON on purpose — the web tier
+// renders the human-readable dossier; this is the canonical data.
+func (s *Server) qualiopiExport(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := r.PathValue("tenant_id")
+	cohortID := r.PathValue("cohort_id")
+	tenant, err := s.store.GetTenant(ctx, tenantID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	progress, err := s.store.CohortProgress(ctx, tenantID, cohortID, runtime.MasteryThreshold)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	analytics, err := s.store.CohortAnalytics(ctx, tenantID, cohortID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	sessions, err := s.store.ListTrainingSessions(ctx, tenantID, cohortID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	learners, err := s.store.ListLearners(ctx, tenantID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	nameByID := make(map[string]string, len(learners))
+	for _, learner := range learners {
+		nameByID[learner.UserID] = learner.Name
+	}
+	type progressRow struct {
+		core.LearnerProgressSummary
+		LearnerName string `json:"learner_name,omitempty"`
+	}
+	progressRows := make([]progressRow, 0, len(progress))
+	for _, row := range progress {
+		progressRows = append(progressRows, progressRow{LearnerProgressSummary: row, LearnerName: nameByID[row.LearnerID]})
+	}
+
+	surveys, err := s.store.ListSurveys(ctx, tenantID, cohortID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	type surveySummary struct {
+		Survey        core.SatisfactionSurvey `json:"survey"`
+		ResponseCount int                     `json:"response_count"`
+		ScaleAverages map[string]float64      `json:"scale_averages"`
+	}
+	surveySummaries := make([]surveySummary, 0, len(surveys))
+	for _, survey := range surveys {
+		responses, err := s.store.ListSurveyResponses(ctx, tenantID, survey.ID)
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+		sums := map[string]float64{}
+		counts := map[string]int{}
+		for _, response := range responses {
+			for qid, value := range response.Answers {
+				if n, ok := value.(float64); ok {
+					sums[qid] += n
+					counts[qid]++
+				}
+			}
+		}
+		averages := map[string]float64{}
+		for qid, sum := range sums {
+			if counts[qid] > 0 {
+				averages[qid] = sum / float64(counts[qid])
+			}
+		}
+		surveySummaries = append(surveySummaries, surveySummary{Survey: survey, ResponseCount: len(responses), ScaleAverages: averages})
+	}
+
+	complaints, err := s.store.ListComplaints(ctx, tenantID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"generated_at": time.Now().UTC(),
+		"generated_by": actorUserIDFromRequest(r),
+		"organisme": map[string]any{
+			"tenant_id": tenant.ID,
+			"name":      tenant.Name,
+			"profile":   tenant.Profile,
+		},
+		"cohort_id":    cohortID,
+		"analytics":    analytics,
+		"sessions":     sessions,
+		"progress":     progressRows,
+		"satisfaction": surveySummaries,
+		"complaints":   complaints,
+	})
+}
+
 // --- Satisfaction & réclamations (B-11) ------------------------------------
 
 func (s *Server) createSurvey(w http.ResponseWriter, r *http.Request) {
@@ -888,10 +1026,18 @@ func (s *Server) createComplaint(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	// A learner token can only open a complaint as ITSELF — identity comes
+	// from the verified claims, never the body (impersonation in the RNQ
+	// register would taint the evidence). Staff may file on someone's behalf.
+	openedBy, learnerID := req.OpenedBy, req.LearnerID
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		openedBy = claims.Subject
+		learnerID = claims.Subject
+	}
 	complaint, err := s.store.CreateComplaint(r.Context(), core.Complaint{
 		TenantID:    r.PathValue("tenant_id"),
-		OpenedBy:    req.OpenedBy,
-		LearnerID:   req.LearnerID,
+		OpenedBy:    openedBy,
+		LearnerID:   learnerID,
 		Subject:     req.Subject,
 		Description: req.Description,
 	})

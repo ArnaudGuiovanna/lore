@@ -82,6 +82,10 @@ type Tenant struct {
 	Slug      string    `json:"slug"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+	// Profile (B-09/B-10): legal identity of the organisme de formation —
+	// raison sociale, SIRET, NDA, adresse, signataire… One canonical source
+	// for attestation/convention generators. Free-form by design.
+	Profile map[string]any `json:"profile,omitempty"`
 }
 
 type User struct {
