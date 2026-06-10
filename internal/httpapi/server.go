@@ -54,6 +54,16 @@ type Repository interface {
 	CreateSyllabus(ctx context.Context, tenantID, title, description string, objectives, outcomes map[string]any) (core.Syllabus, error)
 	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
+	CreateCohortInvite(ctx context.Context, tenantID, cohortID string, expiresAt *time.Time, maxUses int, actorUserID ...string) (core.CohortInvite, error)
+	ListCohortInvites(ctx context.Context, tenantID, cohortID string) ([]core.CohortInvite, error)
+	RevokeCohortInvite(ctx context.Context, tenantID, inviteID string, actorUserID ...string) (core.CohortInvite, error)
+	GetCohortInviteByCode(ctx context.Context, code string) (core.CohortInvite, error)
+	ConsumeCohortInvite(ctx context.Context, code string) (core.CohortInvite, error)
+	CreateCourseModule(ctx context.Context, module core.CourseModule, actorUserID ...string) (core.CourseModule, error)
+	ListCourseModules(ctx context.Context, tenantID, syllabusID string) ([]core.CourseModule, error)
+	UpdateCourseModule(ctx context.Context, tenantID, moduleID string, patch core.CourseModulePatch, actorUserID ...string) (core.CourseModule, error)
+	ArchiveCourseModule(ctx context.Context, tenantID, moduleID string, actorUserID ...string) (core.CourseModule, error)
+	LearnerModulePath(ctx context.Context, tenantID, learnerID, syllabusID string) ([]core.ModuleProgress, error)
 	CreateDomain(ctx context.Context, tenantID, ownerID, name, description, source string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error)
 	ListDomains(ctx context.Context, tenantID string) ([]core.Domain, error)
 	ReplaceDomainGraph(ctx context.Context, tenantID, domainID string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error)
@@ -198,10 +208,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/training-sessions", s.createTrainingSession)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/training-sessions/{session_id}", s.patchTrainingSession)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/training-sessions/{session_id}", s.archiveTrainingSession)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/training-sessions.ics", s.trainingSessionsICS)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/admin-audit-logs", s.listAdminAuditLogs)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/syllabi", s.listSyllabi)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites", s.createCohortInvite)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites", s.listCohortInvites)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/invites/{invite_id}", s.revokeCohortInvite)
+	mux.HandleFunc("GET /v1/invites/{code}", s.lookupInvite)
+	mux.HandleFunc("POST /v1/invites/{code}/redeem", s.redeemInvite)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/modules", s.listCourseModules)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/modules", s.createCourseModule)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/modules/{module_id}", s.updateCourseModule)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/modules/{module_id}", s.archiveCourseModule)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/learners/{learner_id}/path", s.learnerModulePath)
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/domains", s.listDomains)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/domains", s.createDomain)
@@ -731,6 +752,226 @@ func (s *Server) createSyllabus(w http.ResponseWriter, r *http.Request) {
 	respond(w, syllabus, err, http.StatusCreated)
 }
 
+// trainingSessionsICS exports the planned sessions as an iCalendar feed
+// (B-25) so cohort planning lands in any calendar client. Archived sessions
+// are skipped; visio links ride in URL/DESCRIPTION.
+func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
+	sessions, err := s.store.ListTrainingSessions(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("cohort_id"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	icsEscape := func(value string) string {
+		value = strings.ReplaceAll(value, `\`, `\\`)
+		value = strings.ReplaceAll(value, ";", `\;`)
+		value = strings.ReplaceAll(value, ",", `\,`)
+		value = strings.ReplaceAll(value, "\n", `\n`)
+		return value
+	}
+	const stamp = "20060102T150405Z"
+	var b strings.Builder
+	b.WriteString("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//LORE//training-sessions//FR\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n")
+	for _, session := range sessions {
+		if session.ArchivedAt != nil {
+			continue
+		}
+		b.WriteString("BEGIN:VEVENT\r\n")
+		b.WriteString("UID:" + icsEscape(session.ID) + "@lore\r\n")
+		b.WriteString("DTSTAMP:" + session.CreatedAt.UTC().Format(stamp) + "\r\n")
+		b.WriteString("DTSTART:" + session.StartsAt.UTC().Format(stamp) + "\r\n")
+		b.WriteString("DTEND:" + session.EndsAt.UTC().Format(stamp) + "\r\n")
+		b.WriteString("SUMMARY:" + icsEscape(session.Title) + "\r\n")
+		if session.Location != "" {
+			b.WriteString("LOCATION:" + icsEscape(session.Location) + "\r\n")
+		}
+		if session.VideoURL != "" {
+			b.WriteString("URL:" + icsEscape(session.VideoURL) + "\r\n")
+			b.WriteString("DESCRIPTION:" + icsEscape("Rejoindre la session : "+session.VideoURL) + "\r\n")
+		}
+		if session.Status == "CANCELLED" {
+			b.WriteString("STATUS:CANCELLED\r\n")
+		}
+		b.WriteString("END:VEVENT\r\n")
+	}
+	b.WriteString("END:VCALENDAR\r\n")
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="lore-sessions.ics"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(b.String()))
+}
+
+// --- Cohort invites (B-23) -------------------------------------------------
+
+func (s *Server) createCohortInvite(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		ExpiresInHours int `json:"expires_in_hours"`
+		MaxUses        int `json:"max_uses"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	var expiresAt *time.Time
+	if req.ExpiresInHours > 0 {
+		t := time.Now().UTC().Add(time.Duration(req.ExpiresInHours) * time.Hour)
+		expiresAt = &t
+	}
+	invite, err := s.store.CreateCohortInvite(r.Context(), tenantID, r.PathValue("cohort_id"), expiresAt, req.MaxUses, actorUserIDFromRequest(r))
+	respond(w, invite, err, http.StatusCreated)
+}
+
+func (s *Server) listCohortInvites(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	invites, err := s.store.ListCohortInvites(r.Context(), tenantID, r.PathValue("cohort_id"))
+	respond(w, invites, err, http.StatusOK)
+}
+
+func (s *Server) revokeCohortInvite(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	invite, err := s.store.RevokeCohortInvite(r.Context(), tenantID, r.PathValue("invite_id"), actorUserIDFromRequest(r))
+	respond(w, invite, err, http.StatusOK)
+}
+
+// lookupInvite is the PUBLIC landing read: the unguessable code is the only
+// credential. It never returns the counters — just enough to render the join
+// page (organisation + cohort names and whether the invite is still usable).
+func (s *Server) lookupInvite(w http.ResponseWriter, r *http.Request) {
+	invite, err := s.store.GetCohortInviteByCode(r.Context(), r.PathValue("code"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	usable := inviteUsableForResponse(invite)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tenant_id":   invite.TenantID,
+		"tenant_name": invite.TenantName,
+		"cohort_id":   invite.CohortID,
+		"cohort_name": invite.CohortName,
+		"usable":      usable == "",
+		"reason":      usable,
+	})
+}
+
+func inviteUsableForResponse(invite core.CohortInvite) string {
+	now := time.Now().UTC()
+	switch {
+	case invite.RevokedAt != nil:
+		return "invitation révoquée"
+	case invite.ExpiresAt != nil && now.After(*invite.ExpiresAt):
+		return "invitation expirée"
+	case invite.MaxUses > 0 && invite.UseCount >= invite.MaxUses:
+		return "invitation épuisée"
+	default:
+		return ""
+	}
+}
+
+// redeemInvite is called by the TRUSTED web tier (bootstrap secret) after it
+// has provisioned the user: it grants the LEARNER membership, enrolls into the
+// cohort and burns one use — the code is never accepted from an end user here.
+func (s *Server) redeemInvite(w http.ResponseWriter, r *http.Request) {
+	if !s.callerIsBootstrap(r) {
+		problem(w, http.StatusForbidden, "invite redemption is reserved to the trusted web tier")
+		return
+	}
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.UserID == "" {
+		problem(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+	invite, err := s.store.ConsumeCohortInvite(r.Context(), r.PathValue("code"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	if _, err := s.store.AddMembership(r.Context(), invite.TenantID, req.UserID, core.RoleLearner); err != nil {
+		handleError(w, err)
+		return
+	}
+	enrollment, err := s.store.EnrollLearner(r.Context(), invite.TenantID, invite.CohortID, req.UserID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"tenant_id":  invite.TenantID,
+		"cohort_id":  invite.CohortID,
+		"enrollment": enrollment,
+	})
+}
+
+// --- Course modules (B-24) -------------------------------------------------
+// Modules are authored by trainers/admins (middleware already restricts
+// learners); the learner path is evidence-only and readable by its learner.
+
+func (s *Server) createCourseModule(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Title           string   `json:"title"`
+		Description     string   `json:"description"`
+		Position        int      `json:"position"`
+		ConceptIDs      []string `json:"concept_ids"`
+		PrerequisiteIDs []string `json:"prerequisite_ids"`
+		RequiredMastery float64  `json:"required_mastery"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	module, err := s.store.CreateCourseModule(r.Context(), core.CourseModule{
+		TenantID:        r.PathValue("tenant_id"),
+		SyllabusID:      r.PathValue("syllabus_id"),
+		Title:           req.Title,
+		Description:     req.Description,
+		Position:        req.Position,
+		ConceptIDs:      req.ConceptIDs,
+		PrerequisiteIDs: req.PrerequisiteIDs,
+		RequiredMastery: req.RequiredMastery,
+	}, actorUserIDFromRequest(r))
+	respond(w, module, err, http.StatusCreated)
+}
+
+func (s *Server) listCourseModules(w http.ResponseWriter, r *http.Request) {
+	modules, err := s.store.ListCourseModules(r.Context(), r.PathValue("tenant_id"), r.PathValue("syllabus_id"))
+	respond(w, modules, err, http.StatusOK)
+}
+
+func (s *Server) updateCourseModule(w http.ResponseWriter, r *http.Request) {
+	var patch core.CourseModulePatch
+	if !decode(w, r, &patch) {
+		return
+	}
+	module, err := s.store.UpdateCourseModule(r.Context(), r.PathValue("tenant_id"), r.PathValue("module_id"), patch, actorUserIDFromRequest(r))
+	respond(w, module, err, http.StatusOK)
+}
+
+func (s *Server) archiveCourseModule(w http.ResponseWriter, r *http.Request) {
+	module, err := s.store.ArchiveCourseModule(r.Context(), r.PathValue("tenant_id"), r.PathValue("module_id"), actorUserIDFromRequest(r))
+	respond(w, module, err, http.StatusOK)
+}
+
+func (s *Server) learnerModulePath(w http.ResponseWriter, r *http.Request) {
+	syllabusID := r.URL.Query().Get("syllabus_id")
+	if syllabusID == "" {
+		problem(w, http.StatusBadRequest, "syllabus_id query parameter is required")
+		return
+	}
+	path, err := s.store.LearnerModulePath(r.Context(), r.PathValue("tenant_id"), r.PathValue("learner_id"), syllabusID)
+	respond(w, path, err, http.StatusOK)
+}
+
 func (s *Server) bindSyllabus(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TargetType     string `json:"target_type"`
@@ -784,33 +1025,58 @@ func (s *Server) getDomain(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) nextActivity(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		DomainID string `json:"domain_id"`
-		Intent   string `json:"intent"`
+		DomainID          string   `json:"domain_id"`
+		Intent            string   `json:"intent"`
+		AllowedConceptIDs []string `json:"allowed_concept_ids"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
 	decision, err := s.engine.PlanNext(r.Context(), runtime.PlanNextInput{
-		TenantID:  r.PathValue("tenant_id"),
-		LearnerID: r.PathValue("learner_id"),
-		DomainID:  req.DomainID,
-		Intent:    req.Intent,
+		TenantID:          r.PathValue("tenant_id"),
+		LearnerID:         r.PathValue("learner_id"),
+		DomainID:          req.DomainID,
+		Intent:            req.Intent,
+		AllowedConceptIDs: req.AllowedConceptIDs,
 	})
 	respond(w, decision, err, http.StatusCreated)
 }
 
+// authorizeActivityOwner blocks a learner token from driving another learner's
+// activity clock (staff tokens pass). Returns false after writing the problem.
+func (s *Server) authorizeActivityOwner(w http.ResponseWriter, r *http.Request, tenantID, activityID string) bool {
+	activity, _, err := s.store.GetActivity(r.Context(), tenantID, activityID)
+	if err != nil {
+		handleError(w, err)
+		return false
+	}
+	return s.authorizeLearnerCommand(w, r, activity.LearnerID)
+}
+
 func (s *Server) startActivity(w http.ResponseWriter, r *http.Request) {
-	activity, err := s.store.StartActivity(r.Context(), r.PathValue("tenant_id"), r.PathValue("activity_id"))
+	tenantID, activityID := r.PathValue("tenant_id"), r.PathValue("activity_id")
+	if !s.authorizeActivityOwner(w, r, tenantID, activityID) {
+		return
+	}
+	activity, err := s.store.StartActivity(r.Context(), tenantID, activityID)
 	respond(w, activity, err, http.StatusOK)
 }
 
 func (s *Server) pauseActivity(w http.ResponseWriter, r *http.Request) {
-	activity, err := s.store.PauseActivity(r.Context(), r.PathValue("tenant_id"), r.PathValue("activity_id"))
+	tenantID, activityID := r.PathValue("tenant_id"), r.PathValue("activity_id")
+	if !s.authorizeActivityOwner(w, r, tenantID, activityID) {
+		return
+	}
+	activity, err := s.store.PauseActivity(r.Context(), tenantID, activityID)
 	respond(w, activity, err, http.StatusOK)
 }
 
 func (s *Server) resumeActivity(w http.ResponseWriter, r *http.Request) {
-	activity, err := s.store.ResumeActivity(r.Context(), r.PathValue("tenant_id"), r.PathValue("activity_id"))
+	tenantID, activityID := r.PathValue("tenant_id"), r.PathValue("activity_id")
+	if !s.authorizeActivityOwner(w, r, tenantID, activityID) {
+		return
+	}
+	activity, err := s.store.ResumeActivity(r.Context(), tenantID, activityID)
 	respond(w, activity, err, http.StatusOK)
 }
 
@@ -1659,6 +1925,10 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 		if r.Method == http.MethodGet && len(tail) == 4 && tail[2] == "reviews" && tail[3] == "due" {
 			return true
 		}
+		// B-24: a learner may read their own module path.
+		if r.Method == http.MethodGet && len(tail) == 3 && tail[2] == "path" {
+			return true
+		}
 		if r.Method == http.MethodPost && len(tail) == 4 && tail[2] == "activities" && tail[3] == "next" {
 			return true
 		}
@@ -1666,6 +1936,12 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 			return true
 		}
 		return false
+	}
+	// B-07: a learner drives the training-time clock of their own activity.
+	// Ownership is enforced in the handlers (the activity's learner must match).
+	if r.Method == http.MethodPost && len(tail) == 3 && tail[0] == "activities" &&
+		(tail[2] == "start" || tail[2] == "pause" || tail[2] == "resume") {
+		return true
 	}
 	if r.Method == http.MethodPost && len(tail) == 1 && tail[0] == "interactions" {
 		return true
@@ -1697,6 +1973,16 @@ func isPublicRoute(r *http.Request) bool {
 	// tenant-scoped bearer check but is NOT unauthenticated.
 	if r.Method == http.MethodPost && (r.URL.Path == "/v1/tenants" || r.URL.Path == "/v1/users" || r.URL.Path == "/v1/auth/token") {
 		return true
+	}
+	// B-23: invite lookup is public by design (the unguessable code is the
+	// credential); redemption enforces the bootstrap secret in its handler.
+	if strings.HasPrefix(r.URL.Path, "/v1/invites/") {
+		if r.Method == http.MethodGet {
+			return true
+		}
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/redeem") {
+			return true
+		}
 	}
 	return false
 }

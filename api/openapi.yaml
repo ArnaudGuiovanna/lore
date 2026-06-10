@@ -609,6 +609,170 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Activity" }
 
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}/invites:
+    get:
+      description: List self-enrollment invites of a cohort (admin) — B-23.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      responses:
+        "200":
+          description: Invites, newest first
+    post:
+      description: Create a self-enrollment invite code (admin) — B-23.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expires_in_hours: { type: integer, minimum: 0 }
+                max_uses: { type: integer, minimum: 0, description: "0 = unlimited" }
+      responses:
+        "201":
+          description: Invite created (code returned once; treat as a secret)
+
+  /v1/tenants/{tenant_id}/invites/{invite_id}:
+    delete:
+      description: Revoke an invite (admin) — B-23.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: invite_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Invite revoked }
+
+  /v1/invites/{code}:
+    get:
+      description: PUBLIC invite lookup (the unguessable code is the credential) — returns display names + usability, never counters.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Invite display data }
+
+  /v1/invites/{code}/redeem:
+    post:
+      description: Redeem an invite for a provisioned user (TRUSTED WEB TIER ONLY — bootstrap secret required). Grants LEARNER membership + enrollment, burns one use.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: string }
+      responses:
+        "201": { description: Membership granted and learner enrolled }
+
+  /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/modules:
+    get:
+      description: Ordered editorial modules of a syllabus (B-24).
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: syllabus_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Modules ordered by position
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CourseModule" }
+    post:
+      description: Create a module (trainer/admin). Prerequisites must point at earlier modules of the same syllabus.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: syllabus_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, position]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                position: { type: integer, minimum: 0 }
+                concept_ids: { type: array, items: { type: string } }
+                prerequisite_ids: { type: array, items: { type: string } }
+                required_mastery: { type: number, exclusiveMinimum: 0, maximum: 1 }
+      responses:
+        "201":
+          description: Module created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseModule" }
+
+  /v1/tenants/{tenant_id}/modules/{module_id}:
+    patch:
+      description: Update an editorial module (B-24).
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: module_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Module updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseModule" }
+    delete:
+      description: Archive an editorial module (B-24).
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: module_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Module archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseModule" }
+
+  /v1/tenants/{tenant_id}/learners/{learner_id}/path:
+    get:
+      description: Evidence-based module path for a learner (B-24) — LOCKED/AVAILABLE/IN_PROGRESS/COMPLETED per module.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/LearnerID"
+        - name: syllabus_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Module progress rows, ordered by position
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ModuleProgress" }
+
   /v1/tenants/{tenant_id}/activities/{activity_id}/pause:
     post:
       description: Pause the training-time clock on a started activity (B-07). Idempotent while paused.
@@ -1315,6 +1479,29 @@ components:
           type: string
           format: date-time
           description: Set while a pause is open; folded into paused_seconds on resume/completion.
+    CourseModule:
+      type: object
+      properties:
+        tenant_id: { type: string }
+        id: { type: string }
+        syllabus_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        position: { type: integer }
+        concept_ids: { type: array, items: { type: string } }
+        prerequisite_ids: { type: array, items: { type: string } }
+        required_mastery: { type: number }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        archived_at: { type: string, format: date-time }
+    ModuleProgress:
+      type: object
+      properties:
+        module: { $ref: "#/components/schemas/CourseModule" }
+        status: { type: string, enum: [LOCKED, AVAILABLE, IN_PROGRESS, COMPLETED] }
+        concepts_total: { type: integer }
+        concepts_mastered: { type: integer }
+        avg_mastery: { type: number }
     TutorInstruction:
       type: object
       properties:

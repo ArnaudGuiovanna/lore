@@ -35,6 +35,10 @@ type PlanNextInput struct {
 	LearnerID string `json:"learner_id"`
 	DomainID  string `json:"domain_id"`
 	Intent    string `json:"intent,omitempty"`
+	// AllowedConceptIDs (B-24): when set, the runtime only plans within these
+	// concepts — the editorial path's unlocked modules gate the adaptive engine
+	// without replacing it. Empty = whole domain (legacy behaviour).
+	AllowedConceptIDs []string `json:"allowed_concept_ids,omitempty"`
 }
 
 func NewEngine(store Store) *Engine {
@@ -68,6 +72,12 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 	}
 	if len(graph.Concepts) == 0 {
 		return core.RuntimeDecision{}, fmt.Errorf("%w: domain has no concepts", core.ErrInvalidInput)
+	}
+	if len(in.AllowedConceptIDs) > 0 {
+		graph = restrictGraph(graph, in.AllowedConceptIDs)
+		if len(graph.Concepts) == 0 {
+			return core.RuntimeDecision{}, fmt.Errorf("%w: no allowed concept exists in this domain", core.ErrInvalidInput)
+		}
 	}
 
 	states, err := e.store.GetLearnerStates(ctx, in.TenantID, in.LearnerID, in.DomainID)
@@ -641,6 +651,29 @@ func prerequisitesSatisfied(prereqs []string, states map[string]core.LearnerStat
 		}
 	}
 	return true
+}
+
+// restrictGraph keeps only the allowed concepts and the dependencies fully
+// inside that subset. The runtime then reasons on the unlocked slice of the
+// domain exactly as it would on a whole domain.
+func restrictGraph(graph core.DomainGraph, allowedIDs []string) core.DomainGraph {
+	allowed := make(map[string]bool, len(allowedIDs))
+	for _, id := range allowedIDs {
+		allowed[id] = true
+	}
+	concepts := make([]core.Concept, 0, len(graph.Concepts))
+	for _, concept := range graph.Concepts {
+		if allowed[concept.ID] {
+			concepts = append(concepts, concept)
+		}
+	}
+	dependencies := make([]core.Dependency, 0, len(graph.Dependencies))
+	for _, dependency := range graph.Dependencies {
+		if allowed[dependency.ParentConceptID] && allowed[dependency.ChildConceptID] {
+			dependencies = append(dependencies, dependency)
+		}
+	}
+	return core.DomainGraph{Domain: graph.Domain, Concepts: concepts, Dependencies: dependencies}
 }
 
 func evaluatePhase(concepts []core.Concept, states map[string]core.LearnerState, now time.Time) core.Phase {

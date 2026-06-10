@@ -648,3 +648,98 @@ func hasEvent(events []core.Event, eventType string) bool {
 	}
 	return false
 }
+
+// B-24: course modules CRUD + learner path on the real Postgres store.
+func TestPostgresCourseModulesAndLearnerPath(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+	tenantID, domainID := seedDomain(t, st, "Acme", "acme-modules")
+
+	syllabus, err := st.CreateSyllabus(ctx, tenantID, "Parcours Go", "", nil, nil)
+	if err != nil {
+		t.Fatalf("create syllabus: %v", err)
+	}
+	m1, err := st.CreateCourseModule(ctx, core.CourseModule{
+		TenantID:        tenantID,
+		SyllabusID:      syllabus.ID,
+		Title:           "Démarrer",
+		Position:        0,
+		ConceptIDs:      []string{"concept-a"},
+		RequiredMastery: 0.3,
+	})
+	if err != nil {
+		t.Fatalf("create module 1: %v", err)
+	}
+	m2, err := st.CreateCourseModule(ctx, core.CourseModule{
+		TenantID:        tenantID,
+		SyllabusID:      syllabus.ID,
+		Title:           "Persister",
+		Position:        1,
+		ConceptIDs:      []string{"concept-b"},
+		PrerequisiteIDs: []string{m1.ID},
+	})
+	if err != nil {
+		t.Fatalf("create module 2: %v", err)
+	}
+
+	// Invalid prerequisite (later position) must be rejected.
+	if _, err := st.CreateCourseModule(ctx, core.CourseModule{
+		TenantID:        tenantID,
+		SyllabusID:      syllabus.ID,
+		Title:           "Bad",
+		Position:        0,
+		PrerequisiteIDs: []string{m2.ID},
+	}); err == nil {
+		t.Fatalf("expected invalid prerequisite to fail")
+	}
+
+	path, err := st.LearnerModulePath(ctx, tenantID, "learner-1", syllabus.ID)
+	if err != nil {
+		t.Fatalf("learner path: %v", err)
+	}
+	if len(path) != 2 || path[0].Status != "AVAILABLE" || path[1].Status != "LOCKED" {
+		t.Fatalf("unexpected fresh path: %+v", path)
+	}
+
+	// Drive runtime evidence on concept-a above module 1's threshold.
+	engine := runtime.NewEngine(st)
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{
+		TenantID: tenantID, LearnerID: "learner-1", DomainID: domainID,
+		AllowedConceptIDs: []string{"concept-a"},
+	})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if decision.Activity.ConceptID != "concept-a" {
+		t.Fatalf("gated planning escaped allowed set: %+v", decision.Activity)
+	}
+	if _, err := engine.SubmitAssessment(ctx, core.AssessmentSubmissionCommand{
+		TenantID:   tenantID,
+		LearnerID:  "learner-1",
+		ActivityID: decision.Activity.ID,
+		Answers:    []core.AssessmentAnswer{{ItemID: "concept-check", ChoiceID: "concept-a"}},
+	}); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	path, err = st.LearnerModulePath(ctx, tenantID, "learner-1", syllabus.ID)
+	if err != nil {
+		t.Fatalf("learner path after evidence: %v", err)
+	}
+	if path[0].Status != "COMPLETED" || path[1].Status != "AVAILABLE" {
+		t.Fatalf("evidence did not unlock the path: %+v", path)
+	}
+
+	// Patch + archive round-trip.
+	title := "Démarrer (v2)"
+	updated, err := st.UpdateCourseModule(ctx, tenantID, m1.ID, core.CourseModulePatch{Title: &title})
+	if err != nil || updated.Title != title {
+		t.Fatalf("update module: %v %+v", err, updated)
+	}
+	if _, err := st.ArchiveCourseModule(ctx, tenantID, m2.ID); err != nil {
+		t.Fatalf("archive module: %v", err)
+	}
+	modules, err := st.ListCourseModules(ctx, tenantID, syllabus.ID)
+	if err != nil || len(modules) != 1 {
+		t.Fatalf("archived module still listed: %v %+v", err, modules)
+	}
+}

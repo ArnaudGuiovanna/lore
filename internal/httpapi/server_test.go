@@ -1260,6 +1260,191 @@ func bootstrapHeaders() map[string]string {
 	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
+// B-25: planned sessions are exportable as an iCalendar feed.
+func TestTrainingSessionsICSExport(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	program := postJSON[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go"}, http.StatusCreated)
+	cohort := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, http.StatusCreated)
+	_ = postJSON[core.TrainingSession](t, server, "/v1/tenants/"+tenant.ID+"/training-sessions", map[string]any{
+		"cohort_id": cohort.ID,
+		"title":     "Atelier transactions; partie 1",
+		"starts_at": "2026-06-20T09:00:00Z",
+		"ends_at":   "2026-06-20T12:30:00Z",
+		"video_url": "https://meet.example/abc",
+	}, http.StatusCreated)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/"+tenant.ID+"/training-sessions.ics?cohort_id="+cohort.ID, nil)
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("ics status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if ct := resp.Header().Get("Content-Type"); !strings.Contains(ct, "text/calendar") {
+		t.Fatalf("expected text/calendar, got %q", ct)
+	}
+	body := resp.Body.String()
+	for _, needle := range []string{"BEGIN:VCALENDAR", "BEGIN:VEVENT", "DTSTART:20260620T090000Z", `SUMMARY:Atelier transactions\; partie 1`, "URL:https://meet.example/abc", "END:VCALENDAR"} {
+		if !strings.Contains(body, needle) {
+			t.Fatalf("ics missing %q in %q", needle, body)
+		}
+	}
+}
+
+// B-23: invite codes — admin creates, public looks up, trusted web tier redeems.
+func TestCohortInviteLifecycle(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSONWithHeadersValue[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, bootstrapHeaders(), http.StatusCreated)
+	program := postJSONWithHeadersValue[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go"}, bootstrapHeaders(), http.StatusCreated)
+	cohort := postJSONWithHeadersValue[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, bootstrapHeaders(), http.StatusCreated)
+	user := postJSONWithHeadersValue[core.User](t, server, "/v1/users", map[string]any{"email": "self@acme.test", "name": "Self Enroll"}, nil, http.StatusCreated)
+
+	invite := postJSONWithHeadersValue[core.CohortInvite](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/invites", map[string]any{"max_uses": 1}, bootstrapHeaders(), http.StatusCreated)
+	if invite.Code == "" || len(invite.Code) < 32 {
+		t.Fatalf("invite code is not an unguessable secret: %q", invite.Code)
+	}
+
+	// Public lookup needs no auth and exposes only display data.
+	lookup := getJSON[map[string]any](t, server, "/v1/invites/"+invite.Code, http.StatusOK)
+	if lookup["usable"] != true || lookup["cohort_id"] != cohort.ID {
+		t.Fatalf("unexpected lookup: %+v", lookup)
+	}
+
+	// Redemption without the bootstrap secret is refused.
+	req := httptest.NewRequest(http.MethodPost, "/v1/invites/"+invite.Code+"/redeem", jsonBody(map[string]any{"user_id": user.ID}))
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("redeem without bootstrap status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	redeemed := postJSONWithHeadersValue[map[string]any](t, server, "/v1/invites/"+invite.Code+"/redeem", map[string]any{"user_id": user.ID}, bootstrapHeaders(), http.StatusCreated)
+	if redeemed["cohort_id"] != cohort.ID {
+		t.Fatalf("unexpected redemption: %+v", redeemed)
+	}
+	enrollments := getJSONWithHeaders[[]core.CohortEnrollment](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/enrollments", bootstrapHeaders(), http.StatusOK)
+	if len(enrollments) != 1 || enrollments[0].LearnerID != user.ID {
+		t.Fatalf("redemption did not enroll the learner: %+v", enrollments)
+	}
+
+	// max_uses=1 is exhausted: the next redemption fails and lookup says why.
+	req = httptest.NewRequest(http.MethodPost, "/v1/invites/"+invite.Code+"/redeem", jsonBody(map[string]any{"user_id": user.ID}))
+	for k, v := range bootstrapHeaders() {
+		req.Header.Set(k, v)
+	}
+	resp = httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("exhausted invite redeem status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	lookup = getJSON[map[string]any](t, server, "/v1/invites/"+invite.Code, http.StatusOK)
+	if lookup["usable"] != false {
+		t.Fatalf("exhausted invite still reported usable: %+v", lookup)
+	}
+
+	// Revocation closes the door immediately.
+	invite2 := postJSONWithHeadersValue[core.CohortInvite](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/invites", map[string]any{}, bootstrapHeaders(), http.StatusCreated)
+	delReq := httptest.NewRequest(http.MethodDelete, "/v1/tenants/"+tenant.ID+"/invites/"+invite2.ID, nil)
+	for k, v := range bootstrapHeaders() {
+		delReq.Header.Set(k, v)
+	}
+	delResp := httptest.NewRecorder()
+	server.ServeHTTP(delResp, delReq)
+	if delResp.Code != http.StatusOK {
+		t.Fatalf("revoke status=%d body=%s", delResp.Code, delResp.Body.String())
+	}
+	lookup = getJSON[map[string]any](t, server, "/v1/invites/"+invite2.Code, http.StatusOK)
+	if lookup["usable"] != false || lookup["reason"] != "invitation révoquée" {
+		t.Fatalf("revoked invite still usable: %+v", lookup)
+	}
+}
+
+// B-24: editorial modules gate the adaptive runtime without replacing it.
+func TestCourseModulesPathAndGating(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{
+			{"id": "c1", "name": "HTTP", "difficulty": 0.4},
+			{"id": "c2", "name": "Persistence", "difficulty": 0.6},
+		},
+		"dependencies": []map[string]any{{"parent_concept_id": "c1", "child_concept_id": "c2"}},
+	}, http.StatusCreated)
+	syllabus := postJSON[core.Syllabus](t, server, "/v1/tenants/"+tenant.ID+"/syllabi", map[string]any{
+		"title": "Parcours Go",
+	}, http.StatusCreated)
+
+	// Module 1 completes after a single correct answer (low threshold on purpose).
+	m1 := postJSON[core.CourseModule](t, server, "/v1/tenants/"+tenant.ID+"/syllabi/"+syllabus.ID+"/modules", map[string]any{
+		"title":            "Démarrer",
+		"position":         0,
+		"concept_ids":      []string{"c1"},
+		"required_mastery": 0.3,
+	}, http.StatusCreated)
+	m2 := postJSON[core.CourseModule](t, server, "/v1/tenants/"+tenant.ID+"/syllabi/"+syllabus.ID+"/modules", map[string]any{
+		"title":            "Persister",
+		"position":         1,
+		"concept_ids":      []string{"c2"},
+		"prerequisite_ids": []string{m1.ID},
+	}, http.StatusCreated)
+	if m2.RequiredMastery != 0.85 {
+		t.Fatalf("default required_mastery=%v", m2.RequiredMastery)
+	}
+
+	// A prerequisite must exist and come earlier in the path.
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/"+tenant.ID+"/syllabi/"+syllabus.ID+"/modules",
+		jsonBody(map[string]any{"title": "Bad", "position": 0, "prerequisite_ids": []string{m2.ID}}))
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid prerequisite to 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+
+	// Fresh learner: module 1 available, module 2 locked behind it.
+	path := getJSON[[]core.ModuleProgress](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/path?syllabus_id="+syllabus.ID, http.StatusOK)
+	if len(path) != 2 || path[0].Status != "AVAILABLE" || path[1].Status != "LOCKED" {
+		t.Fatalf("unexpected fresh path: %+v", path)
+	}
+
+	// Gated planning only ever picks inside the unlocked module.
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id":           graph.Domain.ID,
+		"allowed_concept_ids": []string{"c1"},
+	}, http.StatusCreated)
+	if decision.Activity.ConceptID != "c1" {
+		t.Fatalf("gated planning escaped the unlocked module: %+v", decision.Activity)
+	}
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", "c1"), http.StatusCreated)
+
+	// Evidence flips module 1 to COMPLETED and unlocks module 2.
+	path = getJSON[[]core.ModuleProgress](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/path?syllabus_id="+syllabus.ID, http.StatusOK)
+	if path[0].Status != "COMPLETED" {
+		t.Fatalf("module 1 not completed after correct evidence: %+v", path[0])
+	}
+	if path[1].Status != "AVAILABLE" {
+		t.Fatalf("module 2 not unlocked: %+v", path[1])
+	}
+
+	// Update + archive round-trip.
+	renamed := patchJSON[core.CourseModule](t, server, "/v1/tenants/"+tenant.ID+"/modules/"+m1.ID, map[string]any{"title": "Démarrer (v2)"}, http.StatusOK)
+	if renamed.Title != "Démarrer (v2)" {
+		t.Fatalf("module rename failed: %+v", renamed)
+	}
+	delReq := httptest.NewRequest(http.MethodDelete, "/v1/tenants/"+tenant.ID+"/modules/"+m2.ID, nil)
+	delResp := httptest.NewRecorder()
+	server.ServeHTTP(delResp, delReq)
+	if delResp.Code != http.StatusOK {
+		t.Fatalf("archive module status=%d body=%s", delResp.Code, delResp.Body.String())
+	}
+	modules := getJSON[[]core.CourseModule](t, server, "/v1/tenants/"+tenant.ID+"/syllabi/"+syllabus.ID+"/modules", http.StatusOK)
+	if len(modules) != 1 || modules[0].ID != m1.ID {
+		t.Fatalf("archived module still listed: %+v", modules)
+	}
+}
+
 func correctedAssessmentBody(learnerID, choiceID string) map[string]any {
 	return map[string]any{
 		"learner_id": learnerID,

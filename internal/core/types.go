@@ -203,6 +203,60 @@ type AdminAuditLog struct {
 	CreatedAt   time.Time      `json:"created_at"`
 }
 
+// CohortInvite (B-23) is a shareable self-enrollment code for a cohort. The
+// code is the bearer secret; redemption is performed by the trusted web tier.
+type CohortInvite struct {
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	CohortID   string     `json:"cohort_id"`
+	Code       string     `json:"code"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	MaxUses    int        `json:"max_uses"` // 0 = unlimited
+	UseCount   int        `json:"use_count"`
+	CreatedBy  string     `json:"created_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	TenantName string     `json:"tenant_name,omitempty"` // lookup convenience
+	CohortName string     `json:"cohort_name,omitempty"` // lookup convenience
+}
+
+// CourseModule (B-24) is an editorial sequencing unit a trainer lays over the
+// adaptive runtime: an ordered group of domain concepts under a syllabus, with
+// explicit prerequisites. Completion is evidence-based (runtime mastery).
+type CourseModule struct {
+	TenantID        string     `json:"tenant_id"`
+	ID              string     `json:"id"`
+	SyllabusID      string     `json:"syllabus_id"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description,omitempty"`
+	Position        int        `json:"position"`
+	ConceptIDs      []string   `json:"concept_ids"`
+	PrerequisiteIDs []string   `json:"prerequisite_ids"`
+	RequiredMastery float64    `json:"required_mastery"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	ArchivedAt      *time.Time `json:"archived_at,omitempty"`
+}
+
+// CourseModulePatch carries optional updates for a module (nil = unchanged).
+type CourseModulePatch struct {
+	Title           *string   `json:"title,omitempty"`
+	Description     *string   `json:"description,omitempty"`
+	Position        *int      `json:"position,omitempty"`
+	ConceptIDs      *[]string `json:"concept_ids,omitempty"`
+	PrerequisiteIDs *[]string `json:"prerequisite_ids,omitempty"`
+	RequiredMastery *float64  `json:"required_mastery,omitempty"`
+}
+
+// ModuleProgress is the learner-facing status of one module in their path.
+type ModuleProgress struct {
+	Module           CourseModule `json:"module"`
+	Status           string       `json:"status"` // LOCKED | AVAILABLE | IN_PROGRESS | COMPLETED
+	ConceptsTotal    int          `json:"concepts_total"`
+	ConceptsMastered int          `json:"concepts_mastered"`
+	AvgMastery       float64      `json:"avg_mastery"`
+}
+
 // LearnerProgressSummary is one row of the cohort progress export (B-12/B-22):
 // runtime-owned evidence per learner, never client-computed.
 type LearnerProgressSummary struct {

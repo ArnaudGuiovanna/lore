@@ -27,6 +27,8 @@ type MemoryStore struct {
 	adminAudit  map[string]core.AdminAuditLog
 	syllabi     map[string]core.Syllabus
 	bindings    map[string]core.SyllabusBinding
+	modules     map[string]core.CourseModule
+	invites     map[string]core.CohortInvite // keyed by code (the bearer secret)
 
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
@@ -61,6 +63,8 @@ func NewMemoryStore() *MemoryStore {
 		adminAudit:     map[string]core.AdminAuditLog{},
 		syllabi:        map[string]core.Syllabus{},
 		bindings:       map[string]core.SyllabusBinding{},
+		modules:        map[string]core.CourseModule{},
+		invites:        map[string]core.CohortInvite{},
 		domains:        map[string]core.Domain{},
 		concepts:       map[string]core.Concept{},
 		dependencies:   map[string]core.Dependency{},
