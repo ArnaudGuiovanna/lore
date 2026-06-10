@@ -37,6 +37,7 @@ type MemoryStore struct {
 	bankQuestions         map[string]core.BankQuestion
 	assignments           map[string]core.Assignment
 	assignmentSubmissions map[string]core.AssignmentSubmission
+	documents             map[string]core.OFDocument
 
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
@@ -79,6 +80,7 @@ func NewMemoryStore() *MemoryStore {
 		bankQuestions:         map[string]core.BankQuestion{},
 		assignments:           map[string]core.Assignment{},
 		assignmentSubmissions: map[string]core.AssignmentSubmission{},
+		documents:             map[string]core.OFDocument{},
 		domains:               map[string]core.Domain{},
 		concepts:              map[string]core.Concept{},
 		dependencies:          map[string]core.Dependency{},

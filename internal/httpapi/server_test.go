@@ -1857,3 +1857,27 @@ func jsonBody(v any) *bytes.Reader {
 	}
 	return bytes.NewReader(data)
 }
+
+// B-10: contractual documents — create, version, learner-scoped reads.
+func TestOFDocuments(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	doc := postJSON[core.OFDocument](t, server, "/v1/tenants/"+tenant.ID+"/documents", map[string]any{
+		"kind":  "REGLEMENT_INTERIEUR",
+		"title": "Règlement intérieur",
+		"body":  "Article 1 — …",
+	}, http.StatusCreated)
+	if doc.Version != 1 || doc.RootID != doc.ID {
+		t.Fatalf("unexpected first version: %+v", doc)
+	}
+	v2 := postJSON[core.OFDocument](t, server, "/v1/tenants/"+tenant.ID+"/documents/"+doc.ID+"/versions", map[string]any{
+		"body": "Article 1 — révisé.",
+	}, http.StatusCreated)
+	if v2.Version != 2 || v2.RootID != doc.ID || v2.Title != doc.Title {
+		t.Fatalf("unexpected version 2: %+v", v2)
+	}
+	documents := getJSON[[]core.OFDocument](t, server, "/v1/tenants/"+tenant.ID+"/documents", http.StatusOK)
+	if len(documents) != 1 || documents[0].Version != 2 {
+		t.Fatalf("list should return only the latest version: %+v", documents)
+	}
+}

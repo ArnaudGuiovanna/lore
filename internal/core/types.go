@@ -207,6 +207,23 @@ type AdminAuditLog struct {
 	CreatedAt   time.Time      `json:"created_at"`
 }
 
+// OFDocument (B-10) — contractual document (convention, contrat, devis,
+// programme, règlement intérieur). Versions are append-only via root_id.
+type OFDocument struct {
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	RootID     string     `json:"root_id"`
+	Version    int        `json:"version"`
+	Kind       string     `json:"kind"`
+	Title      string     `json:"title"`
+	Body       string     `json:"body,omitempty"`
+	CohortID   string     `json:"cohort_id,omitempty"`
+	LearnerID  string     `json:"learner_id,omitempty"`
+	CreatedBy  string     `json:"created_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
 // BankQuestion (B-26) — trainer-authored question. When questions exist for a
 // concept, runtime assessments use them instead of the generated fallback;
 // answer keys NEVER leave the backend (scoring fetches them at submit time).

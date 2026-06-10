@@ -56,6 +56,11 @@ type Repository interface {
 	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
 	EraseLearnerData(ctx context.Context, tenantID, learnerID string, actorUserID ...string) (map[string]int, error)
+	CreateDocument(ctx context.Context, doc core.OFDocument, actorUserID ...string) (core.OFDocument, error)
+	NewDocumentVersion(ctx context.Context, tenantID, documentID, title, body string, actorUserID ...string) (core.OFDocument, error)
+	ListDocuments(ctx context.Context, tenantID, learnerID string) ([]core.OFDocument, error)
+	GetDocument(ctx context.Context, tenantID, documentID string) (core.OFDocument, error)
+	ArchiveDocument(ctx context.Context, tenantID, documentID string, actorUserID ...string) (core.OFDocument, error)
 	CreateBankQuestion(ctx context.Context, q core.BankQuestion, actorUserID ...string) (core.BankQuestion, error)
 	ListBankQuestions(ctx context.Context, tenantID, conceptID string) ([]core.BankQuestion, error)
 	ArchiveBankQuestion(ctx context.Context, tenantID, questionID string, actorUserID ...string) (core.BankQuestion, error)
@@ -233,6 +238,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents", s.createDocument)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents", s.listDocuments)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents/{document_id}", s.getDocument)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents/{document_id}/versions", s.newDocumentVersion)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/documents/{document_id}", s.archiveDocument)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/questions", s.createBankQuestion)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/questions", s.listBankQuestions)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/questions/{question_id}", s.archiveBankQuestion)
@@ -837,6 +847,74 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="lore-sessions.ics"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// --- Documents contractuels OF (B-10) ---------------------------------------
+
+func (s *Server) createDocument(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req core.OFDocument
+	if !decode(w, r, &req) {
+		return
+	}
+	req.TenantID = tenantID
+	doc, err := s.store.CreateDocument(r.Context(), req, actorUserIDFromRequest(r))
+	respond(w, doc, err, http.StatusCreated)
+}
+
+// listDocuments: staff see everything; a learner token is forced onto its own
+// scope (its documents + its cohorts' + tenant-wide ones like the règlement).
+func (s *Server) listDocuments(w http.ResponseWriter, r *http.Request) {
+	learnerID := r.URL.Query().Get("learner_id")
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		learnerID = claims.Subject
+	}
+	documents, err := s.store.ListDocuments(r.Context(), r.PathValue("tenant_id"), learnerID)
+	respond(w, documents, err, http.StatusOK)
+}
+
+func (s *Server) getDocument(w http.ResponseWriter, r *http.Request) {
+	doc, err := s.store.GetDocument(r.Context(), r.PathValue("tenant_id"), r.PathValue("document_id"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	// A learner may only read a document in its scope.
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		if doc.LearnerID != "" && doc.LearnerID != claims.Subject {
+			problem(w, http.StatusForbidden, "document is not addressed to this learner")
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, doc)
+}
+
+func (s *Server) newDocumentVersion(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+		Body  string `json:"body"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	doc, err := s.store.NewDocumentVersion(r.Context(), tenantID, r.PathValue("document_id"), req.Title, req.Body, actorUserIDFromRequest(r))
+	respond(w, doc, err, http.StatusCreated)
+}
+
+func (s *Server) archiveDocument(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	doc, err := s.store.ArchiveDocument(r.Context(), tenantID, r.PathValue("document_id"), actorUserIDFromRequest(r))
+	respond(w, doc, err, http.StatusOK)
 }
 
 // --- Banque de questions & devoirs (B-26) -----------------------------------
@@ -2349,6 +2427,10 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 	// B-25: the cohort schedule is readable by its learners (read-only).
 	if r.Method == http.MethodGet && len(tail) == 1 &&
 		(tail[0] == "training-sessions" || tail[0] == "training-sessions.ics") {
+		return true
+	}
+	// B-10: learners read documents in their scope (handler narrows the list).
+	if r.Method == http.MethodGet && tail[0] == "documents" && len(tail) <= 2 {
 		return true
 	}
 	// B-26: learners list assignments and hand in their own work.

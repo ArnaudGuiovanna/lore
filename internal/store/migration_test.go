@@ -62,7 +62,7 @@ func TestMigrationDirectoryIncludesAdminCRUDMigration(t *testing.T) {
 		}
 	}
 	joined := strings.Join(names, "\n")
-	for _, required := range []string{"000001_init.sql", "000002_admin_crud.sql", "000003_activity_pause.sql", "000004_course_modules.sql", "000005_cohort_invites.sql", "000006_satisfaction.sql", "000007_tenant_profile.sql", "000008_question_bank.sql"} {
+	for _, required := range []string{"000001_init.sql", "000002_admin_crud.sql", "000003_activity_pause.sql", "000004_course_modules.sql", "000005_cohort_invites.sql", "000006_satisfaction.sql", "000007_tenant_profile.sql", "000008_question_bank.sql", "000009_of_documents.sql"} {
 		if !strings.Contains(joined, required) {
 			t.Fatalf("migration directory missing %s in %v", required, names)
 		}
