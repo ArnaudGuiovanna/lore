@@ -1503,6 +1503,62 @@ func (s *MemoryStore) CohortAnalytics(_ context.Context, tenantID, cohortID stri
 	}, nil
 }
 
+// CohortProgress builds the per-learner progress export rows (B-12/B-22).
+// Mastered = states whose mastery reaches the runtime threshold passed in by
+// the caller (the store does not own pedagogy constants).
+func (s *MemoryStore) CohortProgress(_ context.Context, tenantID, cohortID string, masteryThreshold float64) ([]core.LearnerProgressSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.cohorts[key(tenantID, cohortID)]; !ok {
+		return nil, fmt.Errorf("%w: cohort", core.ErrNotFound)
+	}
+	learners := map[string]bool{}
+	for _, enrollment := range s.enrollments {
+		if enrollment.TenantID == tenantID && enrollment.CohortID == cohortID && enrollment.Status == "ACTIVE" {
+			learners[enrollment.LearnerID] = true
+		}
+	}
+	byLearner := map[string]*core.LearnerProgressSummary{}
+	for learnerID := range learners {
+		byLearner[learnerID] = &core.LearnerProgressSummary{TenantID: tenantID, CohortID: cohortID, LearnerID: learnerID}
+	}
+	for _, state := range s.states {
+		if state.TenantID != tenantID || !learners[state.LearnerID] {
+			continue
+		}
+		row := byLearner[state.LearnerID]
+		row.ConceptsTracked++
+		if state.Mastery >= masteryThreshold {
+			row.ConceptsMastered++
+		}
+		row.AvgMastery += state.Mastery
+		row.AvgRetention += state.Retention
+	}
+	for _, activity := range s.activities {
+		if activity.TenantID != tenantID || !learners[activity.LearnerID] {
+			continue
+		}
+		seconds := trackedActivitySeconds(activity.StartedAt, activity.CompletedAt, activity.PausedSeconds)
+		if seconds <= 0 {
+			continue
+		}
+		row := byLearner[activity.LearnerID]
+		row.ActivityCount++
+		row.TrainingTimeSeconds += seconds
+	}
+	rows := make([]core.LearnerProgressSummary, 0, len(byLearner))
+	for _, row := range byLearner {
+		if row.ConceptsTracked > 0 {
+			row.AvgMastery /= float64(row.ConceptsTracked)
+			row.AvgRetention /= float64(row.ConceptsTracked)
+		}
+		row.TrainingHours = hoursFromSeconds(row.TrainingTimeSeconds)
+		rows = append(rows, *row)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].LearnerID < rows[j].LearnerID })
+	return rows, nil
+}
+
 func trackedActivitySeconds(startedAt, completedAt *time.Time, pausedSeconds int64) int64 {
 	if startedAt == nil || completedAt == nil || !completedAt.After(*startedAt) {
 		return 0

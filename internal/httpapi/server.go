@@ -76,6 +76,7 @@ type Repository interface {
 	ListAlerts(ctx context.Context, tenantID string, now time.Time) ([]core.Alert, error)
 	UpdateAlertStatus(ctx context.Context, tenantID, alertID, status string, now time.Time) (core.Alert, error)
 	CohortAnalytics(ctx context.Context, tenantID, cohortID string) (map[string]any, error)
+	CohortProgress(ctx context.Context, tenantID, cohortID string, masteryThreshold float64) ([]core.LearnerProgressSummary, error)
 }
 
 const (
@@ -228,6 +229,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/events/{event_id}/published", s.markEventPublished)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}", s.cohortAnalytics)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}/training-time.csv", s.cohortTrainingTimeCSV)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}/progress.csv", s.cohortProgressCSV)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/alerts", s.alerts)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/alerts/{alert_id}", s.patchAlert)
 	var handler http.Handler = mux
@@ -1236,6 +1238,37 @@ func (s *Server) cohortTrainingTimeCSV(w http.ResponseWriter, r *http.Request) {
 			row.ProgramID,
 			row.CohortID,
 			row.LearnerID,
+			strconv.Itoa(row.ActivityCount),
+			strconv.FormatInt(row.TrainingTimeSeconds, 10),
+			strconv.FormatFloat(row.TrainingHours, 'f', 4, 64),
+		})
+	}
+	cw.Flush()
+}
+
+// cohortProgressCSV exports per-learner progress/completion evidence (B-12/B-22).
+// "Mastered" uses the runtime's mastery threshold so the export matches what the
+// learner-facing surfaces report.
+func (s *Server) cohortProgressCSV(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.store.CohortProgress(r.Context(), r.PathValue("tenant_id"), r.PathValue("cohort_id"), runtime.MasteryThreshold)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="lore-progress.csv"`)
+	w.WriteHeader(http.StatusOK)
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"tenant_id", "cohort_id", "learner_id", "concepts_tracked", "concepts_mastered", "avg_mastery", "avg_retention", "activity_count", "training_time_seconds", "training_hours"})
+	for _, row := range rows {
+		_ = cw.Write([]string{
+			row.TenantID,
+			row.CohortID,
+			row.LearnerID,
+			strconv.Itoa(row.ConceptsTracked),
+			strconv.Itoa(row.ConceptsMastered),
+			strconv.FormatFloat(row.AvgMastery, 'f', 4, 64),
+			strconv.FormatFloat(row.AvgRetention, 'f', 4, 64),
 			strconv.Itoa(row.ActivityCount),
 			strconv.FormatInt(row.TrainingTimeSeconds, 10),
 			strconv.FormatFloat(row.TrainingHours, 'f', 4, 64),

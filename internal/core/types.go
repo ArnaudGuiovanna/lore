@@ -203,6 +203,21 @@ type AdminAuditLog struct {
 	CreatedAt   time.Time      `json:"created_at"`
 }
 
+// LearnerProgressSummary is one row of the cohort progress export (B-12/B-22):
+// runtime-owned evidence per learner, never client-computed.
+type LearnerProgressSummary struct {
+	TenantID            string  `json:"tenant_id"`
+	CohortID            string  `json:"cohort_id"`
+	LearnerID           string  `json:"learner_id"`
+	ConceptsTracked     int     `json:"concepts_tracked"`
+	ConceptsMastered    int     `json:"concepts_mastered"`
+	AvgMastery          float64 `json:"avg_mastery"`
+	AvgRetention        float64 `json:"avg_retention"`
+	ActivityCount       int     `json:"activity_count"`
+	TrainingTimeSeconds int64   `json:"training_time_seconds"`
+	TrainingHours       float64 `json:"training_hours"`
+}
+
 type TrainingTimeSummary struct {
 	TenantID            string  `json:"tenant_id"`
 	ProgramID           string  `json:"program_id,omitempty"`

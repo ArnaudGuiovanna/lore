@@ -1790,6 +1790,76 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 	}, nil
 }
 
+// CohortProgress builds the per-learner progress export rows (B-12/B-22).
+func (s *PostgresStore) CohortProgress(ctx context.Context, tenantID, cohortID string, masteryThreshold float64) ([]core.LearnerProgressSummary, error) {
+	var rowsOut []core.LearnerProgressSummary
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM cohorts WHERE tenant_id = $1 AND id = $2)`, tenantID, cohortID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("%w: cohort", core.ErrNotFound)
+		}
+		capSeconds := int64(maxTrackedActivityDuration / time.Second)
+		rows, err := tx.Query(ctx, `
+			WITH learners AS (
+				SELECT learner_id
+				FROM cohort_enrollments
+				WHERE tenant_id = $1 AND cohort_id = $2 AND status = 'ACTIVE'
+			),
+			states AS (
+				SELECT ls.learner_id,
+					count(*)::int AS tracked,
+					(count(*) FILTER (WHERE ls.mastery >= $4))::int AS mastered,
+					COALESCE(avg(ls.mastery), 0) AS avg_mastery,
+					COALESCE(avg(ls.retention), 0) AS avg_retention
+				FROM learner_states ls
+				JOIN learners l ON l.learner_id = ls.learner_id
+				WHERE ls.tenant_id = $1
+				GROUP BY ls.learner_id
+			),
+			activity_time AS (
+				SELECT a.learner_id,
+					count(*)::int AS activity_count,
+					COALESCE(SUM(LEAST(GREATEST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint - a.paused_seconds, 0), $3::bigint)), 0)::bigint AS seconds
+				FROM activities a
+				JOIN learners l ON l.learner_id = a.learner_id
+				WHERE a.tenant_id = $1
+				  AND a.started_at IS NOT NULL
+				  AND a.completed_at IS NOT NULL
+				  AND a.completed_at > a.started_at
+				GROUP BY a.learner_id
+			)
+			SELECT l.learner_id,
+				COALESCE(s.tracked, 0), COALESCE(s.mastered, 0),
+				COALESCE(s.avg_mastery, 0), COALESCE(s.avg_retention, 0),
+				COALESCE(t.activity_count, 0), COALESCE(t.seconds, 0)
+			FROM learners l
+			LEFT JOIN states s ON s.learner_id = l.learner_id
+			LEFT JOIN activity_time t ON t.learner_id = l.learner_id
+			ORDER BY l.learner_id
+		`, tenantID, cohortID, capSeconds, masteryThreshold)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			row := core.LearnerProgressSummary{TenantID: tenantID, CohortID: cohortID}
+			if err := rows.Scan(&row.LearnerID, &row.ConceptsTracked, &row.ConceptsMastered, &row.AvgMastery, &row.AvgRetention, &row.ActivityCount, &row.TrainingTimeSeconds); err != nil {
+				return err
+			}
+			row.TrainingHours = hoursFromSeconds(row.TrainingTimeSeconds)
+			rowsOut = append(rowsOut, row)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, pgErr(err)
+	}
+	return rowsOut, nil
+}
+
 func (s *PostgresStore) GetIdempotencyRecord(ctx context.Context, tenantID, idempotencyKey string) (core.IdempotencyRecord, error) {
 	var record core.IdempotencyRecord
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {

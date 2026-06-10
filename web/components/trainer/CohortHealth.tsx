@@ -164,13 +164,20 @@ export function CohortHealth({
           />
         </div>
         {cohortId ? (
-          <p style={{ marginTop: 14, marginBottom: 0 }}>
+          <p style={{ marginTop: 14, marginBottom: 0, display: "flex", gap: 18, flexWrap: "wrap" }}>
             <a
               className="mono"
               style={{ fontSize: 12, color: "var(--accent)" }}
               href={`/api/analytics/training-time?cohortId=${encodeURIComponent(cohortId)}`}
             >
-              ↓ exporter le temps de formation par apprenant (CSV)
+              ↓ temps de formation (CSV)
+            </a>
+            <a
+              className="mono"
+              style={{ fontSize: 12, color: "var(--accent)" }}
+              href={`/api/analytics/progress?cohortId=${encodeURIComponent(cohortId)}`}
+            >
+              ↓ progression &amp; complétion (CSV)
             </a>
           </p>
         ) : null}

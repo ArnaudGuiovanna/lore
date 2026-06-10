@@ -72,9 +72,16 @@ export function Overview({
         />
       </div>
       {trainingTimeCsvHref ? (
-        <p style={{ margin: 0 }}>
+        <p style={{ margin: 0, display: "flex", gap: 18, flexWrap: "wrap" }}>
           <a className="mono" style={{ fontSize: 12, color: "var(--accent)" }} href={trainingTimeCsvHref}>
             ↓ temps de formation par apprenant (CSV)
+          </a>
+          <a
+            className="mono"
+            style={{ fontSize: 12, color: "var(--accent)" }}
+            href={trainingTimeCsvHref.replace("/training-time", "/progress")}
+          >
+            ↓ progression &amp; complétion par apprenant (CSV)
           </a>
         </p>
       ) : null}

@@ -15,17 +15,21 @@ import type {
 import { Overview } from "./Overview";
 import { IdentityManager } from "./IdentityManager";
 import { OrgManager } from "./OrgManager";
+import { SessionsManager } from "./SessionsManager";
+import { ImportLearners } from "./ImportLearners";
 import { DomainGraph } from "./DomainGraph";
 import { LlmMatrix } from "./LlmMatrix";
 import { EventOutbox } from "./EventOutbox";
 import a from "./admin.module.css";
 
-type Section = "overview" | "identity" | "structure" | "graph" | "llm" | "outbox";
+type Section = "overview" | "identity" | "structure" | "sessions" | "import" | "graph" | "llm" | "outbox";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "overview", label: "Vue d'ensemble" },
   { id: "identity", label: "Identité" },
   { id: "structure", label: "Structure de l'organisation" },
+  { id: "sessions", label: "Sessions" },
+  { id: "import", label: "Import CSV" },
   { id: "graph", label: "Graphe du domaine" },
   { id: "llm", label: "Matrice LLM" },
   { id: "outbox", label: "Boîte d'événements" },
@@ -159,6 +163,10 @@ export function AdminConsole({
           tenantSlug={tenantSlug}
         />
       ) : null}
+
+      {section === "sessions" ? <SessionsManager programs={programs} /> : null}
+
+      {section === "import" ? <ImportLearners programs={programs} /> : null}
 
       {section === "graph" ? <DomainGraph graph={graph} /> : null}
 

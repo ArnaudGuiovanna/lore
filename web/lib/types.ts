@@ -25,6 +25,11 @@ export interface Learner {
 export interface Program { tenant_id: string; id: string; name: string; created_at: string; }
 export interface Cohort { tenant_id: string; id: string; program_id: string; name: string; start_date: string; end_date: string; created_at: string; }
 export interface CohortEnrollment { tenant_id: string; cohort_id: string; learner_id: string; status: string; created_at: string; }
+export interface TrainingSession {
+  tenant_id: string; id: string; cohort_id: string; program_id?: string; title: string;
+  starts_at: string; ends_at: string; capacity: number; location?: string; video_url?: string;
+  status: string; created_at: string; updated_at: string; archived_at?: string | null;
+}
 
 export interface Syllabus { tenant_id: string; id: string; title: string; description: string; objectives?: Record<string, unknown>; outcomes?: Record<string, unknown>; created_at: string; }
 export interface SyllabusBinding { tenant_id: string; id: string; syllabus_id: string; target_type: string; target_id: string; adaptation_mode: string; created_at: string; }

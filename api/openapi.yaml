@@ -895,6 +895,20 @@ paths:
               schema:
                 type: string
 
+  /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}/progress.csv:
+    get:
+      description: Per-learner progress/completion export (concepts tracked/mastered, averages, hours) — B-12/B-22.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      responses:
+        "200":
+          description: Cohort progress CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+
   /v1/tenants/{tenant_id}/alerts:
     get:
       parameters: [{ $ref: "#/components/parameters/TenantID" }]

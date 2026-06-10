@@ -85,6 +85,7 @@ export const api = {
   post: <T>(path: PathInput, body?: unknown, opts?: Options) => call<T>("POST", path, body, opts),
   put: <T>(path: PathInput, body?: unknown, opts?: Options) => call<T>("PUT", path, body, opts),
   patch: <T>(path: PathInput, body?: unknown, opts?: Options) => call<T>("PATCH", path, body, opts),
+  del: <T>(path: PathInput, opts?: Options) => call<T>("DELETE", path, undefined, opts),
 };
 
 // Tenant-scoped path builder using the authenticated session tenant. Seed fallback

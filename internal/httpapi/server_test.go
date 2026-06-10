@@ -568,6 +568,18 @@ func TestCohortAnalyticsIncludesActiveMisconceptions(t *testing.T) {
 	if countEventType(events, "LearnerEnrolled") != 1 {
 		t.Fatalf("expected LearnerEnrolled event, got events=%+v", events)
 	}
+
+	// B-12/B-22: per-learner progress export.
+	req = httptest.NewRequest(http.MethodGet, "/v1/tenants/"+tenant.ID+"/analytics/cohorts/"+cohort.ID+"/progress.csv", nil)
+	resp = httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("progress csv status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	progress := resp.Body.String()
+	if !strings.Contains(progress, "concepts_mastered") || !strings.Contains(progress, "l1") {
+		t.Fatalf("progress csv missing header or learner row: %q", progress)
+	}
 }
 
 func TestRESTListEndpointsAreTenantScoped(t *testing.T) {
