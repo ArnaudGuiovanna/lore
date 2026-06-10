@@ -73,12 +73,24 @@ SYLLABUS_ID=$(bpost "$T/syllabi" '{
 }' | j .id)
 bpost "$T/syllabi/$SYLLABUS_ID/bindings" '{"target_type":"COHORT","target_id":"'"$COHORT_ID"'","adaptation_mode":"GUIDED"}' >/dev/null
 
-# enroll learner (user_id is the learner id) + plan an activity + record evidence
+# enroll learner (user_id is the learner id) + plan an activity + record evidence.
+# A fresh learner is in DIAGNOSTIC phase, so the runtime plans an ASSESSMENT;
+# those must go through the corrected-assessment endpoint (raw /interactions
+# rejects them). Non-assessment activities keep the raw interaction path.
 seed_learner() { # learnerId score success errorType
-  local LID="$1" SCORE="$2" SUCCESS="$3" ERR="$4" ACT
+  local LID="$1" SCORE="$2" SUCCESS="$3" ERR="$4" PLAN ACT TYPE ITEM CHOICE
   bpost "$T/cohorts/$COHORT_ID/enrollments" '{"learner_id":"'"$LID"'"}' >/dev/null || true
-  ACT=$(bpost "$T/learners/$LID/activities/next" '{"domain_id":"'"$DOMAIN_ID"'"}' | j '.activity.id // .id // empty')
-  if [ -n "$ACT" ] && [ "$ACT" != "null" ]; then
+  PLAN=$(bpost "$T/learners/$LID/activities/next" '{"domain_id":"'"$DOMAIN_ID"'"}')
+  ACT=$(echo "$PLAN" | j '.activity.id // .id // empty')
+  if [ -z "$ACT" ] || [ "$ACT" = "null" ]; then return 0; fi
+  TYPE=$(echo "$PLAN" | j '.activity.activity_type // empty')
+  if [ "$TYPE" = "ASSESSMENT" ]; then
+    ITEM=$(echo "$PLAN" | j '.tutor_instruction.context.assessment_items[0].id // "concept-check"')
+    # right answer = the item's concept; wrong answer = the "not sure" decoy
+    CHOICE=$(echo "$PLAN" | j '.tutor_instruction.context.assessment_items[0].concept_id // .activity.concept_id')
+    [ "$SUCCESS" = "true" ] || CHOICE="not_sure"
+    bpost "$T/assessments/$ACT/submit" '{"learner_id":"'"$LID"'","answers":[{"item_id":"'"$ITEM"'","choice_id":"'"$CHOICE"'"}]}' >/dev/null
+  else
     local body='{"learner_id":"'"$LID"'","activity_id":"'"$ACT"'","success":'"$SUCCESS"',"score":'"$SCORE"'}'
     [ -n "$ERR" ] && body='{"learner_id":"'"$LID"'","activity_id":"'"$ACT"'","success":'"$SUCCESS"',"score":'"$SCORE"',"error_type":"'"$ERR"'"}'
     bpost "$T/interactions" "$body" >/dev/null

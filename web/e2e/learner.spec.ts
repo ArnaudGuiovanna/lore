@@ -111,7 +111,8 @@ test.describe("Learner loop — runtime intent + provenance", () => {
 
     await page.getByRole("button", { name: /commencer/i }).click();
 
-    await expect(page.getByText(/instruction seule/i)).toBeVisible();
+    // Exact match: the sidebar also says "tuteur en instruction seule".
+    await expect(page.getByText("instruction seule", { exact: true })).toBeVisible();
     await expect(page.getByText(/instruction_only\/runtime/i)).toBeVisible();
     await expect(page.getByText(/contenu persisté/i)).toBeVisible();
     await expect(page.getByText(/Instruction-only persisté E2E/i)).toBeVisible();
