@@ -90,6 +90,45 @@ func ComputeAlerts(states []core.LearnerState, recent []core.Interaction, now ti
 		}
 	}
 
+	// B-22: inactivity alert. A learner with tracked state whose latest
+	// evidence is older than 14 days (30 = high) needs a relance — silence
+	// is the strongest churn signal an OF can act on.
+	type lastSeen struct {
+		tenantID string
+		at       time.Time
+	}
+	lastByLearner := map[string]lastSeen{}
+	for _, state := range states {
+		if state.LastInteractionAt == nil {
+			continue
+		}
+		if current, ok := lastByLearner[state.LearnerID]; !ok || state.LastInteractionAt.After(current.at) {
+			lastByLearner[state.LearnerID] = lastSeen{tenantID: state.TenantID, at: *state.LastInteractionAt}
+		}
+	}
+	for learnerID, seen := range lastByLearner {
+		idle := now.Sub(seen.at)
+		if idle < 14*24*time.Hour {
+			continue
+		}
+		severity := "warning"
+		if idle >= 30*24*time.Hour {
+			severity = "high"
+		}
+		alerts = append(alerts, core.Alert{
+			TenantID:          seen.tenantID,
+			ID:                ids.New(),
+			LearnerID:         learnerID,
+			AlertType:         "Inactivity",
+			Severity:          severity,
+			Status:            "OPEN",
+			Payload:           map[string]any{"last_interaction_at": seen.at, "idle_days": int(idle.Hours() / 24)},
+			RecommendedAction: "contact the learner and schedule a relance",
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		})
+	}
+
 	failuresByLearner := map[string]int{}
 	for _, interaction := range recent {
 		if !interaction.Success {

@@ -360,3 +360,29 @@ func runtimeFixture(t *testing.T) (*store.MemoryStore, string, string) {
 	}
 	return mem, tenant.ID, graph.Domain.ID
 }
+
+// B-22: silence is a churn signal — inactivity raises an alert.
+func TestComputeAlertsInactivity(t *testing.T) {
+	now := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-20 * 24 * time.Hour)
+	veryOld := now.Add(-40 * 24 * time.Hour)
+	fresh := now.Add(-2 * 24 * time.Hour)
+	future := now.Add(24 * time.Hour)
+	alerts := runtime.ComputeAlerts([]core.LearnerState{
+		{TenantID: "t1", LearnerID: "idle", ConceptID: "c1", Mastery: 0.5, Retention: 0.9, CardState: core.ReviewReview, DueAt: &future, LastInteractionAt: &old},
+		{TenantID: "t1", LearnerID: "gone", ConceptID: "c1", Mastery: 0.5, Retention: 0.9, CardState: core.ReviewReview, DueAt: &future, LastInteractionAt: &veryOld},
+		{TenantID: "t1", LearnerID: "active", ConceptID: "c1", Mastery: 0.5, Retention: 0.9, CardState: core.ReviewReview, DueAt: &future, LastInteractionAt: &fresh},
+	}, nil, now)
+	bySeverity := map[string]string{}
+	for _, alert := range alerts {
+		if alert.AlertType == "Inactivity" {
+			bySeverity[alert.LearnerID] = alert.Severity
+		}
+	}
+	if bySeverity["idle"] != "warning" || bySeverity["gone"] != "high" {
+		t.Fatalf("unexpected inactivity alerts: %+v", bySeverity)
+	}
+	if _, ok := bySeverity["active"]; ok {
+		t.Fatalf("active learner flagged inactive: %+v", bySeverity)
+	}
+}
