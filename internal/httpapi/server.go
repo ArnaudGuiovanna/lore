@@ -2083,6 +2083,11 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 	if r.Method == http.MethodPost && len(tail) == 1 && tail[0] == "interactions" {
 		return true
 	}
+	// B-25: the cohort schedule is readable by its learners (read-only).
+	if r.Method == http.MethodGet && len(tail) == 1 &&
+		(tail[0] == "training-sessions" || tail[0] == "training-sessions.ics") {
+		return true
+	}
 	// B-11: learners read surveys, answer them (ownership enforced in handler)
 	// and may open a complaint.
 	if r.Method == http.MethodGet && tail[0] == "surveys" && len(tail) <= 2 {
