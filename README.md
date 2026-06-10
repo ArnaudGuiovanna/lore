@@ -17,25 +17,39 @@ essential LMS management an organization needs — all self-hostable.
 ## v1 at a glance
 
 - **Real auth & RBAC** — bcrypt login, per-user LORE JWT, roles
-  (`TENANT_ADMIN`/`TRAINER`/`LEARNER`) derived from membership, enforced by the
-  backend.
+  (`TENANT_ADMIN`/`GESTIONNAIRE`/`TRAINER`/`LEARNER`) derived from membership and a
+  backend **capability matrix** (the gestionnaire manages enrollments, sessions,
+  documents and funding without technical configuration). **OIDC** verification
+  (discovery, JWKS, key rotation, `iss`/`aud`) for externally-issued tokens.
 - **First-run setup wizard** — creates the org (tenant) + first admin; requires
-  the operator bootstrap token; no demo data in production.
-- **AI-first: syllabus → parcours** — a trainer authors a *syllabus* (intent +
-  objectives + outcomes) and attaches a cohort; the runtime + LLM generate each
-  learner's path. No course/SCORM/quiz authoring.
-- **OF compliance** — completion **attestations (PDF)**, **émargement** /
-  attendance sheets (PDF), **RGPD** export + erasure.
+  the operator bootstrap token; no demo data in production. Self-enrollment via
+  **invitation links** (`/join/{code}`) and **CSV mass import**.
+- **AI-first: syllabus → parcours** — a trainer authors a *syllabus* and attaches
+  a cohort; the runtime + LLM generate each learner's path. Trainers can shape it
+  with **editorial modules** (positions, prerequisites, conditional unlocking) —
+  the runtime stays the source of truth for completion.
+- **Evaluation** — corrected assessments scored server-side, a trainer **question
+  bank** (the runtime prefers trainer items), **assignments with manual grading**
+  feeding mastery (BKT), and an archivable initial **positioning** record.
+- **Scheduling** — training sessions (on-site or video link), **iCalendar export**,
+  learner agenda; tracked training time with pause/resume (FOAD evidence).
+- **OF compliance** — attestations (PDF), émargement (PDF), versioned contractual
+  **documents** (convention, contrat, devis, programme, règlement), **satisfaction
+  surveys** (à chaud/à froid) + complaints register, legal-entity profile, a
+  one-call **Qualiopi evidence export**, **funding files + annual BPF export**,
+  RGPD export/erasure and **versioned consent** (CGU/privacy/mentions).
+- **Interop** — REST API (OpenAPI), **signed webhooks** (HMAC-SHA256, SSRF-guarded)
+  with an optional **xAPI statement** format for LRS forwarding.
 - **Durable persistence** — Postgres store (auto-migrated, RLS); durable
-  credential store; backups via `make backup-db`/`restore-db`.
+  credential store; **automated daily backups** (`db-backup` sidecar) plus
+  `make backup-db`/`restore-db`, restoration exercised in CI.
 - **Turnkey deploy** — one-command `./deploy/up.sh` brings up Postgres + backend +
   web + **Caddy TLS**.
 - **French UI** for the OF-facing surfaces; **e2e (Playwright) + CI**.
 
-> **Not implemented (AI-first by design):** SCORM packages, classic quiz banks,
-> discussion forums, gradebooks. The runtime replaces "content + quiz + forum".
-> See [`docs/BACKLOG.md`](docs/BACKLOG.md) for what remains (e.g. Qualiopi export,
-> accessibility audit, in-UI assessment surfacing).
+> **Not implemented (AI-first by design):** SCORM packages, discussion forums.
+> Remaining integrations: SAML/LTI, EDOF/Kairos connectors, multi-roles. See
+> [`backlog.md`](backlog.md) for live status.
 
 ## Documentation
 
