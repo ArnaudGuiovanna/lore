@@ -32,6 +32,8 @@ const LEARNER_ITEMS: NavItem[] = [
   { path: "/learner/history", label: "Historique", title: "instantanés" },
   { path: "/learner/agenda", label: "Agenda", title: "sessions" },
   { path: "/learner/assignments", label: "Devoirs", title: "rendus & notes", testId: "learner-nav-assignments" },
+  { path: "/learner/documents", label: "Documents", title: "convention, programme, règlement", testId: "learner-nav-documents" },
+  { path: "/learner/surveys", label: "Mon avis", title: "enquêtes & réclamations", testId: "learner-nav-surveys" },
 ];
 
 const TRAINER_ITEMS: NavItem[] = [

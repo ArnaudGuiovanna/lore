@@ -21,6 +21,7 @@ import { InvitesManager } from "./InvitesManager";
 import { DomainGraph } from "./DomainGraph";
 import { LlmMatrix } from "./LlmMatrix";
 import { EventOutbox } from "./EventOutbox";
+import { Conformite } from "./conformite/Conformite";
 import { asAdminSection, ADMIN_DEFAULT_SECTION, type AdminSection as Section } from "./sections";
 import a from "./admin.module.css";
 
@@ -177,6 +178,16 @@ export function AdminConsole({
       ) : null}
 
       {section === "outbox" ? <EventOutbox events={localEvents} /> : null}
+
+      {section === "conformite" ? (
+        <Conformite
+          cohorts={programs.flatMap((p) => p.cohorts.map((c) => ({ id: c.id, name: c.name })))}
+          learners={enrollableLearners.map((l) => ({ id: l.id, name: l.name }))}
+          people={memberships
+            .filter((m) => !!m.userId)
+            .map((m) => ({ id: m.userId as string, name: m.name }))}
+        />
+      ) : null}
     </div>
   );
 }

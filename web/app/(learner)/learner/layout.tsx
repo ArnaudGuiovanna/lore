@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AppBar } from "@/components/ui/AppBar";
 import { AppNav } from "@/components/ui/AppNav";
+import { ConsentBanner } from "@/components/learner/ConsentBanner";
 import { activeLearner } from "@/components/learner/data";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,12 @@ export default async function LearnerLayout({ children }: { children: ReactNode 
           </span>
         </div>
       </header>
-      <div style={{ marginTop: 28 }}>{children}</div>
+      <div style={{ marginTop: 28 }}>
+        {/* B-28 : bannière persistante (non bloquante) tant que des textes
+            légaux publiés n'ont pas été consentis dans leur version courante. */}
+        <ConsentBanner />
+        {children}
+      </div>
       </div>
     </>
   );

@@ -10,7 +10,8 @@ export type AdminSection =
   | "invites"
   | "graph"
   | "llm"
-  | "outbox";
+  | "outbox"
+  | "conformite";
 
 export const ADMIN_DEFAULT_SECTION: AdminSection = "overview";
 
@@ -24,6 +25,7 @@ export const ADMIN_SECTIONS: { id: AdminSection; label: string }[] = [
   { id: "graph", label: "Graphe du domaine" },
   { id: "llm", label: "Matrice LLM" },
   { id: "outbox", label: "Boîte d'événements" },
+  { id: "conformite", label: "Conformité" },
 ];
 
 // Normalize an arbitrary ?section= value — unknown values fall back to the

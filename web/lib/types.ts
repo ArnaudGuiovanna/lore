@@ -194,5 +194,129 @@ export interface AssignmentSubmission {
   graded_at?: string | null;
 }
 
+// --- Vague D « Conformité OF » (B-08/B-10/B-11/B-14/B-15/B-28) --------------
+// Mirrors internal/core/types.go — field names are the backend JSON keys.
+
+// B-08 — profil légal de l'organisme (clés libres du JSON profile).
+export interface TenantProfile {
+  tenant_id: string;
+  name: string;
+  profile: Record<string, unknown>;
+}
+
+// B-10 — document contractuel versionné (append-only via root_id).
+export type OFDocumentKind = "CONVENTION" | "CONTRAT" | "DEVIS" | "PROGRAMME" | "REGLEMENT_INTERIEUR" | "AUTRE";
+export interface OFDocument {
+  tenant_id: string;
+  id: string;
+  root_id: string;
+  version: number;
+  kind: OFDocumentKind;
+  title: string;
+  body?: string;
+  cohort_id?: string;
+  learner_id?: string;
+  created_by?: string;
+  created_at: string;
+  archived_at?: string | null;
+}
+
+// B-11 — enquêtes de satisfaction (à chaud HOT / à froid COLD).
+export interface SurveyQuestion {
+  id: string;
+  prompt: string;
+  kind: "scale" | "text";
+}
+export interface SatisfactionSurvey {
+  tenant_id: string;
+  id: string;
+  cohort_id: string;
+  kind: "HOT" | "COLD";
+  title: string;
+  questions: SurveyQuestion[];
+  opens_at?: string | null;
+  closes_at?: string | null;
+  created_by?: string;
+  created_at: string;
+  archived_at?: string | null;
+}
+export interface SurveyResponse {
+  tenant_id: string;
+  id: string;
+  survey_id: string;
+  learner_id: string;
+  answers: Record<string, number | string>;
+  submitted_at: string;
+}
+
+// B-11 — registre des réclamations (workflow RNQ).
+export type ComplaintStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+export interface Complaint {
+  tenant_id: string;
+  id: string;
+  opened_by?: string;
+  learner_id?: string;
+  subject: string;
+  description?: string;
+  status: ComplaintStatus;
+  resolution?: string;
+  created_at: string;
+  updated_at: string;
+  closed_at?: string | null;
+}
+
+// B-15 — dossier de financement (source administrative du BPF).
+export type FunderType = "CPF" | "OPCO" | "FRANCE_TRAVAIL" | "EMPLOYEUR" | "AUTOFINANCEMENT" | "AUTRE";
+export type FundingStatus = "EN_INSTRUCTION" | "ACCEPTE" | "REFUSE" | "SOLDE";
+export interface FundingFile {
+  tenant_id: string;
+  id: string;
+  learner_id: string;
+  cohort_id?: string;
+  funder_type: FunderType;
+  funder_name?: string;
+  reference?: string;
+  status: FundingStatus;
+  amount_cents: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  archived_at?: string | null;
+}
+export interface BPFFunderLine {
+  funder_type: string;
+  files: number;
+  learners: number;
+  amount_cents: number;
+}
+export interface BPFReport {
+  year: number;
+  total_learners: number;
+  total_trained_hours: number;
+  total_amount_cents: number;
+  by_funder: BPFFunderLine[];
+}
+
+// B-28 — textes légaux versionnés + consentements.
+export type LegalTextKind = "CGU" | "CONFIDENTIALITE" | "MENTIONS";
+export interface LegalText {
+  tenant_id: string;
+  id: string;
+  kind: LegalTextKind;
+  version: number;
+  body: string;
+  published_by?: string;
+  published_at: string;
+}
+export interface Consent {
+  tenant_id: string;
+  id: string;
+  user_id: string;
+  legal_text_id: string;
+  kind: string;
+  version: number;
+  consented_at: string;
+}
+
 // Demo identities for the login/role entry (role is "derived" after sign-in).
 export interface Identity { email: string; name: string; role: Role; learnerId?: string; }
