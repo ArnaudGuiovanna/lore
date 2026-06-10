@@ -2,6 +2,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,6 +46,25 @@ func TestMigrationKeepsTenantUUIDAndHeadlessTextIDs(t *testing.T) {
 	} {
 		if strings.Contains(sql, forbidden) {
 			t.Fatalf("migration still contains forbidden UUID business id fragment: %s", forbidden)
+		}
+	}
+}
+
+func TestMigrationDirectoryIncludesAdminCRUDMigration(t *testing.T) {
+	entries, err := os.ReadDir("../../db/migrations")
+	if err != nil {
+		t.Fatalf("read migrations dir: %v", err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".sql" {
+			names = append(names, entry.Name())
+		}
+	}
+	joined := strings.Join(names, "\n")
+	for _, required := range []string{"000001_init.sql", "000002_admin_crud.sql"} {
+		if !strings.Contains(joined, required) {
+			t.Fatalf("migration directory missing %s in %v", required, names)
 		}
 	}
 }

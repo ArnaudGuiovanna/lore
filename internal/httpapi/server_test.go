@@ -80,12 +80,7 @@ func TestRESTRuntimeAndGenerationFlow(t *testing.T) {
 		t.Fatalf("activity was not started: %+v", started)
 	}
 
-	delta := postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
-		"learner_id":  "l1",
-		"activity_id": decision.Activity.ID,
-		"success":     true,
-		"score":       0.88,
-	}, http.StatusCreated)
+	delta := postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", decision.Activity.ConceptID), http.StatusCreated)
 	if delta.After.Mastery <= delta.Before.Mastery {
 		t.Fatalf("mastery did not increase")
 	}
@@ -131,12 +126,7 @@ func TestRESTDueReviewsAfterFailedInteraction(t *testing.T) {
 	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
 		"domain_id": graph.Domain.ID,
 	}, http.StatusCreated)
-	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
-		"learner_id":  "l1",
-		"activity_id": decision.Activity.ID,
-		"success":     false,
-		"score":       0.20,
-	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", "not_sure"), http.StatusCreated)
 
 	reviews := getJSON[[]core.ReviewCard](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/reviews/due", http.StatusOK)
 	if len(reviews) != 1 {
@@ -167,8 +157,12 @@ func TestRESTAssessmentPlanAndSubmit(t *testing.T) {
 	}
 	delta := postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", map[string]any{
 		"learner_id": "l1",
-		"success":    true,
-		"score":      0.91,
+		"success":    false,
+		"score":      0.10,
+		"confidence": 0.70,
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": decision.Activity.ConceptID},
+		},
 	}, http.StatusCreated)
 	if delta.Evaluation.Rubric["activity_type"] != string(core.ActivityAssessment) {
 		t.Fatalf("assessment rubric did not preserve runtime activity type: %+v", delta.Evaluation.Rubric)
@@ -176,9 +170,73 @@ func TestRESTAssessmentPlanAndSubmit(t *testing.T) {
 	if delta.After.Mastery <= delta.Before.Mastery {
 		t.Fatalf("assessment evidence did not update mastery")
 	}
+	if delta.Interaction.Score != 1 || !delta.Interaction.Success {
+		t.Fatalf("assessment score should come from corrected answers, got interaction=%+v", delta.Interaction)
+	}
+	if delta.Evaluation.Rubric["score_source"] != "runtime_correction" || delta.Evaluation.Rubric["self_reported_success"] != false {
+		t.Fatalf("assessment rubric did not distinguish corrected evidence from self-report: %+v", delta.Evaluation.Rubric)
+	}
 	if countEventType(delta.Events, "AssessmentCompleted") != 1 {
 		t.Fatalf("expected AssessmentCompleted event, got %+v", delta.Events)
 	}
+}
+
+func TestAssessmentSubmitIgnoresSelfReportedMasteryEvidence(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/assessments/plan", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+	delta := postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", map[string]any{
+		"learner_id": "l1",
+		"success":    true,
+		"score":      1,
+		"confidence": 1,
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": "not_sure"},
+		},
+	}, http.StatusCreated)
+
+	if delta.Interaction.Score != 0 || delta.Interaction.Success {
+		t.Fatalf("self-reported success/score overrode correction: %+v", delta.Interaction)
+	}
+	if delta.Evaluation.Score != 0 {
+		t.Fatalf("evaluation score should be corrected score, got %+v", delta.Evaluation)
+	}
+	if delta.Evaluation.Rubric["score_source"] != "runtime_correction" {
+		t.Fatalf("missing corrected score source: %+v", delta.Evaluation.Rubric)
+	}
+	if delta.After.Mastery >= runtime.MasteryThreshold {
+		t.Fatalf("wrong corrected answer should not validate mastery: before=%f after=%f", delta.Before.Mastery, delta.After.Mastery)
+	}
+}
+
+func TestRawInteractionRejectsAssessmentActivity(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/assessments/plan", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
+		"learner_id":  "l1",
+		"activity_id": decision.Activity.ID,
+		"success":     true,
+		"score":       1,
+	}, nil, http.StatusBadRequest)
 }
 
 func TestTenantLLMConfigurationControlsGenerationAndContentReads(t *testing.T) {
@@ -275,9 +333,16 @@ func TestInteractionIdempotencyKeyReplaysWithoutReapplying(t *testing.T) {
 	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
 		"domain_id": graph.Domain.ID,
 	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", decision.Activity.ConceptID), http.StatusCreated)
+	practice := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+	if practice.Activity.ActivityType == core.ActivityAssessment {
+		t.Fatalf("expected a non-assessment activity for raw interaction idempotency, got %s", practice.Activity.ActivityType)
+	}
 	body := map[string]any{
 		"learner_id":  "l1",
-		"activity_id": decision.Activity.ID,
+		"activity_id": practice.Activity.ID,
 		"success":     true,
 		"score":       0.86,
 	}
@@ -298,7 +363,7 @@ func TestInteractionIdempotencyKeyReplaysWithoutReapplying(t *testing.T) {
 		t.Fatalf("replay returned a different persisted delta")
 	}
 	states := getJSON[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/state", http.StatusOK)
-	if len(states) != 1 || states[0].Reps != 1 {
+	if len(states) != 1 || states[0].Reps != 2 {
 		t.Fatalf("idempotent replay reapplied learner state: %+v", states)
 	}
 
@@ -309,7 +374,7 @@ func TestInteractionIdempotencyKeyReplaysWithoutReapplying(t *testing.T) {
 		t.Fatalf("different idempotency key should create a new interaction")
 	}
 	states = getJSON[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/state", http.StatusOK)
-	if len(states) != 1 || states[0].Reps != 2 {
+	if len(states) != 1 || states[0].Reps != 3 {
 		t.Fatalf("different idempotency key did not apply new evidence: %+v", states)
 	}
 }
@@ -328,8 +393,9 @@ func TestAssessmentSubmitIdempotencyKeyReplaysWithoutReapplying(t *testing.T) {
 	}, http.StatusCreated)
 	body := map[string]any{
 		"learner_id": "l1",
-		"success":    true,
-		"score":      0.91,
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": decision.Activity.ConceptID},
+		},
 	}
 	path := "/v1/tenants/" + tenant.ID + "/assessments/" + decision.Activity.ID + "/submit"
 
@@ -363,10 +429,14 @@ func TestAlertsAreDurablePatchableAndEmitEvents(t *testing.T) {
 	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
 		"domain_id": graph.Domain.ID,
 	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", "not_sure"), http.StatusCreated)
+	review := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
 	for range 3 {
 		_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
 			"learner_id":  "l1",
-			"activity_id": decision.Activity.ID,
+			"activity_id": review.Activity.ID,
 			"success":     false,
 			"score":       0.10,
 		}, http.StatusCreated)
@@ -452,9 +522,13 @@ func TestCohortAnalyticsIncludesActiveMisconceptions(t *testing.T) {
 	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
 		"domain_id": graph.Domain.ID,
 	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", "not_sure"), http.StatusCreated)
+	review := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
 	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
 		"learner_id":  "l1",
-		"activity_id": decision.Activity.ID,
+		"activity_id": review.Activity.ID,
 		"success":     false,
 		"score":       0.10,
 		"error_type":  "off_by_one",
@@ -464,10 +538,247 @@ func TestCohortAnalyticsIncludesActiveMisconceptions(t *testing.T) {
 	if got := analytics["active_misconceptions"]; got != float64(1) {
 		t.Fatalf("expected one active misconception in analytics, got %+v", analytics)
 	}
+	if _, ok := analytics["training_hours"]; !ok {
+		t.Fatalf("expected training time fields in analytics, got %+v", analytics)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/"+tenant.ID+"/analytics/cohorts/"+cohort.ID+"/training-time.csv", nil)
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("training time csv status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if ct := resp.Header().Get("Content-Type"); !strings.Contains(ct, "text/csv") {
+		t.Fatalf("expected text/csv content type, got %q", ct)
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, "learner_id") || !strings.Contains(body, "l1") {
+		t.Fatalf("training time csv missing header or learner row: %q", body)
+	}
 	events := getJSON[[]core.Event](t, server, "/v1/tenants/"+tenant.ID+"/events/outbox?published=false", http.StatusOK)
 	if countEventType(events, "LearnerEnrolled") != 1 {
 		t.Fatalf("expected LearnerEnrolled event, got events=%+v", events)
 	}
+}
+
+func TestRESTListEndpointsAreTenantScoped(t *testing.T) {
+	server := newTestServer()
+	tenantA := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	tenantB := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "B", "slug": "b"}, http.StatusCreated)
+	tenantC := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "C", "slug": "c"}, http.StatusCreated)
+
+	assertGETBody(t, server, "/v1/tenants/"+tenantC.ID+"/memberships", nil, http.StatusOK, "[]")
+
+	programA := postJSON[core.Program](t, server, "/v1/tenants/"+tenantA.ID+"/programs", map[string]any{"name": "Go Backend"}, http.StatusCreated)
+	programB := postJSON[core.Program](t, server, "/v1/tenants/"+tenantB.ID+"/programs", map[string]any{"name": "Rust Backend"}, http.StatusCreated)
+	cohortA := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts", map[string]any{"program_id": programA.ID, "name": "June"}, http.StatusCreated)
+	cohortB := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenantB.ID+"/cohorts", map[string]any{"program_id": programB.ID, "name": "July"}, http.StatusCreated)
+	syllabusA := postJSON[core.Syllabus](t, server, "/v1/tenants/"+tenantA.ID+"/syllabi", map[string]any{"title": "Go Syllabus"}, http.StatusCreated)
+	_ = postJSON[core.Syllabus](t, server, "/v1/tenants/"+tenantB.ID+"/syllabi", map[string]any{"title": "Rust Syllabus"}, http.StatusCreated)
+	graphA := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenantA.ID+"/domains", map[string]any{
+		"owner_id": "trainer-a",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "go-c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+	_ = postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenantB.ID+"/domains", map[string]any{
+		"owner_id": "trainer-b",
+		"name":     "Rust",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "rust-c1", "name": "Ownership", "difficulty": 0.5}},
+	}, http.StatusCreated)
+	learnerA := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner-a@example.test", "name": "Learner A"}, http.StatusCreated)
+	trainerA := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "trainer-a@example.test", "name": "Trainer A"}, http.StatusCreated)
+	learnerB := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner-b@example.test", "name": "Learner B"}, http.StatusCreated)
+	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": learnerA.ID, "role": string(core.RoleLearner)}, http.StatusCreated)
+	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": trainerA.ID, "role": string(core.RoleTrainer)}, http.StatusCreated)
+	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenantB.ID+"/memberships", map[string]any{"user_id": learnerB.ID, "role": string(core.RoleLearner)}, http.StatusCreated)
+	enrollmentA := postJSON[core.CohortEnrollment](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohortA.ID+"/enrollments", map[string]any{"learner_id": learnerA.ID}, http.StatusCreated)
+	_ = postJSON[core.CohortEnrollment](t, server, "/v1/tenants/"+tenantB.ID+"/cohorts/"+cohortB.ID+"/enrollments", map[string]any{"learner_id": learnerB.ID}, http.StatusCreated)
+
+	tenants := getJSON[[]core.Tenant](t, server, "/v1/tenants", http.StatusOK)
+	if len(tenants) != 3 {
+		t.Fatalf("expected three tenants, got %+v", tenants)
+	}
+	programs := getJSON[[]core.Program](t, server, "/v1/tenants/"+tenantA.ID+"/programs", http.StatusOK)
+	if len(programs) != 1 || programs[0].ID != programA.ID || programs[0].TenantID != tenantA.ID {
+		t.Fatalf("program list leaked or missed data: %+v", programs)
+	}
+	cohorts := getJSON[[]core.Cohort](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts", http.StatusOK)
+	if len(cohorts) != 1 || cohorts[0].ID != cohortA.ID || cohorts[0].TenantID != tenantA.ID {
+		t.Fatalf("cohort list leaked or missed data: %+v", cohorts)
+	}
+	syllabi := getJSON[[]core.Syllabus](t, server, "/v1/tenants/"+tenantA.ID+"/syllabi", http.StatusOK)
+	if len(syllabi) != 1 || syllabi[0].ID != syllabusA.ID || syllabi[0].TenantID != tenantA.ID {
+		t.Fatalf("syllabus list leaked or missed data: %+v", syllabi)
+	}
+	domains := getJSON[[]core.Domain](t, server, "/v1/tenants/"+tenantA.ID+"/domains", http.StatusOK)
+	if len(domains) != 1 || domains[0].ID != graphA.Domain.ID || domains[0].TenantID != tenantA.ID {
+		t.Fatalf("domain list leaked or missed data: %+v", domains)
+	}
+	memberships := getJSON[[]core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", http.StatusOK)
+	if len(memberships) != 2 {
+		t.Fatalf("membership list leaked or missed data: %+v", memberships)
+	}
+	learners := getJSON[[]core.Learner](t, server, "/v1/tenants/"+tenantA.ID+"/learners", http.StatusOK)
+	if len(learners) != 1 || learners[0].UserID != learnerA.ID || learners[0].TenantID != tenantA.ID {
+		t.Fatalf("learner list leaked or missed data: %+v", learners)
+	}
+	enrollments := getJSON[[]core.CohortEnrollment](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohortA.ID+"/enrollments", http.StatusOK)
+	if len(enrollments) != 1 || enrollments[0].LearnerID != enrollmentA.LearnerID || enrollments[0].TenantID != tenantA.ID {
+		t.Fatalf("enrollment list leaked or missed data: %+v", enrollments)
+	}
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohortB.ID+"/enrollments", nil, nil, http.StatusNotFound)
+}
+
+func TestRESTAdminCRUDSessionsAndAudit(t *testing.T) {
+	server := newTestServer()
+	tenantA := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	tenantB := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "B", "slug": "b"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner-admin@example.test", "name": "Learner"}, http.StatusCreated)
+	_ = postJSON[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, http.StatusCreated)
+
+	programA := postJSON[core.Program](t, server, "/v1/tenants/"+tenantA.ID+"/programs", map[string]any{"name": "Go Backend"}, http.StatusCreated)
+	programB := postJSON[core.Program](t, server, "/v1/tenants/"+tenantB.ID+"/programs", map[string]any{"name": "Rust Backend"}, http.StatusCreated)
+	programA = patchJSON[core.Program](t, server, "/v1/tenants/"+tenantA.ID+"/programs/"+programA.ID, map[string]any{"name": "Go Backend Advanced"}, http.StatusOK)
+	if programA.Name != "Go Backend Advanced" || programA.Status != "ACTIVE" {
+		t.Fatalf("program patch mismatch: %+v", programA)
+	}
+	expectJSONStatus(t, server, http.MethodPatch, "/v1/tenants/"+tenantA.ID+"/programs/"+programB.ID, map[string]any{"name": "Leak"}, nil, http.StatusNotFound)
+
+	cohort := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts", map[string]any{"program_id": programA.ID, "name": "June"}, http.StatusCreated)
+	cohort = patchJSON[core.Cohort](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohort.ID, map[string]any{"name": "July", "status": "ACTIVE"}, http.StatusOK)
+	if cohort.Name != "July" || cohort.ProgramID != programA.ID {
+		t.Fatalf("cohort patch mismatch: %+v", cohort)
+	}
+	enrollment := postJSON[core.CohortEnrollment](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohort.ID+"/enrollments", map[string]any{"learner_id": learner.ID}, http.StatusCreated)
+	enrollment = patchJSON[core.CohortEnrollment](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohort.ID+"/enrollments/"+learner.ID, map[string]any{"status": "COMPLETED"}, http.StatusOK)
+	if enrollment.Status != "COMPLETED" {
+		t.Fatalf("enrollment patch mismatch: %+v", enrollment)
+	}
+
+	startsAt := "2026-06-10T09:00:00Z"
+	session := postJSON[core.TrainingSession](t, server, "/v1/tenants/"+tenantA.ID+"/training-sessions", map[string]any{
+		"cohort_id": cohort.ID,
+		"title":     "Seance 1",
+		"starts_at": startsAt,
+		"ends_at":   "2026-06-10T11:00:00Z",
+		"capacity":  12,
+		"location":  "Lyon",
+		"video_url": "https://video.example.test/s1",
+	}, http.StatusCreated)
+	if session.ProgramID != programA.ID || session.Status != "SCHEDULED" {
+		t.Fatalf("training session create mismatch: %+v", session)
+	}
+	session = patchJSON[core.TrainingSession](t, server, "/v1/tenants/"+tenantA.ID+"/training-sessions/"+session.ID, map[string]any{"capacity": 10}, http.StatusOK)
+	if session.Capacity != 10 {
+		t.Fatalf("training session patch mismatch: %+v", session)
+	}
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenantA.ID+"/training-sessions/"+session.ID, nil, nil, http.StatusOK)
+
+	tenantUser := patchJSON[core.TenantUser](t, server, "/v1/tenants/"+tenantA.ID+"/users/"+learner.ID, map[string]any{"name": "Learner Two"}, http.StatusOK)
+	if tenantUser.Name != "Learner Two" || tenantUser.Role != core.RoleLearner {
+		t.Fatalf("tenant user patch mismatch: %+v", tenantUser)
+	}
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenantA.ID+"/users/"+learner.ID, nil, nil, http.StatusOK)
+	users := getJSON[[]core.TenantUser](t, server, "/v1/tenants/"+tenantA.ID+"/users", http.StatusOK)
+	if len(users) != 1 || users[0].MembershipStatus != "ARCHIVED" {
+		t.Fatalf("tenant user list mismatch: %+v", users)
+	}
+
+	sessions := getJSON[[]core.TrainingSession](t, server, "/v1/tenants/"+tenantA.ID+"/training-sessions?cohort_id="+cohort.ID, http.StatusOK)
+	if len(sessions) != 1 || sessions[0].ID != session.ID || sessions[0].Status != "ARCHIVED" {
+		t.Fatalf("training session list mismatch: %+v", sessions)
+	}
+	audit := getJSON[[]core.AdminAuditLog](t, server, "/v1/tenants/"+tenantA.ID+"/admin-audit-logs?target_type=training_session&target_id="+session.ID, http.StatusOK)
+	if len(audit) != 3 {
+		t.Fatalf("expected create/update/archive session audit entries, got %+v", audit)
+	}
+}
+
+func TestJWTListEndpointsAuthorizeRoles(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenantA := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	tenantB := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "B", "slug": "b"}, http.StatusCreated)
+	superUser := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "super@example.test", "name": "Super"}, http.StatusCreated)
+	admin := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "admin@example.test", "name": "Admin"}, http.StatusCreated)
+	trainer := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "trainer@example.test", "name": "Trainer"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner@example.test", "name": "Learner"}, http.StatusCreated)
+	otherTrainer := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "other-trainer@example.test", "name": "Other Trainer"}, http.StatusCreated)
+
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": superUser.ID, "role": string(core.RoleSuperAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": admin.ID, "role": string(core.RoleTenantAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": trainer.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenantA.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenantB.ID+"/memberships", map[string]any{"user_id": otherTrainer.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+
+	superToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantA.ID, "user_id": superUser.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	adminToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantA.ID, "user_id": admin.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	trainerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantA.ID, "user_id": trainer.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	learnerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantA.ID, "user_id": learner.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	otherToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenantB.ID, "user_id": otherTrainer.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants", nil, nil, http.StatusUnauthorized)
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants", nil, bearerHeaders(adminToken), http.StatusForbidden)
+	if tenants := getJSONWithHeaders[[]core.Tenant](t, server, "/v1/tenants", bearerHeaders(superToken), http.StatusOK); len(tenants) != 2 {
+		t.Fatalf("super-admin tenant list mismatch: %+v", tenants)
+	}
+
+	program := postJSONWithHeadersValue[core.Program](t, server, "/v1/tenants/"+tenantA.ID+"/programs", map[string]any{"name": "Go Backend"}, bearerHeaders(adminToken), http.StatusCreated)
+	cohort := postJSONWithHeadersValue[core.Cohort](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, bearerHeaders(adminToken), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.CohortEnrollment](t, server, "/v1/tenants/"+tenantA.ID+"/cohorts/"+cohort.ID+"/enrollments", map[string]any{"learner_id": learner.ID}, bearerHeaders(adminToken), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Syllabus](t, server, "/v1/tenants/"+tenantA.ID+"/syllabi", map[string]any{"title": "Go Syllabus"}, bearerHeaders(adminToken), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.DomainGraph](t, server, "/v1/tenants/"+tenantA.ID+"/domains", map[string]any{
+		"owner_id": trainer.ID,
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "go-c1", "name": "HTTP", "difficulty": 0.4}},
+	}, bearerHeaders(trainerToken), http.StatusCreated)
+
+	for _, path := range []string{
+		"/v1/tenants/" + tenantA.ID + "/programs",
+		"/v1/tenants/" + tenantA.ID + "/cohorts",
+		"/v1/tenants/" + tenantA.ID + "/cohorts/" + cohort.ID + "/enrollments",
+		"/v1/tenants/" + tenantA.ID + "/syllabi",
+		"/v1/tenants/" + tenantA.ID + "/domains",
+		"/v1/tenants/" + tenantA.ID + "/memberships",
+		"/v1/tenants/" + tenantA.ID + "/learners",
+	} {
+		expectJSONStatus(t, server, http.MethodGet, path, nil, nil, http.StatusUnauthorized)
+		expectJSONStatus(t, server, http.MethodGet, path, nil, bearerHeaders(otherToken), http.StatusForbidden)
+		expectJSONStatus(t, server, http.MethodGet, path, nil, bearerHeaders(learnerToken), http.StatusForbidden)
+		_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(adminToken), http.StatusOK)
+		_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(trainerToken), http.StatusOK)
+		_ = getJSONWithHeaders[[]map[string]any](t, server, path, bearerHeaders(superToken), http.StatusOK)
+	}
+}
+
+func TestJWTAdminMutationsRequireTenantAdmin(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	admin := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "admin-b12@example.test", "name": "Admin"}, http.StatusCreated)
+	trainer := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "trainer-b12@example.test", "name": "Trainer"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner-b12@example.test", "name": "Learner"}, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": admin.ID, "role": string(core.RoleTenantAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": trainer.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, bootstrapHeaders(), http.StatusCreated)
+	adminToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": admin.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	trainerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": trainer.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	learnerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": learner.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Denied"}, bearerHeaders(trainerToken), http.StatusForbidden)
+	program := postJSONWithHeadersValue[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go Backend"}, bearerHeaders(adminToken), http.StatusCreated)
+	expectJSONStatus(t, server, http.MethodPatch, "/v1/tenants/"+tenant.ID+"/programs/"+program.ID, map[string]any{"name": "Denied"}, bearerHeaders(trainerToken), http.StatusForbidden)
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenant.ID+"/users", nil, bearerHeaders(learnerToken), http.StatusForbidden)
+
+	cohort := postJSONWithHeadersValue[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, bearerHeaders(adminToken), http.StatusCreated)
+	session := postJSONWithHeadersValue[core.TrainingSession](t, server, "/v1/tenants/"+tenant.ID+"/training-sessions", map[string]any{
+		"cohort_id": cohort.ID,
+		"title":     "Seance 1",
+		"starts_at": "2026-06-10T09:00:00Z",
+		"ends_at":   "2026-06-10T11:00:00Z",
+	}, bearerHeaders(adminToken), http.StatusCreated)
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenant.ID+"/training-sessions/"+session.ID, nil, bearerHeaders(trainerToken), http.StatusForbidden)
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenant.ID+"/training-sessions/"+session.ID, nil, bearerHeaders(adminToken), http.StatusOK)
 }
 
 func TestTenantMembershipEmitsUserCreatedEvent(t *testing.T) {
@@ -569,24 +880,24 @@ func TestJWTRoleRestrictsLearnerRoutes(t *testing.T) {
 	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/learners/other-learner/activities/next", map[string]any{
 		"domain_id": graph.Domain.ID,
 	}, bearerHeaders(learnerToken), http.StatusForbidden)
-	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
-		"learner_id":  "other-learner",
-		"activity_id": decision.Activity.ID,
-		"success":     true,
-		"score":       0.9,
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", map[string]any{
+		"learner_id": "other-learner",
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": decision.Activity.ConceptID},
+		},
 	}, bearerHeaders(learnerToken), http.StatusForbidden)
 
-	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
-		"learner_id":  learner.ID,
-		"activity_id": decision.Activity.ID,
-		"success":     true,
-		"score":       0.9,
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", map[string]any{
+		"learner_id": learner.ID,
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": decision.Activity.ConceptID},
+		},
 	}, http.StatusUnauthorized)
-	_, _ = postJSONWithHeaders[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
-		"learner_id":  learner.ID,
-		"activity_id": decision.Activity.ID,
-		"success":     true,
-		"score":       0.9,
+	_, _ = postJSONWithHeaders[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", map[string]any{
+		"learner_id": learner.ID,
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": decision.Activity.ConceptID},
+		},
 	}, bearerHeaders(learnerToken), http.StatusCreated)
 	getJSONWithHeaders[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/"+learner.ID+"/state", bearerHeaders(learnerToken), http.StatusOK)
 }
@@ -609,6 +920,30 @@ func TestAuthBootstrapBypassIsClosed(t *testing.T) {
 	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships",
 		map[string]any{"user_id": user.ID, "role": string(core.RoleTrainer)},
 		map[string]string{"X-LORE-Bootstrap-Token": "wrong"}, http.StatusUnauthorized)
+}
+
+func TestAuthTokenEndpointLocksOutRepeatedFailures(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	user := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "u@example.test", "name": "U"}, http.StatusCreated)
+	_, _ = postJSONWithHeaders[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": user.ID, "role": string(core.RoleTrainer)}, bootstrapHeaders(), http.StatusCreated)
+
+	body := map[string]any{"tenant_id": tenant.ID, "user_id": user.ID}
+	headers := map[string]string{"X-Forwarded-For": "203.0.113.10"}
+	for i := 0; i < 5; i++ {
+		expectJSONStatus(t, server, http.MethodPost, "/v1/auth/token", body, headers, http.StatusUnauthorized)
+	}
+	expectJSONStatus(t, server, http.MethodPost, "/v1/auth/token", body, headers, http.StatusTooManyRequests)
+
+	// A different client is not locked out by the previous client's failures.
+	token := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", body,
+		map[string]string{
+			"X-Forwarded-For":        "203.0.113.11",
+			"X-LORE-Bootstrap-Token": testBootstrapToken,
+		}, http.StatusOK)["access_token"]
+	if token == "" {
+		t.Fatalf("expected token for a different client")
+	}
 }
 
 // TestInvalidMembershipRoleRejected covers the role-enum validation in both the
@@ -769,6 +1104,41 @@ func TestMetricsEndpointExposesHTTPMetrics(t *testing.T) {
 	}
 }
 
+func TestMetricsEndpointRequiresConfiguredToken(t *testing.T) {
+	mem := store.NewMemoryStore()
+	engine := runtime.NewEngine(mem)
+	serverBuilder := httpapi.NewServer(mem, engine, llm.InstructionOnlyGenerator{Provider: "instruction_only", Model: "runtime"}, "instruction_only", "runtime")
+	serverBuilder.EnableMetricsToken("0123456789abcdef0123456789abcdef")
+	server := serverBuilder.Handler()
+
+	for _, tc := range []struct {
+		name   string
+		header string
+		value  string
+		status int
+	}{
+		{name: "missing", status: http.StatusUnauthorized},
+		{name: "wrong bearer", header: "Authorization", value: "Bearer wrong", status: http.StatusUnauthorized},
+		{name: "bearer", header: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef", status: http.StatusOK},
+		{name: "scrape header", header: "X-LORE-Metrics-Token", value: "0123456789abcdef0123456789abcdef", status: http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+			if tc.header != "" {
+				req.Header.Set(tc.header, tc.value)
+			}
+			resp := httptest.NewRecorder()
+			server.ServeHTTP(resp, req)
+			if resp.Code != tc.status {
+				t.Fatalf("metrics status=%d want=%d body=%s", resp.Code, tc.status, resp.Body.String())
+			}
+			if tc.status == http.StatusUnauthorized && resp.Header().Get("WWW-Authenticate") == "" {
+				t.Fatalf("missing WWW-Authenticate header")
+			}
+		})
+	}
+}
+
 func TestLearnerStateCacheIsPopulatedAndInvalidated(t *testing.T) {
 	mem := store.NewMemoryStore()
 	engine := runtime.NewEngine(mem).WithClock(func() time.Time {
@@ -799,12 +1169,7 @@ func TestLearnerStateCacheIsPopulatedAndInvalidated(t *testing.T) {
 		t.Fatalf("expected second state read to hit cache")
 	}
 
-	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/interactions", map[string]any{
-		"learner_id":  "l1",
-		"activity_id": decision.Activity.ID,
-		"success":     true,
-		"score":       0.9,
-	}, http.StatusCreated)
+	_ = postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", correctedAssessmentBody("l1", decision.Activity.ConceptID), http.StatusCreated)
 	if c.deleteCount == 0 {
 		t.Fatalf("expected interaction to invalidate learner state cache")
 	}
@@ -873,6 +1238,15 @@ func bootstrapHeaders() map[string]string {
 	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
+func correctedAssessmentBody(learnerID, choiceID string) map[string]any {
+	return map[string]any{
+		"learner_id": learnerID,
+		"answers": []map[string]any{
+			{"item_id": "concept-check", "choice_id": choiceID},
+		},
+	}
+}
+
 func postJSON[T any](t *testing.T, server http.Handler, path string, body any, wantStatus int) T {
 	t.Helper()
 	decoded, _ := postJSONWithHeaders[T](t, server, path, body, nil, wantStatus)
@@ -939,6 +1313,22 @@ func putJSON[T any](t *testing.T, server http.Handler, path string, body any, wa
 func getJSON[T any](t *testing.T, server http.Handler, path string, wantStatus int) T {
 	t.Helper()
 	return getJSONWithHeaders[T](t, server, path, nil, wantStatus)
+}
+
+func assertGETBody(t *testing.T, server http.Handler, path string, headers map[string]string, wantStatus int, wantBody string) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp := httptest.NewRecorder()
+	server.ServeHTTP(resp, req)
+	if resp.Code != wantStatus {
+		t.Fatalf("GET %s status=%d want=%d body=%s", path, resp.Code, wantStatus, resp.Body.String())
+	}
+	if got := strings.TrimSpace(resp.Body.String()); got != wantBody {
+		t.Fatalf("GET %s body=%q want %q", path, got, wantBody)
+	}
 }
 
 func getJSONWithHeaders[T any](t *testing.T, server http.Handler, path string, headers map[string]string, wantStatus int) T {

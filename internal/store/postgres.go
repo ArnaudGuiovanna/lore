@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"lore/internal/core"
@@ -74,20 +75,41 @@ func (s *PostgresStore) GetTenant(ctx context.Context, tenantID string) (core.Te
 	return tenant, nil
 }
 
+func (s *PostgresStore) ListTenants(ctx context.Context) ([]core.Tenant, error) {
+	tenants := make([]core.Tenant, 0)
+	rows, err := s.pool.Query(ctx, `
+		SELECT id::text, COALESCE(parent_id::text, ''), name, slug, status, created_at
+		FROM tenants
+		ORDER BY created_at, id
+	`)
+	if err != nil {
+		return nil, pgErr(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tenant core.Tenant
+		if err := rows.Scan(&tenant.ID, &tenant.ParentID, &tenant.Name, &tenant.Slug, &tenant.Status, &tenant.CreatedAt); err != nil {
+			return nil, err
+		}
+		tenants = append(tenants, tenant)
+	}
+	return tenants, pgErr(rows.Err())
+}
+
 func (s *PostgresStore) CreateUser(ctx context.Context, email, name string) (core.User, error) {
 	var user core.User
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO users (email, name)
 		VALUES ($1, $2)
-		RETURNING id::text, email, name, status, created_at
-	`, email, name).Scan(&user.ID, &user.Email, &user.Name, &user.Status, &user.CreatedAt)
+		RETURNING id::text, email, name, status, created_at, created_at
+	`, email, name).Scan(&user.ID, &user.Email, &user.Name, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return core.User{}, pgErr(err)
 	}
 	return user, nil
 }
 
-func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID string, role core.Role) (core.Membership, error) {
+func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID string, role core.Role, actorUserID ...string) (core.Membership, error) {
 	if role == "" {
 		role = core.RoleLearner
 	}
@@ -108,9 +130,9 @@ func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID stri
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO memberships (tenant_id, user_id, role)
 			VALUES ($1, $2, $3)
-			ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'ACTIVE'
-			RETURNING tenant_id::text, user_id::text, role, status, created_at
-		`, tenantID, userID, string(role)).Scan(&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt); err != nil {
+			ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'ACTIVE', updated_at = now(), archived_at = NULL
+			RETURNING tenant_id::text, user_id::text, role, status, created_at, updated_at, archived_at
+		`, tenantID, userID, string(role)).Scan(&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt, &membership.UpdatedAt, &membership.ArchivedAt); err != nil {
 			return err
 		}
 		if !existed {
@@ -122,7 +144,11 @@ func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID stri
 				return err
 			}
 		}
-		return insertEvent(ctx, tx, newStoreEvent(tenantID, "MembershipChanged", "membership", userID, membership.CreatedAt, map[string]any{"user_id": userID, "role": string(membership.Role)}))
+		now := time.Now().UTC()
+		if err := insertEvent(ctx, tx, newStoreEvent(tenantID, "MembershipChanged", "membership", userID, now, map[string]any{"user_id": userID, "role": string(membership.Role)})); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "membership.upsert", "membership", userID, map[string]any{"role": string(membership.Role)}, now))
 	})
 	if err != nil {
 		return core.Membership{}, pgErr(err)
@@ -131,10 +157,10 @@ func (s *PostgresStore) AddMembership(ctx context.Context, tenantID, userID stri
 }
 
 func (s *PostgresStore) ListMemberships(ctx context.Context, tenantID string) ([]core.Membership, error) {
-	var memberships []core.Membership
+	memberships := make([]core.Membership, 0)
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			SELECT tenant_id::text, user_id::text, role, status, created_at
+			SELECT tenant_id::text, user_id::text, role, status, created_at, COALESCE(updated_at, created_at), archived_at
 			FROM memberships
 			WHERE tenant_id = $1
 			ORDER BY user_id
@@ -145,7 +171,7 @@ func (s *PostgresStore) ListMemberships(ctx context.Context, tenantID string) ([
 		defer rows.Close()
 		for rows.Next() {
 			var membership core.Membership
-			if err := rows.Scan(&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt); err != nil {
+			if err := rows.Scan(&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt, &membership.UpdatedAt, &membership.ArchivedAt); err != nil {
 				return err
 			}
 			memberships = append(memberships, membership)
@@ -155,17 +181,167 @@ func (s *PostgresStore) ListMemberships(ctx context.Context, tenantID string) ([
 	return memberships, pgErr(err)
 }
 
-func (s *PostgresStore) CreateProgram(ctx context.Context, tenantID, name string) (core.Program, error) {
+func (s *PostgresStore) ListTenantUsers(ctx context.Context, tenantID string) ([]core.TenantUser, error) {
+	users := make([]core.TenantUser, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT m.tenant_id::text, u.id, u.email, u.name, u.status, m.role, m.status,
+			       u.created_at, COALESCE(u.updated_at, u.created_at), u.archived_at,
+			       m.created_at, COALESCE(m.updated_at, m.created_at), m.archived_at
+			FROM memberships m
+			JOIN users u ON u.id = m.user_id
+			WHERE m.tenant_id = $1
+			ORDER BY lower(u.email), u.id
+		`, tenantID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var user core.TenantUser
+			if err := rows.Scan(
+				&user.TenantID, &user.UserID, &user.Email, &user.Name, &user.UserStatus, &user.Role, &user.MembershipStatus,
+				&user.UserCreatedAt, &user.UserUpdatedAt, &user.UserArchivedAt,
+				&user.MembershipCreatedAt, &user.MembershipUpdatedAt, &user.MembershipArchivedAt,
+			); err != nil {
+				return err
+			}
+			users = append(users, user)
+		}
+		return rows.Err()
+	})
+	return users, pgErr(err)
+}
+
+func (s *PostgresStore) UpdateTenantUser(ctx context.Context, tenantID, userID, email, name, status string, actorUserID ...string) (core.TenantUser, error) {
+	var tenantUser core.TenantUser
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		user, membership, err := tenantUserForUpdate(ctx, tx, tenantID, userID)
+		if err != nil {
+			return err
+		}
+		if trimmed := strings.TrimSpace(email); trimmed != "" {
+			user.Email = trimmed
+		}
+		if strings.TrimSpace(name) != "" {
+			user.Name = strings.TrimSpace(name)
+		}
+		if strings.TrimSpace(status) != "" {
+			normalized, err := normalizeAdminStatus(status)
+			if err != nil {
+				return err
+			}
+			user.Status = normalized
+		}
+		now := time.Now().UTC()
+		var archivedAt any
+		if user.Status == "ARCHIVED" {
+			archivedAt = now
+		}
+		if err := tx.QueryRow(ctx, `
+			UPDATE users
+			SET email = $2, name = $3, status = $4, updated_at = $5, archived_at = CASE WHEN $4 = 'ARCHIVED' THEN COALESCE(archived_at, $6) ELSE NULL END
+			WHERE id = $1
+			RETURNING id, email, name, status, created_at, updated_at, archived_at
+		`, userID, user.Email, user.Name, user.Status, now, archivedAt).Scan(&user.ID, &user.Email, &user.Name, &user.Status, &user.CreatedAt, &user.UpdatedAt, &user.ArchivedAt); err != nil {
+			return err
+		}
+		if err := insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "user.update", "user", userID, map[string]any{"email": user.Email, "status": user.Status}, now)); err != nil {
+			return err
+		}
+		tenantUser = tenantUserFrom(user, membership)
+		return nil
+	})
+	return tenantUser, pgErr(err)
+}
+
+func (s *PostgresStore) ArchiveTenantUser(ctx context.Context, tenantID, userID string, actorUserID ...string) (core.TenantUser, error) {
+	var tenantUser core.TenantUser
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		user, membership, err := tenantUserForUpdate(ctx, tx, tenantID, userID)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE memberships
+			SET status = 'ARCHIVED', updated_at = $3, archived_at = COALESCE(archived_at, $3)
+			WHERE tenant_id = $1 AND user_id = $2
+			RETURNING tenant_id::text, user_id::text, role, status, created_at, updated_at, archived_at
+		`, tenantID, userID, now).Scan(&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt, &membership.UpdatedAt, &membership.ArchivedAt); err != nil {
+			return err
+		}
+		var activeElsewhere bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM memberships
+				WHERE user_id = $1 AND tenant_id <> $2 AND status = 'ACTIVE'
+			)
+		`, userID, tenantID).Scan(&activeElsewhere); err != nil {
+			return err
+		}
+		if !activeElsewhere {
+			if err := tx.QueryRow(ctx, `
+				UPDATE users
+				SET status = 'ARCHIVED', updated_at = $2, archived_at = COALESCE(archived_at, $2)
+				WHERE id = $1
+				RETURNING id, email, name, status, created_at, updated_at, archived_at
+			`, userID, now).Scan(&user.ID, &user.Email, &user.Name, &user.Status, &user.CreatedAt, &user.UpdatedAt, &user.ArchivedAt); err != nil {
+				return err
+			}
+		}
+		if err := insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "user.archive", "user", userID, nil, now)); err != nil {
+			return err
+		}
+		tenantUser = tenantUserFrom(user, membership)
+		return nil
+	})
+	return tenantUser, pgErr(err)
+}
+
+func (s *PostgresStore) ListLearners(ctx context.Context, tenantID string) ([]core.Learner, error) {
+	learners := make([]core.Learner, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT m.tenant_id::text, u.id, u.email, u.name, u.status, m.status, u.created_at, m.created_at
+			FROM memberships m
+			JOIN users u ON u.id = m.user_id
+			WHERE m.tenant_id = $1 AND m.role = $2
+			ORDER BY lower(u.email), u.id
+		`, tenantID, string(core.RoleLearner))
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var learner core.Learner
+			if err := rows.Scan(&learner.TenantID, &learner.UserID, &learner.Email, &learner.Name, &learner.UserStatus, &learner.MembershipStatus, &learner.UserCreatedAt, &learner.MembershipCreatedAt); err != nil {
+				return err
+			}
+			learners = append(learners, learner)
+		}
+		return rows.Err()
+	})
+	return learners, pgErr(err)
+}
+
+func (s *PostgresStore) CreateProgram(ctx context.Context, tenantID, name string, actorUserID ...string) (core.Program, error) {
+	if strings.TrimSpace(name) == "" {
+		return core.Program{}, fmt.Errorf("%w: program name is required", core.ErrInvalidInput)
+	}
 	var program core.Program
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO programs (tenant_id, name)
 			VALUES ($1, $2)
-			RETURNING tenant_id::text, id::text, name, created_at
-		`, tenantID, name).Scan(&program.TenantID, &program.ID, &program.Name, &program.CreatedAt); err != nil {
+			RETURNING tenant_id::text, id::text, name, status, created_at, updated_at, archived_at
+		`, tenantID, strings.TrimSpace(name)).Scan(&program.TenantID, &program.ID, &program.Name, &program.Status, &program.CreatedAt, &program.UpdatedAt, &program.ArchivedAt); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, newStoreEvent(tenantID, "ProgramCreated", "program", program.ID, program.CreatedAt, map[string]any{"name": program.Name}))
+		if err := insertEvent(ctx, tx, newStoreEvent(tenantID, "ProgramCreated", "program", program.ID, program.CreatedAt, map[string]any{"name": program.Name})); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "program.create", "program", program.ID, map[string]any{"name": program.Name}, program.CreatedAt))
 	})
 	if err != nil {
 		return core.Program{}, pgErr(err)
@@ -173,17 +349,102 @@ func (s *PostgresStore) CreateProgram(ctx context.Context, tenantID, name string
 	return program, nil
 }
 
-func (s *PostgresStore) CreateCohort(ctx context.Context, tenantID, programID, name string, start, end time.Time) (core.Cohort, error) {
+func (s *PostgresStore) ListPrograms(ctx context.Context, tenantID string) ([]core.Program, error) {
+	programs := make([]core.Program, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT tenant_id::text, id::text, name, status, created_at, COALESCE(updated_at, created_at), archived_at
+			FROM programs
+			WHERE tenant_id = $1
+			ORDER BY created_at, id
+		`, tenantID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var program core.Program
+			if err := rows.Scan(&program.TenantID, &program.ID, &program.Name, &program.Status, &program.CreatedAt, &program.UpdatedAt, &program.ArchivedAt); err != nil {
+				return err
+			}
+			programs = append(programs, program)
+		}
+		return rows.Err()
+	})
+	return programs, pgErr(err)
+}
+
+func (s *PostgresStore) UpdateProgram(ctx context.Context, tenantID, programID, name, status string, actorUserID ...string) (core.Program, error) {
+	var program core.Program
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `
+			SELECT tenant_id::text, id::text, name, status, created_at, COALESCE(updated_at, created_at), archived_at
+			FROM programs
+			WHERE tenant_id = $1 AND id = $2
+		`, tenantID, programID).Scan(&program.TenantID, &program.ID, &program.Name, &program.Status, &program.CreatedAt, &program.UpdatedAt, &program.ArchivedAt); err != nil {
+			return err
+		}
+		if strings.TrimSpace(name) != "" {
+			program.Name = strings.TrimSpace(name)
+		}
+		if strings.TrimSpace(status) != "" {
+			normalized, err := normalizeAdminStatus(status)
+			if err != nil {
+				return err
+			}
+			program.Status = normalized
+		}
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE programs
+			SET name = $3,
+			    status = $4,
+			    updated_at = $5,
+			    archived_at = CASE WHEN $4 = 'ARCHIVED' THEN COALESCE(archived_at, $5) ELSE NULL END
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, name, status, created_at, updated_at, archived_at
+		`, tenantID, programID, program.Name, program.Status, now).Scan(&program.TenantID, &program.ID, &program.Name, &program.Status, &program.CreatedAt, &program.UpdatedAt, &program.ArchivedAt); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "program.update", "program", programID, map[string]any{"name": program.Name, "status": program.Status}, now))
+	})
+	return program, pgErr(err)
+}
+
+func (s *PostgresStore) ArchiveProgram(ctx context.Context, tenantID, programID string, actorUserID ...string) (core.Program, error) {
+	var program core.Program
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE programs
+			SET status = 'ARCHIVED', updated_at = $3, archived_at = COALESCE(archived_at, $3)
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, name, status, created_at, updated_at, archived_at
+		`, tenantID, programID, now).Scan(&program.TenantID, &program.ID, &program.Name, &program.Status, &program.CreatedAt, &program.UpdatedAt, &program.ArchivedAt); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "program.archive", "program", programID, nil, now))
+	})
+	return program, pgErr(err)
+}
+
+func (s *PostgresStore) CreateCohort(ctx context.Context, tenantID, programID, name string, start, end time.Time, actorUserID ...string) (core.Cohort, error) {
+	if strings.TrimSpace(name) == "" {
+		return core.Cohort{}, fmt.Errorf("%w: cohort name is required", core.ErrInvalidInput)
+	}
 	var cohort core.Cohort
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO cohorts (tenant_id, program_id, name, start_date, end_date)
 			VALUES ($1, $2, $3, $4, $5)
-			RETURNING tenant_id::text, id::text, COALESCE(program_id::text, ''), name, COALESCE(start_date, '0001-01-01'::date), COALESCE(end_date, '0001-01-01'::date), created_at
-		`, tenantID, nullableString(programID), name, nullableTime(start), nullableTime(end)).Scan(&cohort.TenantID, &cohort.ID, &cohort.ProgramID, &cohort.Name, &cohort.StartDate, &cohort.EndDate, &cohort.CreatedAt); err != nil {
+			RETURNING tenant_id::text, id::text, COALESCE(program_id::text, ''), name, COALESCE(start_date, '0001-01-01'::date), COALESCE(end_date, '0001-01-01'::date), status, created_at, updated_at, archived_at
+		`, tenantID, nullableString(programID), strings.TrimSpace(name), nullableTime(start), nullableTime(end)).Scan(&cohort.TenantID, &cohort.ID, &cohort.ProgramID, &cohort.Name, &cohort.StartDate, &cohort.EndDate, &cohort.Status, &cohort.CreatedAt, &cohort.UpdatedAt, &cohort.ArchivedAt); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, newStoreEvent(tenantID, "CohortCreated", "cohort", cohort.ID, cohort.CreatedAt, map[string]any{"program_id": programID, "name": cohort.Name}))
+		if err := insertEvent(ctx, tx, newStoreEvent(tenantID, "CohortCreated", "cohort", cohort.ID, cohort.CreatedAt, map[string]any{"program_id": programID, "name": cohort.Name})); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "cohort.create", "cohort", cohort.ID, map[string]any{"program_id": programID, "name": cohort.Name}, cohort.CreatedAt))
 	})
 	if err != nil {
 		return core.Cohort{}, pgErr(err)
@@ -191,23 +452,371 @@ func (s *PostgresStore) CreateCohort(ctx context.Context, tenantID, programID, n
 	return cohort, nil
 }
 
-func (s *PostgresStore) EnrollLearner(ctx context.Context, tenantID, cohortID, learnerID string) (core.CohortEnrollment, error) {
+func (s *PostgresStore) ListCohorts(ctx context.Context, tenantID string) ([]core.Cohort, error) {
+	cohorts := make([]core.Cohort, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT tenant_id::text, id::text, COALESCE(program_id::text, ''), name, COALESCE(start_date, '0001-01-01'::date), COALESCE(end_date, '0001-01-01'::date), status, created_at, COALESCE(updated_at, created_at), archived_at
+			FROM cohorts
+			WHERE tenant_id = $1
+			ORDER BY created_at, id
+		`, tenantID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var cohort core.Cohort
+			if err := rows.Scan(&cohort.TenantID, &cohort.ID, &cohort.ProgramID, &cohort.Name, &cohort.StartDate, &cohort.EndDate, &cohort.Status, &cohort.CreatedAt, &cohort.UpdatedAt, &cohort.ArchivedAt); err != nil {
+				return err
+			}
+			cohorts = append(cohorts, cohort)
+		}
+		return rows.Err()
+	})
+	return cohorts, pgErr(err)
+}
+
+func (s *PostgresStore) UpdateCohort(ctx context.Context, tenantID, cohortID, programID, name, status string, start, end time.Time, actorUserID ...string) (core.Cohort, error) {
+	var cohort core.Cohort
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `
+			SELECT tenant_id::text, id::text, COALESCE(program_id::text, ''), name, COALESCE(start_date, '0001-01-01'::date), COALESCE(end_date, '0001-01-01'::date), status, created_at, COALESCE(updated_at, created_at), archived_at
+			FROM cohorts
+			WHERE tenant_id = $1 AND id = $2
+		`, tenantID, cohortID).Scan(&cohort.TenantID, &cohort.ID, &cohort.ProgramID, &cohort.Name, &cohort.StartDate, &cohort.EndDate, &cohort.Status, &cohort.CreatedAt, &cohort.UpdatedAt, &cohort.ArchivedAt); err != nil {
+			return err
+		}
+		if strings.TrimSpace(programID) != "" {
+			cohort.ProgramID = strings.TrimSpace(programID)
+		}
+		if strings.TrimSpace(name) != "" {
+			cohort.Name = strings.TrimSpace(name)
+		}
+		if !start.IsZero() {
+			cohort.StartDate = start
+		}
+		if !end.IsZero() {
+			cohort.EndDate = end
+		}
+		if strings.TrimSpace(status) != "" {
+			normalized, err := normalizeAdminStatus(status)
+			if err != nil {
+				return err
+			}
+			cohort.Status = normalized
+		}
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE cohorts
+			SET program_id = $3,
+			    name = $4,
+			    start_date = $5,
+			    end_date = $6,
+			    status = $7,
+			    updated_at = $8,
+			    archived_at = CASE WHEN $7 = 'ARCHIVED' THEN COALESCE(archived_at, $8) ELSE NULL END
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, COALESCE(program_id::text, ''), name, COALESCE(start_date, '0001-01-01'::date), COALESCE(end_date, '0001-01-01'::date), status, created_at, updated_at, archived_at
+		`, tenantID, cohortID, nullableString(cohort.ProgramID), cohort.Name, nullableTime(cohort.StartDate), nullableTime(cohort.EndDate), cohort.Status, now).Scan(&cohort.TenantID, &cohort.ID, &cohort.ProgramID, &cohort.Name, &cohort.StartDate, &cohort.EndDate, &cohort.Status, &cohort.CreatedAt, &cohort.UpdatedAt, &cohort.ArchivedAt); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "cohort.update", "cohort", cohortID, map[string]any{"program_id": cohort.ProgramID, "status": cohort.Status}, now))
+	})
+	return cohort, pgErr(err)
+}
+
+func (s *PostgresStore) ArchiveCohort(ctx context.Context, tenantID, cohortID string, actorUserID ...string) (core.Cohort, error) {
+	var cohort core.Cohort
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE cohorts
+			SET status = 'ARCHIVED', updated_at = $3, archived_at = COALESCE(archived_at, $3)
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, COALESCE(program_id::text, ''), name, COALESCE(start_date, '0001-01-01'::date), COALESCE(end_date, '0001-01-01'::date), status, created_at, updated_at, archived_at
+		`, tenantID, cohortID, now).Scan(&cohort.TenantID, &cohort.ID, &cohort.ProgramID, &cohort.Name, &cohort.StartDate, &cohort.EndDate, &cohort.Status, &cohort.CreatedAt, &cohort.UpdatedAt, &cohort.ArchivedAt); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "cohort.archive", "cohort", cohortID, nil, now))
+	})
+	return cohort, pgErr(err)
+}
+
+func (s *PostgresStore) EnrollLearner(ctx context.Context, tenantID, cohortID, learnerID string, actorUserID ...string) (core.CohortEnrollment, error) {
 	var enrollment core.CohortEnrollment
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO cohort_enrollments (tenant_id, cohort_id, learner_id)
 			VALUES ($1, $2, $3)
-			ON CONFLICT (tenant_id, cohort_id, learner_id) DO UPDATE SET status = 'ACTIVE'
-			RETURNING tenant_id::text, cohort_id::text, learner_id::text, status, created_at
-		`, tenantID, cohortID, learnerID).Scan(&enrollment.TenantID, &enrollment.CohortID, &enrollment.LearnerID, &enrollment.Status, &enrollment.CreatedAt); err != nil {
+			ON CONFLICT (tenant_id, cohort_id, learner_id) DO UPDATE SET status = 'ACTIVE', updated_at = now(), archived_at = NULL
+			RETURNING tenant_id::text, cohort_id::text, learner_id::text, status, created_at, updated_at, archived_at
+		`, tenantID, cohortID, learnerID).Scan(&enrollment.TenantID, &enrollment.CohortID, &enrollment.LearnerID, &enrollment.Status, &enrollment.CreatedAt, &enrollment.UpdatedAt, &enrollment.ArchivedAt); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, newStoreEvent(tenantID, "LearnerEnrolled", "cohort_enrollment", cohortID, enrollment.CreatedAt, map[string]any{"cohort_id": cohortID, "learner_id": learnerID}))
+		now := time.Now().UTC()
+		if err := insertEvent(ctx, tx, newStoreEvent(tenantID, "LearnerEnrolled", "cohort_enrollment", cohortID, enrollment.CreatedAt, map[string]any{"cohort_id": cohortID, "learner_id": learnerID})); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "enrollment.upsert", "cohort_enrollment", cohortID+":"+learnerID, map[string]any{"cohort_id": cohortID, "learner_id": learnerID}, now))
 	})
 	if err != nil {
 		return core.CohortEnrollment{}, pgErr(err)
 	}
 	return enrollment, nil
+}
+
+func (s *PostgresStore) ListCohortEnrollments(ctx context.Context, tenantID, cohortID string) ([]core.CohortEnrollment, error) {
+	enrollments := make([]core.CohortEnrollment, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM cohorts
+				WHERE tenant_id = $1 AND id = $2
+			)
+		`, tenantID, cohortID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("%w: cohort", core.ErrNotFound)
+		}
+		rows, err := tx.Query(ctx, `
+			SELECT tenant_id::text, cohort_id::text, learner_id::text, status, created_at, COALESCE(updated_at, created_at), archived_at
+			FROM cohort_enrollments
+			WHERE tenant_id = $1 AND cohort_id = $2
+			ORDER BY learner_id
+		`, tenantID, cohortID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var enrollment core.CohortEnrollment
+			if err := rows.Scan(&enrollment.TenantID, &enrollment.CohortID, &enrollment.LearnerID, &enrollment.Status, &enrollment.CreatedAt, &enrollment.UpdatedAt, &enrollment.ArchivedAt); err != nil {
+				return err
+			}
+			enrollments = append(enrollments, enrollment)
+		}
+		return rows.Err()
+	})
+	return enrollments, pgErr(err)
+}
+
+func (s *PostgresStore) UpdateCohortEnrollmentStatus(ctx context.Context, tenantID, cohortID, learnerID, status string, actorUserID ...string) (core.CohortEnrollment, error) {
+	normalized, err := normalizeAdminStatus(status)
+	if err != nil {
+		return core.CohortEnrollment{}, err
+	}
+	var enrollment core.CohortEnrollment
+	err = s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE cohort_enrollments
+			SET status = $4,
+			    updated_at = $5,
+			    archived_at = CASE WHEN $4 = 'ARCHIVED' THEN COALESCE(archived_at, $5) ELSE NULL END
+			WHERE tenant_id = $1 AND cohort_id = $2 AND learner_id = $3
+			RETURNING tenant_id::text, cohort_id::text, learner_id::text, status, created_at, updated_at, archived_at
+		`, tenantID, cohortID, learnerID, normalized, now).Scan(&enrollment.TenantID, &enrollment.CohortID, &enrollment.LearnerID, &enrollment.Status, &enrollment.CreatedAt, &enrollment.UpdatedAt, &enrollment.ArchivedAt); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "enrollment.update", "cohort_enrollment", cohortID+":"+learnerID, map[string]any{"status": normalized}, now))
+	})
+	return enrollment, pgErr(err)
+}
+
+func (s *PostgresStore) ArchiveCohortEnrollment(ctx context.Context, tenantID, cohortID, learnerID string, actorUserID ...string) (core.CohortEnrollment, error) {
+	return s.UpdateCohortEnrollmentStatus(ctx, tenantID, cohortID, learnerID, "ARCHIVED", actorUserID...)
+}
+
+func (s *PostgresStore) CreateTrainingSession(ctx context.Context, session core.TrainingSession, actorUserID ...string) (core.TrainingSession, error) {
+	if session.Status == "" {
+		session.Status = "SCHEDULED"
+	}
+	if err := validateTrainingSession(session); err != nil {
+		return core.TrainingSession{}, err
+	}
+	var saved core.TrainingSession
+	err := s.withTenantTx(ctx, session.TenantID, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO training_sessions (tenant_id, cohort_id, program_id, title, starts_at, ends_at, capacity, location, video_url, status)
+			SELECT $1, c.id, c.program_id, $3, $4, $5, $6, $7, $8, $9
+			FROM cohorts c
+			WHERE c.tenant_id = $1 AND c.id = $2
+			RETURNING tenant_id::text, id::text, cohort_id::text, COALESCE(program_id::text, ''), title, starts_at, ends_at, capacity, location, video_url, status, created_at, updated_at, archived_at
+		`, session.TenantID, session.CohortID, strings.TrimSpace(session.Title), session.StartsAt, session.EndsAt, session.Capacity, strings.TrimSpace(session.Location), strings.TrimSpace(session.VideoURL), session.Status).Scan(
+			&saved.TenantID, &saved.ID, &saved.CohortID, &saved.ProgramID, &saved.Title, &saved.StartsAt, &saved.EndsAt, &saved.Capacity, &saved.Location, &saved.VideoURL, &saved.Status, &saved.CreatedAt, &saved.UpdatedAt, &saved.ArchivedAt,
+		); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(session.TenantID, firstActor(actorUserID), "training_session.create", "training_session", saved.ID, map[string]any{"cohort_id": saved.CohortID}, saved.CreatedAt))
+	})
+	return saved, pgErr(err)
+}
+
+func (s *PostgresStore) ListTrainingSessions(ctx context.Context, tenantID, cohortID string) ([]core.TrainingSession, error) {
+	sessions := make([]core.TrainingSession, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		if cohortID != "" {
+			var exists bool
+			if err := tx.QueryRow(ctx, `
+				SELECT EXISTS (
+					SELECT 1 FROM cohorts
+					WHERE tenant_id = $1 AND id = $2
+				)
+			`, tenantID, cohortID).Scan(&exists); err != nil {
+				return err
+			}
+			if !exists {
+				return fmt.Errorf("%w: cohort", core.ErrNotFound)
+			}
+		}
+		sql := `
+			SELECT tenant_id::text, id::text, cohort_id::text, COALESCE(program_id::text, ''), title, starts_at, ends_at, capacity, location, video_url, status, created_at, COALESCE(updated_at, created_at), archived_at
+			FROM training_sessions
+			WHERE tenant_id = $1`
+		args := []any{tenantID}
+		if cohortID != "" {
+			sql += ` AND cohort_id = $2`
+			args = append(args, cohortID)
+		}
+		sql += ` ORDER BY starts_at, id`
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			session, err := scanTrainingSession(rows)
+			if err != nil {
+				return err
+			}
+			sessions = append(sessions, session)
+		}
+		return rows.Err()
+	})
+	return sessions, pgErr(err)
+}
+
+func (s *PostgresStore) UpdateTrainingSession(ctx context.Context, tenantID, sessionID string, patch core.TrainingSessionPatch, actorUserID ...string) (core.TrainingSession, error) {
+	var session core.TrainingSession
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		var err error
+		session, err = trainingSessionForUpdate(ctx, tx, tenantID, sessionID)
+		if err != nil {
+			return err
+		}
+		if patch.CohortID != nil {
+			session.CohortID = strings.TrimSpace(*patch.CohortID)
+		}
+		if patch.Title != nil {
+			session.Title = strings.TrimSpace(*patch.Title)
+		}
+		if patch.StartsAt != nil {
+			session.StartsAt = patch.StartsAt.UTC()
+		}
+		if patch.EndsAt != nil {
+			session.EndsAt = patch.EndsAt.UTC()
+		}
+		if patch.Capacity != nil {
+			session.Capacity = *patch.Capacity
+		}
+		if patch.Location != nil {
+			session.Location = strings.TrimSpace(*patch.Location)
+		}
+		if patch.VideoURL != nil {
+			session.VideoURL = strings.TrimSpace(*patch.VideoURL)
+		}
+		if patch.Status != nil {
+			normalized, err := normalizeSessionStatus(*patch.Status)
+			if err != nil {
+				return err
+			}
+			session.Status = normalized
+		}
+		if err := validateTrainingSession(session); err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE training_sessions
+			SET cohort_id = $3,
+			    program_id = (SELECT c.program_id FROM cohorts c WHERE c.tenant_id = $1 AND c.id = $3),
+			    title = $4,
+			    starts_at = $5,
+			    ends_at = $6,
+			    capacity = $7,
+			    location = $8,
+			    video_url = $9,
+			    status = $10,
+			    updated_at = $11,
+			    archived_at = CASE WHEN $10 = 'ARCHIVED' THEN COALESCE(archived_at, $11) ELSE NULL END
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, cohort_id::text, COALESCE(program_id::text, ''), title, starts_at, ends_at, capacity, location, video_url, status, created_at, updated_at, archived_at
+		`, tenantID, sessionID, session.CohortID, session.Title, session.StartsAt, session.EndsAt, session.Capacity, session.Location, session.VideoURL, session.Status, now).Scan(
+			&session.TenantID, &session.ID, &session.CohortID, &session.ProgramID, &session.Title, &session.StartsAt, &session.EndsAt, &session.Capacity, &session.Location, &session.VideoURL, &session.Status, &session.CreatedAt, &session.UpdatedAt, &session.ArchivedAt,
+		); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "training_session.update", "training_session", sessionID, map[string]any{"cohort_id": session.CohortID, "status": session.Status}, now))
+	})
+	return session, pgErr(err)
+}
+
+func (s *PostgresStore) ArchiveTrainingSession(ctx context.Context, tenantID, sessionID string, actorUserID ...string) (core.TrainingSession, error) {
+	var session core.TrainingSession
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		now := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `
+			UPDATE training_sessions
+			SET status = 'ARCHIVED', updated_at = $3, archived_at = COALESCE(archived_at, $3)
+			WHERE tenant_id = $1 AND id = $2
+			RETURNING tenant_id::text, id::text, cohort_id::text, COALESCE(program_id::text, ''), title, starts_at, ends_at, capacity, location, video_url, status, created_at, updated_at, archived_at
+		`, tenantID, sessionID, now).Scan(
+			&session.TenantID, &session.ID, &session.CohortID, &session.ProgramID, &session.Title, &session.StartsAt, &session.EndsAt, &session.Capacity, &session.Location, &session.VideoURL, &session.Status, &session.CreatedAt, &session.UpdatedAt, &session.ArchivedAt,
+		); err != nil {
+			return err
+		}
+		return insertAdminAudit(ctx, tx, newAdminAuditLog(tenantID, firstActor(actorUserID), "training_session.archive", "training_session", sessionID, nil, now))
+	})
+	return session, pgErr(err)
+}
+
+func (s *PostgresStore) ListAdminAuditLogs(ctx context.Context, tenantID, targetType, targetID string) ([]core.AdminAuditLog, error) {
+	logs := make([]core.AdminAuditLog, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		sql := `
+			SELECT tenant_id::text, id::text, actor_user_id, action, target_type, target_id, payload_json, created_at
+			FROM admin_audit_log
+			WHERE tenant_id = $1`
+		args := []any{tenantID}
+		if strings.TrimSpace(targetType) != "" {
+			args = append(args, strings.TrimSpace(targetType))
+			sql += fmt.Sprintf(` AND target_type = $%d`, len(args))
+		}
+		if strings.TrimSpace(targetID) != "" {
+			args = append(args, strings.TrimSpace(targetID))
+			sql += fmt.Sprintf(` AND target_id = $%d`, len(args))
+		}
+		sql += ` ORDER BY created_at, id`
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var log core.AdminAuditLog
+			var payloadRaw []byte
+			if err := rows.Scan(&log.TenantID, &log.ID, &log.ActorUserID, &log.Action, &log.TargetType, &log.TargetID, &payloadRaw, &log.CreatedAt); err != nil {
+				return err
+			}
+			log.Payload = decodeMap(payloadRaw)
+			logs = append(logs, log)
+		}
+		return rows.Err()
+	})
+	return logs, pgErr(err)
 }
 
 func (s *PostgresStore) CreateSyllabus(ctx context.Context, tenantID, title, description string, objectives, outcomes map[string]any) (core.Syllabus, error) {
@@ -230,6 +839,34 @@ func (s *PostgresStore) CreateSyllabus(ctx context.Context, tenantID, title, des
 	syllabus.Objectives = decodeMap(objectivesRaw)
 	syllabus.Outcomes = decodeMap(outcomesRaw)
 	return syllabus, nil
+}
+
+func (s *PostgresStore) ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error) {
+	syllabi := make([]core.Syllabus, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT tenant_id::text, id::text, title, description, objectives_json, outcomes_json, created_at
+			FROM syllabi
+			WHERE tenant_id = $1
+			ORDER BY created_at, id
+		`, tenantID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var syllabus core.Syllabus
+			var objectivesRaw, outcomesRaw []byte
+			if err := rows.Scan(&syllabus.TenantID, &syllabus.ID, &syllabus.Title, &syllabus.Description, &objectivesRaw, &outcomesRaw, &syllabus.CreatedAt); err != nil {
+				return err
+			}
+			syllabus.Objectives = decodeMap(objectivesRaw)
+			syllabus.Outcomes = decodeMap(outcomesRaw)
+			syllabi = append(syllabi, syllabus)
+		}
+		return rows.Err()
+	})
+	return syllabi, pgErr(err)
 }
 
 func (s *PostgresStore) BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error) {
@@ -308,6 +945,31 @@ func (s *PostgresStore) CreateDomain(ctx context.Context, tenantID, ownerID, nam
 		return core.DomainGraph{}, pgErr(err)
 	}
 	return graph, nil
+}
+
+func (s *PostgresStore) ListDomains(ctx context.Context, tenantID string) ([]core.Domain, error) {
+	domains := make([]core.Domain, 0)
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT tenant_id::text, id::text, COALESCE(owner_id::text, ''), name, description, source, graph_version, status, phase, created_at, updated_at
+			FROM domains
+			WHERE tenant_id = $1
+			ORDER BY created_at, id
+		`, tenantID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var domain core.Domain
+			if err := rows.Scan(&domain.TenantID, &domain.ID, &domain.OwnerID, &domain.Name, &domain.Description, &domain.Source, &domain.GraphVersion, &domain.Status, &domain.Phase, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+				return err
+			}
+			domains = append(domains, domain)
+		}
+		return rows.Err()
+	})
+	return domains, pgErr(err)
 }
 
 func (s *PostgresStore) ReplaceDomainGraph(ctx context.Context, tenantID, domainID string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error) {
@@ -969,13 +1631,36 @@ func (s *PostgresStore) UpdateAlertStatus(ctx context.Context, tenantID, alertID
 
 func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID string) (map[string]any, error) {
 	var learnerCount, stateCount, activeMisconceptions int
+	var programID string
+	var totalSeconds int64
 	var avgMastery *float64
+	var learnerTime []core.TrainingTimeSummary
 	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		if err := tx.QueryRow(ctx, `
+			SELECT COALESCE(program_id, '')
+			FROM cohorts
+			WHERE tenant_id = $1 AND id = $2
+		`, tenantID, cohortID).Scan(&programID); err != nil {
+			return err
+		}
+		capSeconds := int64(maxTrackedActivityDuration / time.Second)
+		if err := tx.QueryRow(ctx, `
 			WITH learners AS (
 				SELECT learner_id
 				FROM cohort_enrollments
 				WHERE tenant_id = $1 AND cohort_id = $2 AND status = 'ACTIVE'
+			),
+			activity_time AS (
+				SELECT
+					a.learner_id,
+					COALESCE(SUM(LEAST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint, $3::bigint)), 0)::bigint AS seconds
+				FROM activities a
+				JOIN learners l ON l.learner_id = a.learner_id
+				WHERE a.tenant_id = $1
+				  AND a.started_at IS NOT NULL
+				  AND a.completed_at IS NOT NULL
+				  AND a.completed_at > a.started_at
+				GROUP BY a.learner_id
 			)
 			SELECT
 				(SELECT count(*) FROM learners)::int,
@@ -986,10 +1671,53 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 					FROM misconceptions m
 					JOIN learners l ON l.learner_id = m.learner_id
 					WHERE m.tenant_id = $1 AND m.status = 'ACTIVE'
-				)::int
+				)::int,
+				COALESCE((SELECT sum(seconds) FROM activity_time), 0)::bigint
 			FROM learners l
 			LEFT JOIN learner_states ls ON ls.tenant_id = $1 AND ls.learner_id = l.learner_id
-		`, tenantID, cohortID).Scan(&learnerCount, &stateCount, &avgMastery, &activeMisconceptions)
+		`, tenantID, cohortID, capSeconds).Scan(&learnerCount, &stateCount, &avgMastery, &activeMisconceptions, &totalSeconds); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `
+			WITH learners AS (
+				SELECT learner_id
+				FROM cohort_enrollments
+				WHERE tenant_id = $1 AND cohort_id = $2 AND status = 'ACTIVE'
+			)
+			SELECT
+				l.learner_id,
+				(count(a.id) FILTER (
+					WHERE a.started_at IS NOT NULL
+					  AND a.completed_at IS NOT NULL
+					  AND a.completed_at > a.started_at
+				))::int AS activity_count,
+				COALESCE(SUM(LEAST(EXTRACT(EPOCH FROM (a.completed_at - a.started_at))::bigint, $3::bigint)) FILTER (
+					WHERE a.started_at IS NOT NULL
+					  AND a.completed_at IS NOT NULL
+					  AND a.completed_at > a.started_at
+				), 0)::bigint AS seconds
+			FROM learners l
+			LEFT JOIN activities a ON a.tenant_id = $1 AND a.learner_id = l.learner_id
+			GROUP BY l.learner_id
+			ORDER BY l.learner_id
+		`, tenantID, cohortID, capSeconds)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			summary := core.TrainingTimeSummary{
+				TenantID:  tenantID,
+				ProgramID: programID,
+				CohortID:  cohortID,
+			}
+			if err := rows.Scan(&summary.LearnerID, &summary.ActivityCount, &summary.TrainingTimeSeconds); err != nil {
+				return err
+			}
+			summary.TrainingHours = hoursFromSeconds(summary.TrainingTimeSeconds)
+			learnerTime = append(learnerTime, summary)
+		}
+		return rows.Err()
 	})
 	if err != nil {
 		return nil, pgErr(err)
@@ -1000,11 +1728,15 @@ func (s *PostgresStore) CohortAnalytics(ctx context.Context, tenantID, cohortID 
 	}
 	return map[string]any{
 		"tenant_id":             tenantID,
+		"program_id":            programID,
 		"cohort_id":             cohortID,
 		"learner_count":         learnerCount,
 		"state_count":           stateCount,
 		"average_mastery":       avg,
 		"active_misconceptions": activeMisconceptions,
+		"training_time_seconds": totalSeconds,
+		"training_hours":        hoursFromSeconds(totalSeconds),
+		"learner_time":          learnerTime,
 	}, nil
 }
 
@@ -1247,6 +1979,23 @@ func insertEvent(ctx context.Context, tx pgx.Tx, event core.Event) error {
 	return err
 }
 
+func insertAdminAudit(ctx context.Context, tx pgx.Tx, log core.AdminAuditLog) error {
+	if log.ID == "" {
+		log.ID = ids.New()
+	}
+	if log.CreatedAt.IsZero() {
+		log.CreatedAt = time.Now().UTC()
+	}
+	if log.Payload == nil {
+		log.Payload = map[string]any{}
+	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO admin_audit_log (tenant_id, id, actor_user_id, action, target_type, target_id, payload_json, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, log.TenantID, log.ID, log.ActorUserID, log.Action, log.TargetType, log.TargetID, mustJSON(log.Payload), log.CreatedAt)
+	return err
+}
+
 func newStoreEvent(tenantID, eventType, aggregateType, aggregateID string, now time.Time, payload map[string]any) core.Event {
 	eventID := ids.New()
 	actorUserID := ""
@@ -1264,6 +2013,25 @@ func newStoreEvent(tenantID, eventType, aggregateType, aggregateID string, now t
 		AggregateID:   aggregateID,
 		Payload:       payload,
 		OccurredAt:    now,
+	}
+}
+
+func newAdminAuditLog(tenantID, actorUserID, action, targetType, targetID string, payload map[string]any, now time.Time) core.AdminAuditLog {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	return core.AdminAuditLog{
+		TenantID:    tenantID,
+		ID:          ids.New(),
+		ActorUserID: actorUserID,
+		Action:      action,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		Payload:     payload,
+		CreatedAt:   now,
 	}
 }
 
@@ -1304,6 +2072,44 @@ func scanAlert(row interactionScanner) (core.Alert, error) {
 	err := row.Scan(&alert.TenantID, &alert.ID, &alert.LearnerID, &alert.ConceptID, &alert.AlertType, &alert.Severity, &alert.Status, &payloadRaw, &alert.RecommendedAction, &alert.CreatedAt, &alert.UpdatedAt)
 	alert.Payload = decodeMap(payloadRaw)
 	return alert, err
+}
+
+func scanTrainingSession(row interactionScanner) (core.TrainingSession, error) {
+	var session core.TrainingSession
+	err := row.Scan(
+		&session.TenantID, &session.ID, &session.CohortID, &session.ProgramID, &session.Title,
+		&session.StartsAt, &session.EndsAt, &session.Capacity, &session.Location, &session.VideoURL,
+		&session.Status, &session.CreatedAt, &session.UpdatedAt, &session.ArchivedAt,
+	)
+	return session, err
+}
+
+func tenantUserForUpdate(ctx context.Context, tx pgx.Tx, tenantID, userID string) (core.User, core.Membership, error) {
+	var user core.User
+	var membership core.Membership
+	if err := tx.QueryRow(ctx, `
+		SELECT u.id, u.email, u.name, u.status, u.created_at, COALESCE(u.updated_at, u.created_at), u.archived_at,
+		       m.tenant_id::text, m.user_id::text, m.role, m.status, m.created_at, COALESCE(m.updated_at, m.created_at), m.archived_at
+		FROM memberships m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.tenant_id = $1 AND m.user_id = $2
+		FOR UPDATE OF m
+	`, tenantID, userID).Scan(
+		&user.ID, &user.Email, &user.Name, &user.Status, &user.CreatedAt, &user.UpdatedAt, &user.ArchivedAt,
+		&membership.TenantID, &membership.UserID, &membership.Role, &membership.Status, &membership.CreatedAt, &membership.UpdatedAt, &membership.ArchivedAt,
+	); err != nil {
+		return core.User{}, core.Membership{}, err
+	}
+	return user, membership, nil
+}
+
+func trainingSessionForUpdate(ctx context.Context, tx pgx.Tx, tenantID, sessionID string) (core.TrainingSession, error) {
+	return scanTrainingSession(tx.QueryRow(ctx, `
+		SELECT tenant_id::text, id::text, cohort_id::text, COALESCE(program_id::text, ''), title, starts_at, ends_at, capacity, location, video_url, status, created_at, COALESCE(updated_at, created_at), archived_at
+		FROM training_sessions
+		WHERE tenant_id = $1 AND id = $2
+		FOR UPDATE
+	`, tenantID, sessionID))
 }
 
 func mustJSON(v any) []byte {

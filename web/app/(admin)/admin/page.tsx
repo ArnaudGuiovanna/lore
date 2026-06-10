@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { api, tpath } from "@/lib/api";
-import { seed } from "@/lib/config";
+import { api, tpath, type ApiResult } from "@/lib/api";
 import { getSession } from "@/lib/auth/session";
 import { listCredentials } from "@/lib/auth/store";
+import { learnerDisplay, learnersForCohort, loadTenantContext } from "@/lib/tenant-context";
 import type { Alert, Concept, Dependency, LLMConfiguration, LoreEvent, Membership, LearnerState, ReviewCard, Role } from "@/lib/types";
 import { AdminConsole } from "@/components/admin/AdminConsole";
 import type {
@@ -46,25 +46,38 @@ function isExplicit(c: LLMConfiguration | null): boolean {
   return !t.startsWith("0001-01-01") && t !== "";
 }
 
+function unavailable<T>(error: string): ApiResult<T> {
+  return { ok: false, status: 404, error };
+}
+
 export default async function AdminHome() {
-  const s = seed();
   const session = await getSession();
+  const ctx = await loadTenantContext();
+  const cohort = ctx.primaryCohort;
+  const cohortId = cohort?.id ?? "";
+  const cohortName = cohort?.name ?? "groupe";
+  const programInfo = ctx.primaryProgram;
+  const programId = programInfo?.id ?? "";
+  const domain = ctx.primaryDomain;
+  const domainId = domain?.id ?? "";
+  const rosterLearners = learnersForCohort(ctx, cohortId);
+  const syllabus = ctx.primarySyllabus;
 
   // ---- reads (Server Components, live backend) ----
   const [domainRes, tenantCfgRes, cohortCfgRes, outboxRes, analyticsRes, alertsRes, membershipsRes] = await Promise.all([
-    api.get<DomainEnvelope>(tpath(`/domains/${s.domainId}`)),
+    domainId ? api.get<DomainEnvelope>(tpath(`/domains/${domainId}`)) : Promise.resolve(unavailable<DomainEnvelope>("no domain available")),
     api.get<LLMConfiguration>(tpath(`/llm-configurations`)),
-    api.get<LLMConfiguration>(tpath(`/llm-configurations?scope_type=cohort&scope_id=${s.cohortId}`)),
+    cohortId ? api.get<LLMConfiguration>(tpath(`/llm-configurations?scope_type=cohort&scope_id=${cohortId}`)) : Promise.resolve(unavailable<LLMConfiguration>("no cohort available")),
     api.get<RawEvent[]>(tpath(`/events/outbox`)),
-    api.get<CohortAnalytics>(tpath(`/analytics/cohorts/${s.cohortId}`)),
+    cohortId ? api.get<CohortAnalytics>(tpath(`/analytics/cohorts/${cohortId}`)) : Promise.resolve(unavailable<CohortAnalytics>("no cohort available")),
     api.get<Alert[]>(tpath(`/alerts`)),
     api.get<Membership[]>(tpath(`/memberships`)),
   ]);
 
   // Per-learner LLM overrides (most-specific scope tier).
   const learnerCfgs = await Promise.all(
-    s.learners.map((l) =>
-      api.get<LLMConfiguration>(tpath(`/llm-configurations?scope_type=learner&scope_id=${l.id}`))
+    ctx.learners.map((l) =>
+      api.get<LLMConfiguration>(tpath(`/llm-configurations?scope_type=learner&scope_id=${l.user_id}`))
     )
   );
 
@@ -85,7 +98,7 @@ export default async function AdminHome() {
               ← LORE
             </Link>
             <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {s.tenantSlug} · TENANT_ADMIN · S. Aalto
+              tenant {ctx.tenantSlug} · TENANT_ADMIN · S. Aalto
             </span>
           </div>
           <section className="panel" style={{ maxWidth: "60ch", marginTop: 24 }} role="alert">
@@ -99,7 +112,7 @@ export default async function AdminHome() {
               problème d&apos;accès au backend, pas une perte de configuration. Rien n&apos;a été modifié.
             </p>
             <p className="mono quiet" style={{ fontSize: 11, marginBottom: 18, wordBreak: "break-word" }}>
-              GET /domains/{s.domainId.slice(0, 8)}… · GET /llm-configurations · GET /events/outbox · pas de réponse
+              GET /domains/{domainId.slice(0, 8)}… · GET /llm-configurations · GET /events/outbox · pas de réponse
             </p>
             <Link href="/admin" className="btn primary" style={{ textDecoration: "none" }}>
               ↺ Réessayer
@@ -113,9 +126,9 @@ export default async function AdminHome() {
   // ---- domain graph (read-only DAG) ----
   const env = domainRes.ok ? domainRes.data : null;
   const graph: DomainGraphData = {
-    domainName: env?.domain.name ?? "Go Backend",
-    domainId: s.domainId,
-    graphVersion: env?.domain.graph_version ?? 1,
+    domainName: env?.domain.name ?? domain?.name ?? "Domaine",
+    domainId,
+    graphVersion: env?.domain.graph_version ?? domain?.graph_version ?? 1,
     concepts: env?.concepts ?? [],
     dependencies: env?.dependencies ?? [],
   };
@@ -129,31 +142,31 @@ export default async function AdminHome() {
     {
       tier: "tenant",
       scopeId: "",
-      label: `${s.tenantSlug === "acme" ? "Acme Learning" : s.tenantSlug} · tenant`,
+      label: `${ctx.tenantName || ctx.tenantSlug} · tenant`,
       config: tenantCfg,
       editable: true,
     },
     {
       tier: "program",
-      scopeId: s.programId,
-      label: "Backend Engineering 2026",
-      config: null, // no explicit program override seeded
+      scopeId: programId,
+      label: programInfo?.name ?? "Programme",
+      config: null, // no explicit program override endpoint yet
       editable: true,
     },
     {
       tier: "cohort",
-      scopeId: s.cohortId,
-      label: s.cohortName,
+      scopeId: cohortId,
+      label: cohortName,
       config: cohortCfg,
       editable: true,
     },
-    ...s.learners.map((l, i): ScopeRow => {
+    ...ctx.learners.map((l, i): ScopeRow => {
       const raw = learnerCfgs[i].ok ? learnerCfgs[i].data : null;
       return {
         tier: "learner",
-        scopeId: l.id,
+        scopeId: l.user_id,
         label: l.name,
-        hint: l.id,
+        hint: l.user_id,
         config: isExplicit(raw) ? raw : null,
         editable: true,
       };
@@ -172,18 +185,14 @@ export default async function AdminHome() {
   }).length;
 
   // ---- identity & memberships (role derived from membership, joined with the
-  // credential store + seed for human names/emails). The backend's GET
+  // credential store + backend learner list for human names/emails). The backend's GET
   // /memberships is the source of truth for who-holds-which-role; names/emails
   // come from the frontend identity sources. userId enables role re-grant.
   const credentials = await listCredentials();
   const nameForUser = (userId: string): { name: string; email: string } => {
     const cred = credentials.find((c) => c.userId === userId);
     if (cred) return { name: cred.name, email: cred.email };
-    const seeded = s.users.find((u) => u.id === userId);
-    if (seeded) return { name: seeded.name, email: seeded.email };
-    const learner = s.learners.find((l) => l.id === userId);
-    if (learner) return { name: learner.name, email: `${userId.slice(0, 8)}@${s.tenantSlug}.unknown` };
-    return { name: `user ${userId.slice(0, 8)}`, email: `${userId.slice(0, 8)}@${s.tenantSlug}.unknown` };
+    return learnerDisplay(ctx, userId);
   };
 
   const liveMemberships = membershipsRes.ok && Array.isArray(membershipsRes.data) ? membershipsRes.data : [];
@@ -197,7 +206,7 @@ export default async function AdminHome() {
             name: who.name,
             email: who.email,
             role: m.role,
-            scope: `tenant · ${s.tenantSlug}`,
+            scope: `tenant · ${ctx.tenantSlug}`,
             status: isSelf ? `${m.status.toLowerCase()} · vous` : m.status.toLowerCase(),
             self: isSelf,
             userId: m.user_id,
@@ -217,7 +226,7 @@ export default async function AdminHome() {
           name: c.name,
           email: c.email,
           role: c.role,
-          scope: `tenant · ${s.tenantSlug}`,
+          scope: `tenant · ${ctx.tenantSlug}`,
           status: isSelf ? "actif · vous" : "actif",
           self: isSelf,
           userId: c.userId,
@@ -225,52 +234,28 @@ export default async function AdminHome() {
         };
       });
 
-  // ---- outbox (real persisted domain events) — also the live source for the
-  // program/cohort/enrollment lists, since the backend has no GET for those. ----
+  // ---- outbox (real persisted domain events) ----
   const rawEvents: RawEvent[] = outboxRes.ok && Array.isArray(outboxRes.data) ? outboxRes.data : [];
 
-  // Programs and cohorts as created on the backend (ProgramCreated / CohortCreated
-  // events carry id + name in payload). Always includes the seeded program/cohort.
+  // Programs and cohorts as created on the backend list endpoints.
   const programMap = new Map<string, ManagedProgram>();
-  programMap.set(s.programId, {
-    id: s.programId,
-    name: "Backend Engineering 2026",
-    cohorts: [],
-  });
-  for (const e of rawEvents) {
-    if (e.event_type === "ProgramCreated" && e.aggregate_id) {
-      const name = String((e.payload as { name?: string })?.name ?? "program");
-      if (!programMap.has(e.aggregate_id)) programMap.set(e.aggregate_id, { id: e.aggregate_id, name, cohorts: [] });
-      else programMap.get(e.aggregate_id)!.name = name;
-    }
+  for (const p of ctx.programs) {
+    programMap.set(p.id, { id: p.id, name: p.name, cohorts: [] });
   }
-  // seed the known cohort under its program
-  programMap.get(s.programId)!.cohorts.push({ id: s.cohortId, name: s.cohortName, programId: s.programId });
-  for (const e of rawEvents) {
-    if (e.event_type === "CohortCreated" && e.aggregate_id) {
-      const p = e.payload as { program_id?: string; name?: string };
-      const pid = String(p?.program_id ?? s.programId);
-      const prog = programMap.get(pid) ?? programMap.get(s.programId)!;
-      if (!prog.cohorts.some((c) => c.id === e.aggregate_id)) {
-        prog.cohorts.push({ id: e.aggregate_id, name: String(p?.name ?? "cohort"), programId: prog.id });
-      }
+  for (const c of ctx.cohorts) {
+    const pid = c.program_id || programId;
+    if (!programMap.has(pid)) {
+      programMap.set(pid, { id: pid, name: pid || "Programme", cohorts: [] });
     }
+    programMap.get(pid)!.cohorts.push({ id: c.id, name: c.name, programId: pid });
   }
   const programs: ManagedProgram[] = Array.from(programMap.values());
 
-  // Learners the admin can enroll (the tenant's known/seeded learners).
-  const enrollableLearners: EnrollableLearner[] = s.learners.map((l) => ({ id: l.id, name: l.name }));
+  // Learners the admin can enroll (the tenant's live learners).
+  const enrollableLearners: EnrollableLearner[] = ctx.learners.map((l) => ({ id: l.user_id, name: l.name }));
 
-  // ---- live roster for the seeded cohort: enrolled learners + runtime state ----
-  // Enrolled ids = seeded learners ∪ anyone in a LearnerEnrolled event for this cohort.
-  const enrolledIds = new Set<string>(s.learners.map((l) => l.id));
-  for (const e of rawEvents) {
-    if (e.event_type === "LearnerEnrolled") {
-      const p = e.payload as { cohort_id?: string; learner_id?: string };
-      if (p?.cohort_id === s.cohortId && p?.learner_id) enrolledIds.add(p.learner_id);
-    }
-  }
-  const rosterIds = Array.from(enrolledIds);
+  // ---- live roster for the selected cohort: enrolled learners + runtime state ----
+  const rosterIds = rosterLearners.map((l) => l.user_id);
   const rosterStates = await Promise.all(
     rosterIds.map((id) =>
       Promise.all([
@@ -297,36 +282,39 @@ export default async function AdminHome() {
   });
 
   // ---- org structure (programs › cohorts › enrollment + read-only bound syllabi) ----
-  const bound: BoundSyllabus[] = [
-    {
-      title: "Production-grade Go persistence",
-      syllabusId: s.syllabusId,
-      targetType: "COHORT",
-      targetId: s.cohortId,
-      adaptationMode: "GUIDED",
-      author: "R. Köhler",
-      domainName: graph.domainName,
-    },
-  ];
+  const bound: BoundSyllabus[] = syllabus
+    ? [{
+        title: syllabus.title,
+        syllabusId: syllabus.id,
+        targetType: "COHORT",
+        targetId: cohortId,
+        adaptationMode: "GUIDED",
+        author: "Formateur",
+        domainName: graph.domainName,
+      }]
+    : [];
+  const trainerMembers = liveMemberships
+    .filter((m) => m.role === "TRAINER")
+    .map((m, i) => ({ name: nameForUser(m.user_id).name, role: "TRAINER" as const, lead: i === 0 }));
   const enrollment = [
-    { name: "R. Köhler", role: "TRAINER" as const, lead: true },
-    ...s.learners.map((l) => ({ name: l.name, role: "LEARNER" as const })),
+    ...trainerMembers,
+    ...rosterLearners.map((l) => ({ name: l.name, role: "LEARNER" as const })),
   ];
   const cohortNode: CohortNode = {
-    id: s.cohortId,
-    name: s.cohortName,
-    leadName: "R. Köhler",
+    id: cohortId,
+    name: cohortName,
+    leadName: trainerMembers[0]?.name ?? "Formateur",
     enrollment,
-    extraLearners: 14,
+    extraLearners: Math.max(0, ctx.learners.length - rosterLearners.length),
     bound,
   };
   const program: ProgramNode = {
-    id: s.programId,
-    name: "Backend Engineering 2026",
-    cohorts: [cohortNode],
+    id: programId,
+    name: programInfo?.name ?? "Programme",
+    cohorts: cohortId ? [cohortNode] : [],
   };
 
-  // ---- event outbox (real persisted domain events; SyllabusCreated/Bound from seed) ----
+  // ---- event outbox (real persisted domain events) ----
   const events: OutboxEvent[] = rawEvents.map((e) => ({
     id: e.id,
     eventType: e.event_type,
@@ -354,24 +342,24 @@ export default async function AdminHome() {
               RGPD / Données personnelles →
             </Link>
             <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {s.tenantSlug} · TENANT_ADMIN · S. Aalto
+              tenant {ctx.tenantSlug} · TENANT_ADMIN · S. Aalto
             </span>
           </span>
         </div>
 
         <AdminConsole
-          tenantSlug={s.tenantSlug}
-          tenantName={s.tenantSlug === "acme" ? "Acme Learning" : s.tenantSlug}
+          tenantSlug={ctx.tenantSlug}
+          tenantName={ctx.tenantName || ctx.tenantSlug}
           program={program}
           programs={programs}
           enrollableLearners={enrollableLearners}
           roster={roster}
-          rosterCohortName={s.cohortName}
+          rosterCohortName={cohortName}
           memberships={memberships}
           graph={graph}
           matrix={matrix}
           events={events}
-          learnerCount={s.learners.length + cohortNode.extraLearners}
+          learnerCount={analytics ? analytics.learner_count : roster.length}
           avgMastery={analytics ? analytics.average_mastery : null}
           openAlerts={openAlerts.length}
           highAlerts={highAlerts}

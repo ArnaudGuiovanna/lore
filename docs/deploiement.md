@@ -23,8 +23,10 @@ dans [`deploy/docker-compose.prod.yml`](../deploy/docker-compose.prod.yml) :
 | `seed`      | Travail ponctuel de *seed* de démonstration (première exécution seulement, optionnel). |
 | `caddy`     | Reverse proxy qui termine le TLS (HTTPS automatique via Let's Encrypt). |
 
-Le navigateur ne joint **jamais** le backend directement : seuls Caddy (80/443) et
-le port web (3001) sont exposés ; Postgres reste sur le réseau interne Docker.
+Le navigateur ne joint **jamais** le backend directement : seul Caddy (80/443)
+est destiné au trafic public. Le port web direct (3001) est limité à
+`127.0.0.1` pour le diagnostic local ; Postgres reste sur le réseau interne
+Docker.
 
 ---
 
@@ -57,7 +59,8 @@ risque** :
 1. vérifie Docker + le plugin Compose v2 + openssl ;
 2. à la **première exécution**, crée `deploy/.env` à partir de
    [`deploy/.env.example`](../deploy/.env.example) en générant des secrets
-   aléatoires forts (`POSTGRES_PASSWORD`, `JWT_SECRET`, `LORE_BOOTSTRAP_TOKEN`,
+   aléatoires forts (`POSTGRES_SUPERUSER_PASSWORD`, `LORE_DB_PASSWORD`,
+   `JWT_SECRET`, `LORE_BOOTSTRAP_TOKEN`, `LORE_METRICS_TOKEN`,
    `SESSION_SECRET`). Il **n'écrase jamais** un `deploy/.env` existant ;
 3. construit puis démarre la pile (`docker compose ... up -d --build`) ;
 4. affiche l'URL et les commandes utiles.
@@ -65,7 +68,7 @@ risque** :
 Après quelques minutes (build initial), ouvrez :
 
 - **Sans domaine (local) :** `http://localhost` (Caddy sur :80), ou le front
-  directement sur `http://localhost:3001`.
+  directement sur `http://localhost:3001` depuis la machine hôte.
 - **Avec TLS :** réglez `DOMAIN=` dans `deploy/.env` puis relancez `./deploy/up.sh`
   (voir §5).
 
@@ -82,11 +85,14 @@ fichier** ; gardez-le en `0600`.
 
 | Variable | Obligatoire | Rôle |
 |----------|:-----------:|------|
-| `POSTGRES_USER` | non (`lore`) | Utilisateur Postgres. |
+| `POSTGRES_SUPERUSER` | non (`postgres`) | Utilisateur Postgres de maintenance/init. Non utilisé par l'application. |
 | `POSTGRES_DB` | non (`lore`) | Base Postgres. |
-| `POSTGRES_PASSWORD` | **oui** | Mot de passe Postgres. `openssl rand -hex 32`. |
+| `POSTGRES_SUPERUSER_PASSWORD` | **oui** | Mot de passe du superuser Postgres. `openssl rand -hex 32`. |
+| `LORE_DB_USER` | non (`lore`) | Rôle applicatif Postgres créé/forcé en `NOSUPERUSER`. |
+| `LORE_DB_PASSWORD` | **oui** | Mot de passe du rôle applicatif. `openssl rand -hex 32`. |
 | `JWT_SECRET` | **oui** | Signe les JWT par utilisateur (≥ 32 octets). `openssl rand -hex 32`. |
 | `LORE_BOOTSTRAP_TOKEN` | **oui** | Secret opérateur : protège la création de *membership*, l'émission de jetons et l'assistant de première installation. **Doit être identique** côté backend et côté web. `openssl rand -hex 24`. |
+| `LORE_METRICS_TOKEN` | **oui** | Protège `GET /metrics`. À fournir en `Authorization: Bearer …` côté Prometheus. `openssl rand -hex 32`. |
 | `SESSION_SECRET` | **oui** | Signe le cookie de session du front (≥ 32 octets). `openssl rand -hex 32`. |
 | `LORE_LLM_PROVIDER` | non (`instruction_only`) | Fournisseur LLM. `instruction_only` = aucun appel LLM. |
 | `LORE_LLM_MODEL` | non (`tenant-runtime`) | Modèle par défaut. |
@@ -129,6 +135,13 @@ Caddy ([`deploy/Caddyfile`](../deploy/Caddyfile)) obtient un certificat Let's
 Encrypt automatiquement, sert `https://DOMAIN` et redirige HTTP → HTTPS. Avec
 `DOMAIN` vide, Caddy sert du HTTP simple sur :80 (usage local).
 
+Caddy ajoute aussi les en-têtes de sécurité de base :
+
+- `Strict-Transport-Security` uniquement sur HTTPS ;
+- `Content-Security-Policy` restrictive pour l'application Next.js ;
+- `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` et
+  `Permissions-Policy`.
+
 ---
 
 ## 6. LLM (optionnel)
@@ -167,6 +180,38 @@ make restore-db FILE=backups/lore-20260101-120000.sql.gz
 > La restauration **écrase** les données existantes. Pensez aussi à sauvegarder le
 > volume `web-gen` (ou la table `lore_web_credentials` si `DATABASE_URL` est
 > défini) pour conserver les identifiants de connexion, et bien sûr `deploy/.env`.
+
+Routine minimale recommandée :
+
+1. Planifier `make backup-db` hors du dépôt, par exemple via cron :
+   ```cron
+   0 2 * * * cd /srv/lore && make backup-db >> /var/log/lore-backup.log 2>&1
+   ```
+2. Copier `backups/`, `deploy/.env` et le volume `web-gen` vers un stockage
+   externe chiffré et versionné.
+3. Tester une restauration complète au moins mensuellement sur une instance de
+   préproduction : base Postgres, `deploy/.env`, puis volume `web-gen` si utilisé.
+4. Conserver des sauvegardes couvrant votre obligation contractuelle/RGPD, puis
+   purger automatiquement les archives expirées.
+
+Pour le volume `web-gen`, le nom Docker exact dépend du nom de projet Compose.
+Identifiez-le avec :
+
+```sh
+docker volume ls | grep web-gen
+```
+
+Exportez ensuite le volume choisi vers une archive :
+
+```sh
+docker run --rm \
+  -v <volume-web-gen>:/web-gen:ro \
+  -v "$PWD/backups":/backups \
+  alpine:3.20 sh -c 'tar -C /web-gen -czf /backups/lore-web-gen-$(date +%Y%m%d-%H%M%S).tar.gz .'
+```
+
+Pour restaurer ce volume, arrêtez d'abord la pile, restaurez l'archive dans le
+volume cible, puis relancez `./deploy/up.sh`.
 
 ---
 
@@ -215,8 +260,9 @@ une **sauvegarde (`make backup-db`) avant toute montée de version**.
 ## 11. Checklist de sécurité (à faire avant tout usage réel)
 
 - [ ] **Secrets générés** : si vous créez `deploy/.env` à la main, générez
-      `JWT_SECRET`, `SESSION_SECRET`, `POSTGRES_PASSWORD` avec `openssl rand -hex 32`
-      et `LORE_BOOTSTRAP_TOKEN` avec `openssl rand -hex 24`. `up.sh` le fait pour vous.
+      `JWT_SECRET`, `SESSION_SECRET`, `POSTGRES_SUPERUSER_PASSWORD`,
+      `LORE_DB_PASSWORD`, `LORE_METRICS_TOKEN` avec `openssl rand -hex 32` et
+      `LORE_BOOTSTRAP_TOKEN` avec `openssl rand -hex 24`. `up.sh` le fait pour vous.
 - [ ] **Rotation** de `JWT_SECRET`, `LORE_BOOTSTRAP_TOKEN` et `SESSION_SECRET`
       s'ils ont déjà été partagés ou copiés depuis un exemple.
 - [ ] **`LORE_SHOW_DEMO_LOGINS=0`** (défaut) : aucun identifiant de démonstration
@@ -229,17 +275,56 @@ une **sauvegarde (`make backup-db`) avant toute montée de version**.
       contraints de définir leur propre mot de passe (comportement par défaut).
 - [ ] `deploy/.env` en **`0600`** et hors du dépôt git.
 - [ ] **Postgres non publié** sur l'hôte (réseau interne Compose uniquement) —
-      seuls Caddy (80/443) et le web (3001) sont exposés.
+      seul Caddy (80/443) est destiné au réseau public ; le web (3001) reste
+      en boucle locale.
+- [ ] **En-têtes Caddy** conservés : HSTS en HTTPS, CSP, anti-framing et
+      `nosniff`.
+- [ ] **Prometheus** configuré avec `LORE_METRICS_TOKEN`; ne jamais exposer le
+      backend directement sur Internet.
 - [ ] **Sauvegardes** programmées (`make backup-db`) et restauration testée.
+- [ ] **Divulgation sécurité** : procédure et contact local documentés à partir de
+      [`SECURITY.md`](../SECURITY.md).
 
 ---
 
 ## 12. Observabilité (optionnel)
 
-Le backend expose des métriques Prometheus sur `GET /metrics` (non
-authentifié, à protéger au niveau réseau). Le traçage OpenTelemetry est
-désactivé par défaut ; activez-le via les variables OTLP standard
+Le backend expose des métriques Prometheus sur `GET /metrics`. En production,
+`LORE_METRICS_TOKEN` est obligatoire et le scrape doit envoyer :
+
+```yaml
+authorization:
+  type: Bearer
+  credentials: "<LORE_METRICS_TOKEN>"
+```
+
+Le backend n'est pas publié par le compose prod ; gardez cette règle réseau et
+faites scraper Prometheus depuis le même réseau privé, un tunnel VPN, ou un
+reverse proxy interne explicitement protégé.
+
+Le traçage OpenTelemetry est désactivé par défaut ; activez-le via les variables OTLP standard
 (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`). Détails dans le
 [README](../README.md#observability).
-</content>
-</invoke>
+
+---
+
+## 13. Haute disponibilité et limites actuelles
+
+Le déploiement fourni est volontairement **mono-noeud** : un hôte Docker, une
+base Postgres locale, un backend, un front et Caddy. C'est exploitable pour une
+petite structure si les sauvegardes et restaurations sont testées, mais ce n'est
+pas une architecture haute disponibilité.
+
+Limites à connaître :
+
+- une panne de l'hôte coupe l'accès jusqu'à restauration ou redémarrage ;
+- Postgres n'est pas répliqué par défaut ;
+- les volumes Docker (`pgdata`, `web-gen`, `caddy_data`) doivent être sauvegardés ;
+- aucun basculement automatique n'est fourni ;
+- les mises à jour doivent être précédées d'une sauvegarde et planifiées hors
+  session critique.
+
+Pour une exploitation plus robuste, placez Postgres sur un service managé ou un
+cluster répliqué, stockez les sauvegardes hors site, utilisez un load balancer
+TLS devant plusieurs frontends, et documentez une procédure de reprise avec RTO
+et RPO validés par test.

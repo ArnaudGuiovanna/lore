@@ -146,6 +146,10 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 		},
 		CreatedAt: now,
 	}
+	if activityType == core.ActivityAssessment {
+		instruction.Context["assessment_kind"] = assessmentKindCorrectedMinimal
+		instruction.Context["assessment_items"] = assessmentItemsFor(selection.Concept, graph)
+	}
 	if selection.ActiveMisconception {
 		instruction.Context["misconception"] = map[string]any{
 			"id":          selection.Misconception.ID,

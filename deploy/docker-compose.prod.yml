@@ -19,26 +19,44 @@
 # TLS: set DOMAIN=lore.example.org in deploy/.env and point that DNS A/AAAA record
 # at this host; Caddy will obtain a certificate automatically. With DOMAIN unset
 # (the default), Caddy serves plain HTTP on :80 for local/no-domain use, and you
-# can also reach the web app directly on http://localhost:3001.
+# can also reach the web app directly on http://localhost:3001 from the host.
 
 services:
   postgres:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-lore}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in deploy/.env}
       POSTGRES_DB: ${POSTGRES_DB:-lore}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lore} -d ${POSTGRES_DB:-lore}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-lore}"]
       interval: 5s
       timeout: 5s
       retries: 20
     # Not published to the host: only reachable on the internal compose network.
     expose:
       - "5432"
+
+  postgres-app-role:
+    image: postgres:16
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-lore}
+      POSTGRES_APP_USER: ${LORE_DB_USER:-lore}
+      POSTGRES_APP_PASSWORD: ${LORE_DB_PASSWORD:?set LORE_DB_PASSWORD in deploy/.env}
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    command: ["/bin/sh", "/docker-entrypoint-initdb.d/001_lore_app_user.sh"]
 
   lore:
     build:
@@ -50,19 +68,21 @@ services:
       # Durable Postgres store. Auto-migrates the schema on boot (idempotent).
       STORE_DRIVER: postgres
       LORE_AUTO_MIGRATE: "on"
-      LORE_MIGRATION_PATH: /db/migrations/000001_init.sql
-      DATABASE_URL: postgres://${POSTGRES_USER:-lore}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lore}?sslmode=disable
+      LORE_MIGRATION_PATH: /db/migrations
+      DATABASE_URL: postgres://${LORE_DB_USER:-lore}:${LORE_DB_PASSWORD:?set LORE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-lore}?sslmode=disable
+      LORE_ENV: production
       # JWT mode. JWT_SECRET signs per-user tokens; the bootstrap token gates
       # membership creation and token minting. ROTATE BOTH for any real use.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env}
       JWT_ALG: HS256
       LORE_BOOTSTRAP_TOKEN: ${LORE_BOOTSTRAP_TOKEN:?set LORE_BOOTSTRAP_TOKEN in deploy/.env}
+      LORE_METRICS_TOKEN: ${LORE_METRICS_TOKEN:?set LORE_METRICS_TOKEN in deploy/.env}
       # Runtime works without an LLM (instruction_only); set these to enable generation.
       LORE_LLM_PROVIDER: ${LORE_LLM_PROVIDER:-instruction_only}
       LORE_LLM_MODEL: ${LORE_LLM_MODEL:-tenant-runtime}
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-app-role:
+        condition: service_completed_successfully
     # The backend image is distroless (no shell/wget/curl), so an exec-based
     # healthcheck isn't possible here. Readiness is enforced downstream: the `seed`
     # job polls /health before seeding, and `web` waits for `seed` to complete.
@@ -126,14 +146,15 @@ services:
       LORE_SHOW_DEMO_LOGINS: ${LORE_SHOW_DEMO_LOGINS:-0}
       # Forward-compatible: a durable Postgres-backed credential store can read this.
       # Today the credential store is file-backed in the durable `web-gen` volume.
-      DATABASE_URL: postgres://${POSTGRES_USER:-lore}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lore}?sslmode=disable
+      DATABASE_URL: postgres://${LORE_DB_USER:-lore}:${LORE_DB_PASSWORD:?set LORE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-lore}?sslmode=disable
       PORT: "3001"
     # Durable credential store + seed ids. Keep this volume to keep your logins.
     volumes:
       - web-gen:/app/.gen
-    # Direct access for local/no-domain use (Caddy proxies this in front for TLS).
+    # Loopback-only direct access for local/no-domain debugging. Public traffic
+    # should go through Caddy so TLS and security headers are applied.
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
 
   caddy:
     image: caddy:2

@@ -7,7 +7,7 @@ import "server-only";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { Pool } from "pg";
-import { seed } from "@/lib/config";
+import { requireCurrentTenantId } from "@/lib/tenant-context";
 
 export interface ErasureRecord {
   id: string;
@@ -80,7 +80,7 @@ export async function recordErasure(input: {
   attendanceRowsAnonymized: number;
   credentialAnonymized: boolean;
 }): Promise<ErasureRecord> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   const rec: ErasureRecord = {
     id: newId(),
     tenantId,
@@ -111,7 +111,7 @@ export async function recordErasure(input: {
 
 // Has this subject already been erased? (Used to surface a tombstone in the UI.)
 export async function listErasures(): Promise<ErasureRecord[]> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   if (usePg()) {
     await ensureReady();
     const { rows } = await pool().query<ErasureRecord & { created_at: string; subject_user_id: string; actor_user_id: string; redacted_email: string | null; attendance_rows_anonymized: number; credential_anonymized: boolean; tenant_id: string }>(

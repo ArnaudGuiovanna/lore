@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { seed } from "@/lib/config";
+import { cohortForLearner, loadTenantContext } from "@/lib/tenant-context";
 import { Metric } from "@/components/ui/Metric";
 import { Pill } from "@/components/Mark";
 import { fmtDate, fmtPct } from "@/lib/format";
@@ -25,12 +25,16 @@ function calibration(st: LearnerState): { gap: number; label: string } {
 }
 
 export default async function ProgressScreen() {
-  const s = seed();
   const learner = await activeLearner();
-  const [statesRes, graphRes] = await Promise.all([
+  const [ctx, statesRes] = await Promise.all([
+    loadTenantContext(),
     loadStates(learner.id),
-    loadDomainGraph(s.domainId),
   ]);
+  const statesForDomain = statesRes.ok ? statesRes.data : [];
+  const domainId = statesForDomain[0]?.domain_id || ctx.primaryDomain?.id || "";
+  const graphRes = await loadDomainGraph(domainId);
+  const cohortName = cohortForLearner(ctx, learner.id)?.name || ctx.primaryCohort?.name || "votre groupe";
+  const syllabusTitle = ctx.primarySyllabus?.title || BOUND_SYLLABUS_TITLE;
 
   const header = (
     <div className="col" style={{ gap: 8 }}>
@@ -38,7 +42,7 @@ export default async function ProgressScreen() {
       <h1 className="standfirst">Votre parcours — et où vous en êtes.</h1>
       <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
         <span className="mono quiet" style={{ fontSize: 11 }}>
-          généré à partir du syllabus de {s.cohortName} · {BOUND_SYLLABUS_TITLE}
+          généré à partir du syllabus de {cohortName} · {syllabusTitle}
         </span>
       </div>
       <p className="soft" style={{ maxWidth: "62ch", fontSize: 14, lineHeight: 1.6 }}>

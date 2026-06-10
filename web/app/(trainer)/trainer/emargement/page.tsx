@@ -1,18 +1,10 @@
 import Link from "next/link";
-import { api, tpath } from "@/lib/api";
-import { seed } from "@/lib/config";
 import { listCredentials } from "@/lib/auth/store";
 import { getAttendance, listSessions } from "@/lib/attendance/store";
-import type { LoreEvent } from "@/lib/types";
+import { learnersForCohort, loadTenantContext } from "@/lib/tenant-context";
 import { Emargement, type RosterEntry } from "@/components/trainer/Emargement";
 
 export const dynamic = "force-dynamic";
-
-type RawEvent = LoreEvent & { occurred_at?: string };
-
-function asArray<T>(r: { ok: boolean; data?: unknown }): T[] {
-  return r.ok && Array.isArray(r.data) ? (r.data as T[]) : [];
-}
 
 function today(): string {
   const d = new Date();
@@ -20,50 +12,43 @@ function today(): string {
 }
 
 // Trainer émargement surface: pick a cohort session date and mark each enrolled
-// learner present/absent. The roster is the seeded learners joined with any live
-// LearnerEnrolled events for the cohort (the backend has no GET for enrollment).
+// learner present/absent. The roster comes from backend learner/enrollment lists.
 export default async function EmargementPage({
   searchParams,
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
-  const s = seed();
+  const ctx = await loadTenantContext();
+  const cohort = ctx.primaryCohort;
+  const cohortId = cohort?.id ?? "";
+  const cohortName = cohort?.name ?? "groupe";
+  const rosterLearners = learnersForCohort(ctx, cohortId);
   const sp = await searchParams;
   const rawDate = (sp.date || "").trim();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : today();
 
-  // Enrolled ids = seeded learners ∪ anyone in a LearnerEnrolled event for this cohort.
-  const outboxRes = await api.get<RawEvent[]>(tpath("/events/outbox"));
-  const enrolledIds = new Set<string>(s.learners.map((l) => l.id));
-  for (const e of asArray<RawEvent>(outboxRes)) {
-    if (e.event_type === "LearnerEnrolled") {
-      const p = e.payload as { cohort_id?: string; learner_id?: string };
-      if (p?.cohort_id === s.cohortId && p?.learner_id) enrolledIds.add(p.learner_id);
-    }
-  }
-
-  // Human names: credential store first, then the seeded roster.
+  // Human names: credential store first, then the backend learner list.
   const creds = await listCredentials();
   const nameFor = (id: string): string =>
-    creds.find((c) => c.userId === id)?.name ?? s.learners.find((l) => l.id === id)?.name ?? id;
+    creds.find((c) => c.userId === id)?.name ?? rosterLearners.find((l) => l.user_id === id)?.name ?? id;
 
   // Existing persisted presence for the selected date (pre-fill the toggles).
-  const existing = await getAttendance(s.cohortId, date);
+  const existing = cohortId ? await getAttendance(cohortId, date) : [];
   const byLearner = new Map(existing.map((r) => [r.learnerId, r]));
 
-  const roster: RosterEntry[] = Array.from(enrolledIds)
-    .map((id): RosterEntry => {
-      const rec = byLearner.get(id);
+  const roster: RosterEntry[] = rosterLearners
+    .map((learner): RosterEntry => {
+      const rec = byLearner.get(learner.user_id);
       return {
-        learnerId: id,
-        name: nameFor(id),
+        learnerId: learner.user_id,
+        name: nameFor(learner.user_id),
         present: rec ? rec.present : null,
         signedAt: rec?.signedAt ?? null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
-  const pastSessions = await listSessions(s.cohortId);
+  const pastSessions = cohortId ? await listSessions(cohortId) : [];
 
   return (
     <main style={{ minHeight: "100vh" }}>
@@ -73,7 +58,7 @@ export default async function EmargementPage({
             ← Console formateur
           </Link>
           <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-            tenant {s.tenantSlug} · TRAINER · émargement
+            tenant {ctx.tenantSlug} · TRAINER · émargement
           </span>
         </div>
 
@@ -83,8 +68,8 @@ export default async function EmargementPage({
         </header>
 
         <Emargement
-          cohortId={s.cohortId}
-          cohortName={s.cohortName}
+          cohortId={cohortId}
+          cohortName={cohortName}
           initialDate={date}
           roster={roster}
           pastSessions={pastSessions}

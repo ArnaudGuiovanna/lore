@@ -23,6 +23,8 @@ type MemoryStore struct {
 	programs    map[string]core.Program
 	cohorts     map[string]core.Cohort
 	enrollments map[string]core.CohortEnrollment
+	sessions    map[string]core.TrainingSession
+	adminAudit  map[string]core.AdminAuditLog
 	syllabi     map[string]core.Syllabus
 	bindings    map[string]core.SyllabusBinding
 
@@ -45,6 +47,8 @@ type MemoryStore struct {
 	idempotency    map[string]core.IdempotencyRecord
 }
 
+const maxTrackedActivityDuration = 4 * time.Hour
+
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		tenants:        map[string]core.Tenant{},
@@ -53,6 +57,8 @@ func NewMemoryStore() *MemoryStore {
 		programs:       map[string]core.Program{},
 		cohorts:        map[string]core.Cohort{},
 		enrollments:    map[string]core.CohortEnrollment{},
+		sessions:       map[string]core.TrainingSession{},
+		adminAudit:     map[string]core.AdminAuditLog{},
 		syllabi:        map[string]core.Syllabus{},
 		bindings:       map[string]core.SyllabusBinding{},
 		domains:        map[string]core.Domain{},
@@ -115,12 +121,28 @@ func (s *MemoryStore) GetTenant(_ context.Context, tenantID string) (core.Tenant
 	return tenant, nil
 }
 
+func (s *MemoryStore) ListTenants(_ context.Context) ([]core.Tenant, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	tenants := make([]core.Tenant, 0, len(s.tenants))
+	for _, tenant := range s.tenants {
+		tenants = append(tenants, tenant)
+	}
+	sort.Slice(tenants, func(i, j int) bool {
+		if tenants[i].CreatedAt.Equal(tenants[j].CreatedAt) {
+			return tenants[i].ID < tenants[j].ID
+		}
+		return tenants[i].CreatedAt.Before(tenants[j].CreatedAt)
+	})
+	return tenants, nil
+}
+
 func (s *MemoryStore) CreateUser(_ context.Context, email, name string) (core.User, error) {
 	if strings.TrimSpace(email) == "" {
 		return core.User{}, fmt.Errorf("%w: email is required", core.ErrInvalidInput)
 	}
 	now := time.Now().UTC()
-	user := core.User{ID: ids.New(), Email: strings.TrimSpace(email), Name: strings.TrimSpace(name), Status: "ACTIVE", CreatedAt: now}
+	user := core.User{ID: ids.New(), Email: strings.TrimSpace(email), Name: strings.TrimSpace(name), Status: "ACTIVE", CreatedAt: now, UpdatedAt: now}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, existing := range s.users {
@@ -132,7 +154,7 @@ func (s *MemoryStore) CreateUser(_ context.Context, email, name string) (core.Us
 	return user, nil
 }
 
-func (s *MemoryStore) AddMembership(_ context.Context, tenantID, userID string, role core.Role) (core.Membership, error) {
+func (s *MemoryStore) AddMembership(_ context.Context, tenantID, userID string, role core.Role, actorUserID ...string) (core.Membership, error) {
 	if role == "" {
 		role = core.RoleLearner
 	}
@@ -148,15 +170,21 @@ func (s *MemoryStore) AddMembership(_ context.Context, tenantID, userID string, 
 		return core.Membership{}, fmt.Errorf("%w: user", core.ErrNotFound)
 	}
 	_, existed := s.memberships[key(tenantID, userID)]
-	membership := core.Membership{TenantID: tenantID, UserID: userID, Role: role, Status: "ACTIVE", CreatedAt: time.Now().UTC()}
+	now := time.Now().UTC()
+	createdAt := now
+	if existing, ok := s.memberships[key(tenantID, userID)]; ok {
+		createdAt = existing.CreatedAt
+	}
+	membership := core.Membership{TenantID: tenantID, UserID: userID, Role: role, Status: "ACTIVE", CreatedAt: createdAt, UpdatedAt: now}
 	s.memberships[key(tenantID, userID)] = membership
 	if !existed {
 		user := s.users[userID]
 		event := memoryEvent(tenantID, "UserCreated", "user", userID, membership.CreatedAt, map[string]any{"user_id": userID, "email": user.Email})
 		s.events[key(tenantID, event.ID)] = event
 	}
-	event := memoryEvent(tenantID, "MembershipChanged", "membership", userID, membership.CreatedAt, map[string]any{"user_id": userID, "role": role})
+	event := memoryEvent(tenantID, "MembershipChanged", "membership", userID, now, map[string]any{"user_id": userID, "role": role})
 	s.events[key(tenantID, event.ID)] = event
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "membership.upsert", "membership", userID, map[string]any{"role": string(role)}, now)
 	return membership, nil
 }
 
@@ -166,7 +194,7 @@ func (s *MemoryStore) ListMemberships(_ context.Context, tenantID string) ([]cor
 	if _, ok := s.tenants[tenantID]; !ok {
 		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
 	}
-	var result []core.Membership
+	result := make([]core.Membership, 0)
 	for _, membership := range s.memberships {
 		if membership.TenantID == tenantID {
 			result = append(result, membership)
@@ -176,7 +204,143 @@ func (s *MemoryStore) ListMemberships(_ context.Context, tenantID string) ([]cor
 	return result, nil
 }
 
-func (s *MemoryStore) CreateProgram(_ context.Context, tenantID, name string) (core.Program, error) {
+func (s *MemoryStore) ListTenantUsers(_ context.Context, tenantID string) ([]core.TenantUser, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	users := make([]core.TenantUser, 0)
+	for _, membership := range s.memberships {
+		if membership.TenantID != tenantID {
+			continue
+		}
+		user, ok := s.users[membership.UserID]
+		if !ok {
+			continue
+		}
+		users = append(users, tenantUserFrom(user, membership))
+	}
+	sortTenantUsers(users)
+	return users, nil
+}
+
+func (s *MemoryStore) UpdateTenantUser(_ context.Context, tenantID, userID, email, name, status string, actorUserID ...string) (core.TenantUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	membership, ok := s.memberships[key(tenantID, userID)]
+	if !ok {
+		return core.TenantUser{}, fmt.Errorf("%w: membership", core.ErrNotFound)
+	}
+	user, ok := s.users[userID]
+	if !ok {
+		return core.TenantUser{}, fmt.Errorf("%w: user", core.ErrNotFound)
+	}
+	if trimmed := strings.TrimSpace(email); trimmed != "" && !strings.EqualFold(trimmed, user.Email) {
+		for _, existing := range s.users {
+			if existing.ID != userID && strings.EqualFold(existing.Email, trimmed) {
+				return core.TenantUser{}, fmt.Errorf("%w: user email already exists", core.ErrConflict)
+			}
+		}
+		user.Email = trimmed
+	}
+	if strings.TrimSpace(name) != "" {
+		user.Name = strings.TrimSpace(name)
+	}
+	if strings.TrimSpace(status) != "" {
+		normalized, err := normalizeAdminStatus(status)
+		if err != nil {
+			return core.TenantUser{}, err
+		}
+		user.Status = normalized
+		if normalized == "ARCHIVED" && user.ArchivedAt == nil {
+			now := time.Now().UTC()
+			user.ArchivedAt = &now
+		}
+		if normalized != "ARCHIVED" {
+			user.ArchivedAt = nil
+		}
+	}
+	now := time.Now().UTC()
+	user.UpdatedAt = now
+	s.users[userID] = user
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "user.update", "user", userID, map[string]any{"email": user.Email, "status": user.Status}, now)
+	return tenantUserFrom(user, membership), nil
+}
+
+func (s *MemoryStore) ArchiveTenantUser(_ context.Context, tenantID, userID string, actorUserID ...string) (core.TenantUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	membership, ok := s.memberships[key(tenantID, userID)]
+	if !ok {
+		return core.TenantUser{}, fmt.Errorf("%w: membership", core.ErrNotFound)
+	}
+	user, ok := s.users[userID]
+	if !ok {
+		return core.TenantUser{}, fmt.Errorf("%w: user", core.ErrNotFound)
+	}
+	now := time.Now().UTC()
+	membership.Status = "ARCHIVED"
+	membership.UpdatedAt = now
+	if membership.ArchivedAt == nil {
+		membership.ArchivedAt = &now
+	}
+	s.memberships[key(tenantID, userID)] = membership
+	activeElsewhere := false
+	for _, other := range s.memberships {
+		if other.UserID == userID && other.TenantID != tenantID && other.Status == "ACTIVE" {
+			activeElsewhere = true
+			break
+		}
+	}
+	if !activeElsewhere {
+		user.Status = "ARCHIVED"
+		user.UpdatedAt = now
+		if user.ArchivedAt == nil {
+			user.ArchivedAt = &now
+		}
+		s.users[userID] = user
+	}
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "user.archive", "user", userID, nil, now)
+	return tenantUserFrom(user, membership), nil
+}
+
+func (s *MemoryStore) ListLearners(_ context.Context, tenantID string) ([]core.Learner, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	learners := make([]core.Learner, 0)
+	for _, membership := range s.memberships {
+		if membership.TenantID != tenantID || membership.Role != core.RoleLearner {
+			continue
+		}
+		user, ok := s.users[membership.UserID]
+		if !ok {
+			continue
+		}
+		learners = append(learners, core.Learner{
+			TenantID:            tenantID,
+			UserID:              user.ID,
+			Email:               user.Email,
+			Name:                user.Name,
+			UserStatus:          user.Status,
+			MembershipStatus:    membership.Status,
+			UserCreatedAt:       user.CreatedAt,
+			MembershipCreatedAt: membership.CreatedAt,
+		})
+	}
+	sort.Slice(learners, func(i, j int) bool {
+		if strings.EqualFold(learners[i].Email, learners[j].Email) {
+			return learners[i].UserID < learners[j].UserID
+		}
+		return strings.ToLower(learners[i].Email) < strings.ToLower(learners[j].Email)
+	})
+	return learners, nil
+}
+
+func (s *MemoryStore) CreateProgram(_ context.Context, tenantID, name string, actorUserID ...string) (core.Program, error) {
 	if strings.TrimSpace(name) == "" {
 		return core.Program{}, fmt.Errorf("%w: program name is required", core.ErrInvalidInput)
 	}
@@ -185,14 +349,85 @@ func (s *MemoryStore) CreateProgram(_ context.Context, tenantID, name string) (c
 	if _, ok := s.tenants[tenantID]; !ok {
 		return core.Program{}, fmt.Errorf("%w: tenant", core.ErrNotFound)
 	}
-	program := core.Program{TenantID: tenantID, ID: ids.New(), Name: strings.TrimSpace(name), CreatedAt: time.Now().UTC()}
+	now := time.Now().UTC()
+	program := core.Program{TenantID: tenantID, ID: ids.New(), Name: strings.TrimSpace(name), Status: "ACTIVE", CreatedAt: now, UpdatedAt: now}
 	s.programs[key(tenantID, program.ID)] = program
 	event := memoryEvent(tenantID, "ProgramCreated", "program", program.ID, program.CreatedAt, map[string]any{"name": program.Name})
 	s.events[key(tenantID, event.ID)] = event
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "program.create", "program", program.ID, map[string]any{"name": program.Name}, now)
 	return program, nil
 }
 
-func (s *MemoryStore) CreateCohort(_ context.Context, tenantID, programID, name string, start, end time.Time) (core.Cohort, error) {
+func (s *MemoryStore) ListPrograms(_ context.Context, tenantID string) ([]core.Program, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	programs := make([]core.Program, 0)
+	for _, program := range s.programs {
+		if program.TenantID == tenantID {
+			programs = append(programs, program)
+		}
+	}
+	sort.Slice(programs, func(i, j int) bool {
+		if programs[i].CreatedAt.Equal(programs[j].CreatedAt) {
+			return programs[i].ID < programs[j].ID
+		}
+		return programs[i].CreatedAt.Before(programs[j].CreatedAt)
+	})
+	return programs, nil
+}
+
+func (s *MemoryStore) UpdateProgram(_ context.Context, tenantID, programID, name, status string, actorUserID ...string) (core.Program, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	program, ok := s.programs[key(tenantID, programID)]
+	if !ok {
+		return core.Program{}, fmt.Errorf("%w: program", core.ErrNotFound)
+	}
+	if strings.TrimSpace(name) != "" {
+		program.Name = strings.TrimSpace(name)
+	}
+	if strings.TrimSpace(status) != "" {
+		normalized, err := normalizeAdminStatus(status)
+		if err != nil {
+			return core.Program{}, err
+		}
+		program.Status = normalized
+		if normalized != "ARCHIVED" {
+			program.ArchivedAt = nil
+		}
+	}
+	now := time.Now().UTC()
+	program.UpdatedAt = now
+	if program.Status == "ARCHIVED" && program.ArchivedAt == nil {
+		program.ArchivedAt = &now
+	}
+	s.programs[key(tenantID, programID)] = program
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "program.update", "program", programID, map[string]any{"name": program.Name, "status": program.Status}, now)
+	return program, nil
+}
+
+func (s *MemoryStore) ArchiveProgram(_ context.Context, tenantID, programID string, actorUserID ...string) (core.Program, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	program, ok := s.programs[key(tenantID, programID)]
+	if !ok {
+		return core.Program{}, fmt.Errorf("%w: program", core.ErrNotFound)
+	}
+	now := time.Now().UTC()
+	program.Status = "ARCHIVED"
+	program.UpdatedAt = now
+	if program.ArchivedAt == nil {
+		program.ArchivedAt = &now
+	}
+	s.programs[key(tenantID, programID)] = program
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "program.archive", "program", programID, nil, now)
+	return program, nil
+}
+
+func (s *MemoryStore) CreateCohort(_ context.Context, tenantID, programID, name string, start, end time.Time, actorUserID ...string) (core.Cohort, error) {
 	if strings.TrimSpace(name) == "" {
 		return core.Cohort{}, fmt.Errorf("%w: cohort name is required", core.ErrInvalidInput)
 	}
@@ -206,24 +441,315 @@ func (s *MemoryStore) CreateCohort(_ context.Context, tenantID, programID, name 
 			return core.Cohort{}, fmt.Errorf("%w: program", core.ErrNotFound)
 		}
 	}
-	cohort := core.Cohort{TenantID: tenantID, ID: ids.New(), ProgramID: programID, Name: strings.TrimSpace(name), StartDate: start, EndDate: end, CreatedAt: time.Now().UTC()}
+	now := time.Now().UTC()
+	cohort := core.Cohort{TenantID: tenantID, ID: ids.New(), ProgramID: programID, Name: strings.TrimSpace(name), StartDate: start, EndDate: end, Status: "ACTIVE", CreatedAt: now, UpdatedAt: now}
 	s.cohorts[key(tenantID, cohort.ID)] = cohort
 	event := memoryEvent(tenantID, "CohortCreated", "cohort", cohort.ID, cohort.CreatedAt, map[string]any{"program_id": programID, "name": cohort.Name})
 	s.events[key(tenantID, event.ID)] = event
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "cohort.create", "cohort", cohort.ID, map[string]any{"program_id": programID, "name": cohort.Name}, now)
 	return cohort, nil
 }
 
-func (s *MemoryStore) EnrollLearner(_ context.Context, tenantID, cohortID, learnerID string) (core.CohortEnrollment, error) {
+func (s *MemoryStore) ListCohorts(_ context.Context, tenantID string) ([]core.Cohort, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	cohorts := make([]core.Cohort, 0)
+	for _, cohort := range s.cohorts {
+		if cohort.TenantID == tenantID {
+			cohorts = append(cohorts, cohort)
+		}
+	}
+	sort.Slice(cohorts, func(i, j int) bool {
+		if cohorts[i].CreatedAt.Equal(cohorts[j].CreatedAt) {
+			return cohorts[i].ID < cohorts[j].ID
+		}
+		return cohorts[i].CreatedAt.Before(cohorts[j].CreatedAt)
+	})
+	return cohorts, nil
+}
+
+func (s *MemoryStore) UpdateCohort(_ context.Context, tenantID, cohortID, programID, name, status string, start, end time.Time, actorUserID ...string) (core.Cohort, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cohort, ok := s.cohorts[key(tenantID, cohortID)]
+	if !ok {
+		return core.Cohort{}, fmt.Errorf("%w: cohort", core.ErrNotFound)
+	}
+	if strings.TrimSpace(programID) != "" {
+		if _, ok := s.programs[key(tenantID, programID)]; !ok {
+			return core.Cohort{}, fmt.Errorf("%w: program", core.ErrNotFound)
+		}
+		cohort.ProgramID = strings.TrimSpace(programID)
+	}
+	if strings.TrimSpace(name) != "" {
+		cohort.Name = strings.TrimSpace(name)
+	}
+	if !start.IsZero() {
+		cohort.StartDate = start
+	}
+	if !end.IsZero() {
+		cohort.EndDate = end
+	}
+	if strings.TrimSpace(status) != "" {
+		normalized, err := normalizeAdminStatus(status)
+		if err != nil {
+			return core.Cohort{}, err
+		}
+		cohort.Status = normalized
+		if normalized != "ARCHIVED" {
+			cohort.ArchivedAt = nil
+		}
+	}
+	now := time.Now().UTC()
+	cohort.UpdatedAt = now
+	if cohort.Status == "ARCHIVED" && cohort.ArchivedAt == nil {
+		cohort.ArchivedAt = &now
+	}
+	s.cohorts[key(tenantID, cohortID)] = cohort
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "cohort.update", "cohort", cohortID, map[string]any{"program_id": cohort.ProgramID, "status": cohort.Status}, now)
+	return cohort, nil
+}
+
+func (s *MemoryStore) ArchiveCohort(_ context.Context, tenantID, cohortID string, actorUserID ...string) (core.Cohort, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cohort, ok := s.cohorts[key(tenantID, cohortID)]
+	if !ok {
+		return core.Cohort{}, fmt.Errorf("%w: cohort", core.ErrNotFound)
+	}
+	now := time.Now().UTC()
+	cohort.Status = "ARCHIVED"
+	cohort.UpdatedAt = now
+	if cohort.ArchivedAt == nil {
+		cohort.ArchivedAt = &now
+	}
+	s.cohorts[key(tenantID, cohortID)] = cohort
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "cohort.archive", "cohort", cohortID, nil, now)
+	return cohort, nil
+}
+
+func (s *MemoryStore) EnrollLearner(_ context.Context, tenantID, cohortID, learnerID string, actorUserID ...string) (core.CohortEnrollment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.cohorts[key(tenantID, cohortID)]; !ok {
 		return core.CohortEnrollment{}, fmt.Errorf("%w: cohort", core.ErrNotFound)
 	}
-	enrollment := core.CohortEnrollment{TenantID: tenantID, CohortID: cohortID, LearnerID: learnerID, Status: "ACTIVE", CreatedAt: time.Now().UTC()}
+	now := time.Now().UTC()
+	createdAt := now
+	if existing, ok := s.enrollments[key(tenantID, cohortID, learnerID)]; ok {
+		createdAt = existing.CreatedAt
+	}
+	enrollment := core.CohortEnrollment{TenantID: tenantID, CohortID: cohortID, LearnerID: learnerID, Status: "ACTIVE", CreatedAt: createdAt, UpdatedAt: now}
 	s.enrollments[key(tenantID, cohortID, learnerID)] = enrollment
 	event := memoryEvent(tenantID, "LearnerEnrolled", "cohort_enrollment", cohortID, enrollment.CreatedAt, map[string]any{"cohort_id": cohortID, "learner_id": learnerID})
 	s.events[key(tenantID, event.ID)] = event
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "enrollment.upsert", "cohort_enrollment", cohortID+":"+learnerID, map[string]any{"cohort_id": cohortID, "learner_id": learnerID}, now)
 	return enrollment, nil
+}
+
+func (s *MemoryStore) ListCohortEnrollments(_ context.Context, tenantID, cohortID string) ([]core.CohortEnrollment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.cohorts[key(tenantID, cohortID)]; !ok {
+		return nil, fmt.Errorf("%w: cohort", core.ErrNotFound)
+	}
+	enrollments := make([]core.CohortEnrollment, 0)
+	for _, enrollment := range s.enrollments {
+		if enrollment.TenantID == tenantID && enrollment.CohortID == cohortID {
+			enrollments = append(enrollments, enrollment)
+		}
+	}
+	sort.Slice(enrollments, func(i, j int) bool { return enrollments[i].LearnerID < enrollments[j].LearnerID })
+	return enrollments, nil
+}
+
+func (s *MemoryStore) UpdateCohortEnrollmentStatus(_ context.Context, tenantID, cohortID, learnerID, status string, actorUserID ...string) (core.CohortEnrollment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	enrollment, ok := s.enrollments[key(tenantID, cohortID, learnerID)]
+	if !ok {
+		return core.CohortEnrollment{}, fmt.Errorf("%w: enrollment", core.ErrNotFound)
+	}
+	normalized, err := normalizeAdminStatus(status)
+	if err != nil {
+		return core.CohortEnrollment{}, err
+	}
+	now := time.Now().UTC()
+	enrollment.Status = normalized
+	enrollment.UpdatedAt = now
+	if normalized == "ARCHIVED" && enrollment.ArchivedAt == nil {
+		enrollment.ArchivedAt = &now
+	}
+	if normalized != "ARCHIVED" {
+		enrollment.ArchivedAt = nil
+	}
+	s.enrollments[key(tenantID, cohortID, learnerID)] = enrollment
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "enrollment.update", "cohort_enrollment", cohortID+":"+learnerID, map[string]any{"status": normalized}, now)
+	return enrollment, nil
+}
+
+func (s *MemoryStore) ArchiveCohortEnrollment(ctx context.Context, tenantID, cohortID, learnerID string, actorUserID ...string) (core.CohortEnrollment, error) {
+	return s.UpdateCohortEnrollmentStatus(ctx, tenantID, cohortID, learnerID, "ARCHIVED", actorUserID...)
+}
+
+func (s *MemoryStore) CreateTrainingSession(_ context.Context, session core.TrainingSession, actorUserID ...string) (core.TrainingSession, error) {
+	if err := validateTrainingSession(session); err != nil {
+		return core.TrainingSession{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cohort, ok := s.cohorts[key(session.TenantID, session.CohortID)]
+	if !ok {
+		return core.TrainingSession{}, fmt.Errorf("%w: cohort", core.ErrNotFound)
+	}
+	now := time.Now().UTC()
+	session.ID = ids.New()
+	session.ProgramID = cohort.ProgramID
+	session.Title = strings.TrimSpace(session.Title)
+	session.Location = strings.TrimSpace(session.Location)
+	session.VideoURL = strings.TrimSpace(session.VideoURL)
+	session.Status = "SCHEDULED"
+	session.CreatedAt = now
+	session.UpdatedAt = now
+	s.sessions[key(session.TenantID, session.ID)] = session
+	s.recordAdminAuditLocked(session.TenantID, firstActor(actorUserID), "training_session.create", "training_session", session.ID, map[string]any{"cohort_id": session.CohortID}, now)
+	return session, nil
+}
+
+func (s *MemoryStore) ListTrainingSessions(_ context.Context, tenantID, cohortID string) ([]core.TrainingSession, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	if cohortID != "" {
+		if _, ok := s.cohorts[key(tenantID, cohortID)]; !ok {
+			return nil, fmt.Errorf("%w: cohort", core.ErrNotFound)
+		}
+	}
+	sessions := make([]core.TrainingSession, 0)
+	for _, session := range s.sessions {
+		if session.TenantID != tenantID {
+			continue
+		}
+		if cohortID != "" && session.CohortID != cohortID {
+			continue
+		}
+		sessions = append(sessions, session)
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].StartsAt.Equal(sessions[j].StartsAt) {
+			return sessions[i].ID < sessions[j].ID
+		}
+		return sessions[i].StartsAt.Before(sessions[j].StartsAt)
+	})
+	return sessions, nil
+}
+
+func (s *MemoryStore) UpdateTrainingSession(_ context.Context, tenantID, sessionID string, patch core.TrainingSessionPatch, actorUserID ...string) (core.TrainingSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.sessions[key(tenantID, sessionID)]
+	if !ok {
+		return core.TrainingSession{}, fmt.Errorf("%w: training session", core.ErrNotFound)
+	}
+	if patch.CohortID != nil {
+		cohortID := strings.TrimSpace(*patch.CohortID)
+		cohort, ok := s.cohorts[key(tenantID, cohortID)]
+		if !ok {
+			return core.TrainingSession{}, fmt.Errorf("%w: cohort", core.ErrNotFound)
+		}
+		session.CohortID = cohortID
+		session.ProgramID = cohort.ProgramID
+	}
+	if patch.Title != nil {
+		session.Title = strings.TrimSpace(*patch.Title)
+	}
+	if patch.StartsAt != nil {
+		session.StartsAt = patch.StartsAt.UTC()
+	}
+	if patch.EndsAt != nil {
+		session.EndsAt = patch.EndsAt.UTC()
+	}
+	if patch.Capacity != nil {
+		session.Capacity = *patch.Capacity
+	}
+	if patch.Location != nil {
+		session.Location = strings.TrimSpace(*patch.Location)
+	}
+	if patch.VideoURL != nil {
+		session.VideoURL = strings.TrimSpace(*patch.VideoURL)
+	}
+	if patch.Status != nil {
+		normalized, err := normalizeSessionStatus(*patch.Status)
+		if err != nil {
+			return core.TrainingSession{}, err
+		}
+		session.Status = normalized
+		if normalized != "ARCHIVED" {
+			session.ArchivedAt = nil
+		}
+	}
+	if err := validateTrainingSession(session); err != nil {
+		return core.TrainingSession{}, err
+	}
+	now := time.Now().UTC()
+	session.UpdatedAt = now
+	if session.Status == "ARCHIVED" && session.ArchivedAt == nil {
+		session.ArchivedAt = &now
+	}
+	s.sessions[key(tenantID, sessionID)] = session
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "training_session.update", "training_session", sessionID, map[string]any{"cohort_id": session.CohortID, "status": session.Status}, now)
+	return session, nil
+}
+
+func (s *MemoryStore) ArchiveTrainingSession(_ context.Context, tenantID, sessionID string, actorUserID ...string) (core.TrainingSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.sessions[key(tenantID, sessionID)]
+	if !ok {
+		return core.TrainingSession{}, fmt.Errorf("%w: training session", core.ErrNotFound)
+	}
+	now := time.Now().UTC()
+	session.Status = "ARCHIVED"
+	session.UpdatedAt = now
+	if session.ArchivedAt == nil {
+		session.ArchivedAt = &now
+	}
+	s.sessions[key(tenantID, sessionID)] = session
+	s.recordAdminAuditLocked(tenantID, firstActor(actorUserID), "training_session.archive", "training_session", sessionID, nil, now)
+	return session, nil
+}
+
+func (s *MemoryStore) ListAdminAuditLogs(_ context.Context, tenantID, targetType, targetID string) ([]core.AdminAuditLog, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	logs := make([]core.AdminAuditLog, 0)
+	for _, log := range s.adminAudit {
+		if log.TenantID != tenantID {
+			continue
+		}
+		if targetType != "" && log.TargetType != targetType {
+			continue
+		}
+		if targetID != "" && log.TargetID != targetID {
+			continue
+		}
+		logs = append(logs, log)
+	}
+	sort.Slice(logs, func(i, j int) bool {
+		if logs[i].CreatedAt.Equal(logs[j].CreatedAt) {
+			return logs[i].ID < logs[j].ID
+		}
+		return logs[i].CreatedAt.Before(logs[j].CreatedAt)
+	})
+	return logs, nil
 }
 
 func (s *MemoryStore) CreateSyllabus(_ context.Context, tenantID, title, description string, objectives, outcomes map[string]any) (core.Syllabus, error) {
@@ -240,6 +766,27 @@ func (s *MemoryStore) CreateSyllabus(_ context.Context, tenantID, title, descrip
 	event := memoryEvent(tenantID, "SyllabusCreated", "syllabus", syllabus.ID, syllabus.CreatedAt, map[string]any{"title": syllabus.Title})
 	s.events[key(tenantID, event.ID)] = event
 	return syllabus, nil
+}
+
+func (s *MemoryStore) ListSyllabi(_ context.Context, tenantID string) ([]core.Syllabus, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	syllabi := make([]core.Syllabus, 0)
+	for _, syllabus := range s.syllabi {
+		if syllabus.TenantID == tenantID {
+			syllabi = append(syllabi, syllabus)
+		}
+	}
+	sort.Slice(syllabi, func(i, j int) bool {
+		if syllabi[i].CreatedAt.Equal(syllabi[j].CreatedAt) {
+			return syllabi[i].ID < syllabi[j].ID
+		}
+		return syllabi[i].CreatedAt.Before(syllabi[j].CreatedAt)
+	})
+	return syllabi, nil
 }
 
 func (s *MemoryStore) BindSyllabus(_ context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error) {
@@ -304,6 +851,27 @@ func (s *MemoryStore) CreateDomain(_ context.Context, tenantID, ownerID, name, d
 	graphEvent := memoryEvent(tenantID, "ConceptGraphPublished", "domain", domain.ID, domain.CreatedAt, map[string]any{"graph_version": domain.GraphVersion})
 	s.events[key(tenantID, graphEvent.ID)] = graphEvent
 	return graph, nil
+}
+
+func (s *MemoryStore) ListDomains(_ context.Context, tenantID string) ([]core.Domain, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	domains := make([]core.Domain, 0)
+	for _, domain := range s.domains {
+		if domain.TenantID == tenantID {
+			domains = append(domains, domain)
+		}
+	}
+	sort.Slice(domains, func(i, j int) bool {
+		if domains[i].CreatedAt.Equal(domains[j].CreatedAt) {
+			return domains[i].ID < domains[j].ID
+		}
+		return domains[i].CreatedAt.Before(domains[j].CreatedAt)
+	})
+	return domains, nil
 }
 
 func (s *MemoryStore) ReplaceDomainGraph(_ context.Context, tenantID, domainID string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error) {
@@ -809,7 +1377,8 @@ func (s *MemoryStore) UpdateAlertStatus(_ context.Context, tenantID, alertID, st
 func (s *MemoryStore) CohortAnalytics(_ context.Context, tenantID, cohortID string) (map[string]any, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, ok := s.cohorts[key(tenantID, cohortID)]; !ok {
+	cohort, ok := s.cohorts[key(tenantID, cohortID)]
+	if !ok {
 		return nil, fmt.Errorf("%w: cohort", core.ErrNotFound)
 	}
 	learners := map[string]bool{}
@@ -836,14 +1405,63 @@ func (s *MemoryStore) CohortAnalytics(_ context.Context, tenantID, cohortID stri
 	if stateCount > 0 {
 		avg = totalMastery / float64(stateCount)
 	}
+	learnerTime := make(map[string]core.TrainingTimeSummary, len(learners))
+	for learnerID := range learners {
+		learnerTime[learnerID] = core.TrainingTimeSummary{
+			TenantID:  tenantID,
+			ProgramID: cohort.ProgramID,
+			CohortID:  cohortID,
+			LearnerID: learnerID,
+		}
+	}
+	var totalSeconds int64
+	for _, activity := range s.activities {
+		if activity.TenantID != tenantID || !learners[activity.LearnerID] {
+			continue
+		}
+		seconds := trackedActivitySeconds(activity.StartedAt, activity.CompletedAt)
+		if seconds <= 0 {
+			continue
+		}
+		summary := learnerTime[activity.LearnerID]
+		summary.ActivityCount++
+		summary.TrainingTimeSeconds += seconds
+		summary.TrainingHours = hoursFromSeconds(summary.TrainingTimeSeconds)
+		learnerTime[activity.LearnerID] = summary
+		totalSeconds += seconds
+	}
+	learnerSummaries := make([]core.TrainingTimeSummary, 0, len(learnerTime))
+	for _, summary := range learnerTime {
+		learnerSummaries = append(learnerSummaries, summary)
+	}
+	sort.Slice(learnerSummaries, func(i, j int) bool { return learnerSummaries[i].LearnerID < learnerSummaries[j].LearnerID })
 	return map[string]any{
 		"tenant_id":             tenantID,
+		"program_id":            cohort.ProgramID,
 		"cohort_id":             cohortID,
 		"learner_count":         len(learners),
 		"state_count":           stateCount,
 		"average_mastery":       avg,
 		"active_misconceptions": activeMisconceptions,
+		"training_time_seconds": totalSeconds,
+		"training_hours":        hoursFromSeconds(totalSeconds),
+		"learner_time":          learnerSummaries,
 	}, nil
+}
+
+func trackedActivitySeconds(startedAt, completedAt *time.Time) int64 {
+	if startedAt == nil || completedAt == nil || !completedAt.After(*startedAt) {
+		return 0
+	}
+	duration := completedAt.Sub(*startedAt)
+	if duration > maxTrackedActivityDuration {
+		duration = maxTrackedActivityDuration
+	}
+	return int64(duration.Seconds())
+}
+
+func hoursFromSeconds(seconds int64) float64 {
+	return float64(seconds) / 3600
 }
 
 func (s *MemoryStore) GetIdempotencyRecord(_ context.Context, tenantID, idempotencyKey string) (core.IdempotencyRecord, error) {
@@ -1016,6 +1634,119 @@ func alertEventPayload(alert core.Alert) map[string]any {
 
 func alertDedupeKey(alert core.Alert) string {
 	return strings.Join([]string{alert.LearnerID, alert.ConceptID, alert.AlertType}, "\x1f")
+}
+
+func tenantUserFrom(user core.User, membership core.Membership) core.TenantUser {
+	userUpdatedAt := user.UpdatedAt
+	if userUpdatedAt.IsZero() {
+		userUpdatedAt = user.CreatedAt
+	}
+	membershipUpdatedAt := membership.UpdatedAt
+	if membershipUpdatedAt.IsZero() {
+		membershipUpdatedAt = membership.CreatedAt
+	}
+	return core.TenantUser{
+		TenantID:             membership.TenantID,
+		UserID:               user.ID,
+		Email:                user.Email,
+		Name:                 user.Name,
+		UserStatus:           user.Status,
+		Role:                 membership.Role,
+		MembershipStatus:     membership.Status,
+		UserCreatedAt:        user.CreatedAt,
+		UserUpdatedAt:        userUpdatedAt,
+		UserArchivedAt:       user.ArchivedAt,
+		MembershipCreatedAt:  membership.CreatedAt,
+		MembershipUpdatedAt:  membershipUpdatedAt,
+		MembershipArchivedAt: membership.ArchivedAt,
+	}
+}
+
+func sortTenantUsers(users []core.TenantUser) {
+	sort.Slice(users, func(i, j int) bool {
+		if strings.EqualFold(users[i].Email, users[j].Email) {
+			return users[i].UserID < users[j].UserID
+		}
+		return strings.ToLower(users[i].Email) < strings.ToLower(users[j].Email)
+	})
+}
+
+func firstActor(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
+}
+
+func normalizeAdminStatus(status string) (string, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(status))
+	switch normalized {
+	case "ACTIVE", "INVITED", "DRAFT", "SCHEDULED", "IN_PROGRESS", "COMPLETED", "SUSPENDED", "CANCELLED", "DROPPED", "ARCHIVED":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported status %q", core.ErrInvalidInput, status)
+	}
+}
+
+func normalizeSessionStatus(status string) (string, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(status))
+	switch normalized {
+	case "SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "ARCHIVED":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported training session status %q", core.ErrInvalidInput, status)
+	}
+}
+
+func validateTrainingSession(session core.TrainingSession) error {
+	if strings.TrimSpace(session.TenantID) == "" {
+		return fmt.Errorf("%w: tenant_id is required", core.ErrInvalidInput)
+	}
+	if strings.TrimSpace(session.CohortID) == "" {
+		return fmt.Errorf("%w: cohort_id is required", core.ErrInvalidInput)
+	}
+	if strings.TrimSpace(session.Title) == "" {
+		return fmt.Errorf("%w: training session title is required", core.ErrInvalidInput)
+	}
+	if session.StartsAt.IsZero() {
+		return fmt.Errorf("%w: starts_at is required", core.ErrInvalidInput)
+	}
+	if session.EndsAt.IsZero() {
+		return fmt.Errorf("%w: ends_at is required", core.ErrInvalidInput)
+	}
+	if !session.EndsAt.After(session.StartsAt) {
+		return fmt.Errorf("%w: ends_at must be after starts_at", core.ErrInvalidInput)
+	}
+	if session.Capacity < 0 {
+		return fmt.Errorf("%w: capacity must be non-negative", core.ErrInvalidInput)
+	}
+	if session.Status != "" {
+		if _, err := normalizeSessionStatus(session.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *MemoryStore) recordAdminAuditLocked(tenantID, actorUserID, action, targetType, targetID string, payload map[string]any, now time.Time) core.AdminAuditLog {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	log := core.AdminAuditLog{
+		TenantID:    tenantID,
+		ID:          ids.New(),
+		ActorUserID: actorUserID,
+		Action:      action,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		Payload:     payload,
+		CreatedAt:   now,
+	}
+	s.adminAudit[key(tenantID, log.ID)] = log
+	return log
 }
 
 func normalizeLLMScope(scopeType, scopeID string) (string, string, error) {

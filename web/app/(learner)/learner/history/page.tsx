@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { seed } from "@/lib/config";
+import { loadTenantContext } from "@/lib/tenant-context";
 import { Timeline, type TimelineItem } from "@/components/ui/Timeline";
 import { fmtDate, fmtPct } from "@/lib/format";
 import { activeLearner, conceptName, loadDomainGraph, loadSnapshots } from "@/components/learner/data";
@@ -22,11 +22,10 @@ function masteryLine(slot: unknown): string {
 }
 
 export default async function HistoryScreen() {
-  const s = seed();
   const learner = await activeLearner();
-  const [snapsRes, graphRes] = await Promise.all([
+  const [ctx, snapsRes] = await Promise.all([
+    loadTenantContext(),
     loadSnapshots(learner.id),
-    loadDomainGraph(s.domainId),
   ]);
 
   const header = (
@@ -53,6 +52,8 @@ export default async function HistoryScreen() {
   }
 
   const snapshots = snapsRes.data;
+  const domainId = snapshots[0]?.domain_id || ctx.primaryDomain?.id || "";
+  const graphRes = await loadDomainGraph(domainId);
   const graph = graphRes.ok ? graphRes.data : { concepts: [], dependencies: [] };
 
   const items: TimelineItem[] = snapshots.map((snap: PedagogicalSnapshot) => {

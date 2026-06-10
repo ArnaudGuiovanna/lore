@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"lore/internal/core"
+	"lore/internal/runtime"
 	"lore/internal/store"
 )
 
@@ -56,10 +58,194 @@ func TestMemoryStoreScopesMembershipsByTenant(t *testing.T) {
 	}
 }
 
+func TestMemoryAdminCRUDSessionsAndAuditAreTenantScoped(t *testing.T) {
+	ctx := context.Background()
+	mem := store.NewMemoryStore()
+	tenantA, _ := mem.CreateTenant(ctx, "Alpha", "alpha", "")
+	tenantB, _ := mem.CreateTenant(ctx, "Beta", "beta", "")
+	learner, _ := mem.CreateUser(ctx, "learner@example.test", "Learner")
+	if _, err := mem.AddMembership(ctx, tenantA.ID, learner.ID, core.RoleLearner, "admin-a"); err != nil {
+		t.Fatalf("membership: %v", err)
+	}
+
+	programA, err := mem.CreateProgram(ctx, tenantA.ID, "Go Backend", "admin-a")
+	if err != nil {
+		t.Fatalf("program a: %v", err)
+	}
+	programB, err := mem.CreateProgram(ctx, tenantB.ID, "Rust Backend", "admin-b")
+	if err != nil {
+		t.Fatalf("program b: %v", err)
+	}
+	if _, err := mem.UpdateProgram(ctx, tenantA.ID, programB.ID, "Leak", "", "admin-a"); !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("cross-tenant program update should be not found, got %v", err)
+	}
+	programA, err = mem.UpdateProgram(ctx, tenantA.ID, programA.ID, "Go Backend Advanced", "ACTIVE", "admin-a")
+	if err != nil {
+		t.Fatalf("update program: %v", err)
+	}
+	if programA.Name != "Go Backend Advanced" || programA.UpdatedAt.IsZero() {
+		t.Fatalf("program not updated: %+v", programA)
+	}
+
+	cohort, err := mem.CreateCohort(ctx, tenantA.ID, programA.ID, "June", time.Time{}, time.Time{}, "admin-a")
+	if err != nil {
+		t.Fatalf("cohort: %v", err)
+	}
+	enrollment, err := mem.EnrollLearner(ctx, tenantA.ID, cohort.ID, learner.ID, "admin-a")
+	if err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	enrollment, err = mem.UpdateCohortEnrollmentStatus(ctx, tenantA.ID, cohort.ID, learner.ID, "COMPLETED", "admin-a")
+	if err != nil {
+		t.Fatalf("update enrollment: %v", err)
+	}
+	if enrollment.Status != "COMPLETED" {
+		t.Fatalf("enrollment status=%s", enrollment.Status)
+	}
+
+	startsAt := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
+	session, err := mem.CreateTrainingSession(ctx, core.TrainingSession{
+		TenantID: tenantA.ID,
+		CohortID: cohort.ID,
+		Title:    "Seance 1",
+		StartsAt: startsAt,
+		EndsAt:   startsAt.Add(2 * time.Hour),
+		Capacity: 12,
+		Location: "Lyon",
+		VideoURL: "https://video.example.test/s1",
+	}, "admin-a")
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	if session.ProgramID != programA.ID || session.Status != "SCHEDULED" {
+		t.Fatalf("session did not derive program/status: %+v", session)
+	}
+	newCapacity := 10
+	session, err = mem.UpdateTrainingSession(ctx, tenantA.ID, session.ID, core.TrainingSessionPatch{Capacity: &newCapacity}, "admin-a")
+	if err != nil {
+		t.Fatalf("update session: %v", err)
+	}
+	if session.Capacity != 10 {
+		t.Fatalf("session capacity not updated: %+v", session)
+	}
+	archivedSession, err := mem.ArchiveTrainingSession(ctx, tenantA.ID, session.ID, "admin-a")
+	if err != nil {
+		t.Fatalf("archive session: %v", err)
+	}
+	if archivedSession.Status != "ARCHIVED" || archivedSession.ArchivedAt == nil {
+		t.Fatalf("session not archived: %+v", archivedSession)
+	}
+
+	updatedUser, err := mem.UpdateTenantUser(ctx, tenantA.ID, learner.ID, "learner2@example.test", "Learner Two", "ACTIVE", "admin-a")
+	if err != nil {
+		t.Fatalf("update tenant user: %v", err)
+	}
+	if updatedUser.Email != "learner2@example.test" || updatedUser.Role != core.RoleLearner {
+		t.Fatalf("unexpected tenant user: %+v", updatedUser)
+	}
+	archivedUser, err := mem.ArchiveTenantUser(ctx, tenantA.ID, learner.ID, "admin-a")
+	if err != nil {
+		t.Fatalf("archive tenant user: %v", err)
+	}
+	if archivedUser.MembershipStatus != "ARCHIVED" || archivedUser.MembershipArchivedAt == nil {
+		t.Fatalf("tenant user not archived: %+v", archivedUser)
+	}
+
+	sessions, err := mem.ListTrainingSessions(ctx, tenantA.ID, cohort.ID)
+	if err != nil {
+		t.Fatalf("list sessions: %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].ID != session.ID {
+		t.Fatalf("session list mismatch: %+v", sessions)
+	}
+	audit, err := mem.ListAdminAuditLogs(ctx, tenantA.ID, "training_session", session.ID)
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if len(audit) != 3 {
+		t.Fatalf("expected create/update/archive session audit entries, got %+v", audit)
+	}
+	for _, entry := range audit {
+		if entry.TenantID != tenantA.ID || entry.ActorUserID != "admin-a" {
+			t.Fatalf("audit leaked or lost actor: %+v", entry)
+		}
+	}
+}
+
 func TestMemoryStoreUnknownTenantIsNotFound(t *testing.T) {
 	ctx := context.Background()
 	mem := store.NewMemoryStore()
 	if _, err := mem.GetTenant(ctx, "does-not-exist"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for unknown tenant, got %v", err)
+	}
+}
+
+func TestMemoryCohortAnalyticsAggregatesTrainingTime(t *testing.T) {
+	ctx := context.Background()
+	mem := store.NewMemoryStore()
+	tenant, err := mem.CreateTenant(ctx, "Acme", "acme", "")
+	if err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	program, err := mem.CreateProgram(ctx, tenant.ID, "Go Backend")
+	if err != nil {
+		t.Fatalf("program: %v", err)
+	}
+	cohort, err := mem.CreateCohort(ctx, tenant.ID, program.ID, "June", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("cohort: %v", err)
+	}
+	if _, err := mem.EnrollLearner(ctx, tenant.ID, cohort.ID, "learner-1"); err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	graph, err := mem.CreateDomain(ctx, tenant.ID, "trainer-1", "Go", "", "TRAINER",
+		[]core.ConceptDraft{{ID: "c1", Name: "HTTP", Difficulty: 0.4}}, nil)
+	if err != nil {
+		t.Fatalf("domain: %v", err)
+	}
+
+	engine := runtime.NewEngine(mem).WithClock(func() time.Time {
+		return time.Date(2026, 6, 5, 9, 0, 0, 0, time.UTC)
+	})
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenant.ID, LearnerID: "learner-1", DomainID: graph.Domain.ID})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	started, err := mem.StartActivity(ctx, tenant.ID, decision.Activity.ID)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if started.StartedAt == nil {
+		t.Fatalf("started activity missing started_at: %+v", started)
+	}
+	completedAt := started.StartedAt.Add(90 * time.Minute)
+	engine.WithClock(func() time.Time { return completedAt })
+	if _, err := engine.SubmitAssessment(ctx, core.AssessmentSubmissionCommand{
+		TenantID:   tenant.ID,
+		LearnerID:  "learner-1",
+		ActivityID: decision.Activity.ID,
+		Answers: []core.AssessmentAnswer{
+			{ItemID: "concept-check", ChoiceID: decision.Activity.ConceptID},
+		},
+	}); err != nil {
+		t.Fatalf("submit assessment: %v", err)
+	}
+
+	analytics, err := mem.CohortAnalytics(ctx, tenant.ID, cohort.ID)
+	if err != nil {
+		t.Fatalf("analytics: %v", err)
+	}
+	if got, want := analytics["training_time_seconds"], int64(90*time.Minute/time.Second); got != want {
+		t.Fatalf("training seconds=%v want=%d analytics=%+v", got, want, analytics)
+	}
+	if got := analytics["training_hours"]; got != 1.5 {
+		t.Fatalf("training hours=%v want=1.5 analytics=%+v", got, analytics)
+	}
+	learnerTime, ok := analytics["learner_time"].([]core.TrainingTimeSummary)
+	if !ok || len(learnerTime) != 1 {
+		t.Fatalf("expected one learner time summary, got %#v", analytics["learner_time"])
+	}
+	if learnerTime[0].LearnerID != "learner-1" || learnerTime[0].TrainingTimeSeconds != int64(90*time.Minute/time.Second) || learnerTime[0].ActivityCount != 1 {
+		t.Fatalf("unexpected learner time summary: %+v", learnerTime[0])
 	}
 }

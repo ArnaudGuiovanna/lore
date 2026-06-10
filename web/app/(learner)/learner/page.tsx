@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { seed } from "@/lib/config";
+import { loadTenantContext } from "@/lib/tenant-context";
 import {
   activeLearner,
   conceptName,
@@ -31,11 +31,10 @@ function latestMisconception(
 }
 
 export default async function NowScreen() {
-  const s = seed();
   const learner = await activeLearner();
-  const [statesRes, graph, snapshots] = await Promise.all([
+  const [ctx, statesRes, snapshots] = await Promise.all([
+    loadTenantContext(),
     loadStates(learner.id),
-    getDomainGraph(s.domainId),
     getSnapshots(learner.id),
   ]);
 
@@ -60,8 +59,11 @@ export default async function NowScreen() {
     );
   }
 
+  const domainId = focus.domain_id || ctx.primaryDomain?.id || "";
+  const graph = await getDomainGraph(domainId);
   const name = conceptName(graph.concepts, focus.concept_id);
   const misconception = latestMisconception(snapshots, focus.concept_id);
+  const syllabusTitle = ctx.primarySyllabus?.title || BOUND_SYLLABUS_TITLE;
 
   const rationaleParts = [
     `La rétention est de ${(focus.retention * 100).toFixed(0)} %`,
@@ -92,7 +94,7 @@ export default async function NowScreen() {
         }}
       >
         <span className="mono quiet" style={{ fontSize: 11 }} data-testid="now-syllabus-line">
-          issu du syllabus de votre groupe · {BOUND_SYLLABUS_TITLE}
+          issu du syllabus de votre groupe · {syllabusTitle}
         </span>
         <Link
           href="/learner/provenance"
@@ -106,7 +108,7 @@ export default async function NowScreen() {
 
       <NowWorkbench
         learnerId={learner.id}
-        domainId={s.domainId}
+        domainId={domainId}
         intent={intent}
         initialState={focus}
       />

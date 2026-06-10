@@ -44,27 +44,76 @@ if [ -f "$ENV_FILE" ]; then
   echo "==> deploy/.env already exists — leaving it (and your secrets) untouched."
 else
   echo "==> Generating deploy/.env with fresh random secrets..."
-  POSTGRES_PASSWORD=$(gen 32)
+  POSTGRES_SUPERUSER_PASSWORD=$(gen 32)
+  LORE_DB_PASSWORD=$(gen 32)
   JWT_SECRET=$(gen 32)
   LORE_BOOTSTRAP_TOKEN=$(gen 24)
+  LORE_METRICS_TOKEN=$(gen 32)
   SESSION_SECRET=$(gen 32)
 
   # Start from the template, then substitute the REQUIRED empty values. Lines that
   # already have a value (e.g. DEFAULT_SEED_PASSWORD, DOMAIN) are left as-is.
-  awk -v pg="$POSTGRES_PASSWORD" -v jwt="$JWT_SECRET" \
-      -v boot="$LORE_BOOTSTRAP_TOKEN" -v sess="$SESSION_SECRET" '
-    /^POSTGRES_PASSWORD=$/     { print "POSTGRES_PASSWORD=" pg;       next }
-    /^JWT_SECRET=$/            { print "JWT_SECRET=" jwt;             next }
-    /^LORE_BOOTSTRAP_TOKEN=$/  { print "LORE_BOOTSTRAP_TOKEN=" boot;  next }
-    /^SESSION_SECRET=$/        { print "SESSION_SECRET=" sess;        next }
+  awk -v pg="$POSTGRES_SUPERUSER_PASSWORD" -v loredb="$LORE_DB_PASSWORD" -v jwt="$JWT_SECRET" \
+      -v boot="$LORE_BOOTSTRAP_TOKEN" -v metrics="$LORE_METRICS_TOKEN" -v sess="$SESSION_SECRET" '
+    /^POSTGRES_SUPERUSER_PASSWORD=$/ { print "POSTGRES_SUPERUSER_PASSWORD=" pg; next }
+    /^LORE_DB_PASSWORD=$/            { print "LORE_DB_PASSWORD=" loredb;        next }
+    /^JWT_SECRET=$/                  { print "JWT_SECRET=" jwt;                 next }
+    /^LORE_BOOTSTRAP_TOKEN=$/        { print "LORE_BOOTSTRAP_TOKEN=" boot;      next }
+    /^LORE_METRICS_TOKEN=$/          { print "LORE_METRICS_TOKEN=" metrics;     next }
+    /^SESSION_SECRET=$/              { print "SESSION_SECRET=" sess;            next }
     { print }
   ' "$ENV_EXAMPLE" > "$ENV_FILE"
 
   chmod 600 "$ENV_FILE"
-  echo "==> Wrote deploy/.env (0600). Secrets generated for POSTGRES_PASSWORD,"
-  echo "    JWT_SECRET, LORE_BOOTSTRAP_TOKEN, SESSION_SECRET."
+  echo "==> Wrote deploy/.env (0600). Secrets generated for POSTGRES_SUPERUSER_PASSWORD,"
+  echo "    LORE_DB_PASSWORD, JWT_SECRET, LORE_BOOTSTRAP_TOKEN, LORE_METRICS_TOKEN,"
+  echo "    SESSION_SECRET."
   echo "    Edit deploy/.env to set DOMAIN (for TLS) and DEFAULT_SEED_PASSWORD."
 fi
+
+append_secret_if_missing() {
+  name="$1"
+  bytes="$2"
+  if ! grep -q "^${name}=" "$ENV_FILE"; then
+    printf '\n%s=%s\n' "$name" "$(gen "$bytes")" >> "$ENV_FILE"
+    echo "==> Added missing $name to deploy/.env"
+  fi
+}
+
+append_default_if_missing() {
+  name="$1"
+  value="$2"
+  if ! grep -q "^${name}=" "$ENV_FILE"; then
+    printf '\n%s=%s\n' "$name" "$value" >> "$ENV_FILE"
+    echo "==> Added missing $name to deploy/.env"
+  fi
+}
+
+legacy_value() {
+  name="$1"
+  awk -F= -v key="$name" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
+}
+
+LEGACY_POSTGRES_USER=$(legacy_value POSTGRES_USER)
+LEGACY_POSTGRES_PASSWORD=$(legacy_value POSTGRES_PASSWORD)
+
+if [ -n "$LEGACY_POSTGRES_USER" ]; then
+  append_default_if_missing POSTGRES_SUPERUSER "$LEGACY_POSTGRES_USER"
+else
+  append_default_if_missing POSTGRES_SUPERUSER postgres
+fi
+if [ -n "$LEGACY_POSTGRES_PASSWORD" ] && ! grep -q "^POSTGRES_SUPERUSER_PASSWORD=" "$ENV_FILE"; then
+  printf '\nPOSTGRES_SUPERUSER_PASSWORD=%s\n' "$LEGACY_POSTGRES_PASSWORD" >> "$ENV_FILE"
+  echo "==> Added missing POSTGRES_SUPERUSER_PASSWORD from legacy POSTGRES_PASSWORD"
+fi
+if [ -n "$LEGACY_POSTGRES_USER" ]; then
+  append_default_if_missing LORE_DB_USER lore_app
+else
+  append_default_if_missing LORE_DB_USER lore
+fi
+append_secret_if_missing POSTGRES_SUPERUSER_PASSWORD 32
+append_secret_if_missing LORE_DB_PASSWORD 32
+append_secret_if_missing LORE_METRICS_TOKEN 32
 
 # 3. Build + start ----------------------------------------------------------
 echo "==> Building and starting the stack (this can take a few minutes on first run)..."

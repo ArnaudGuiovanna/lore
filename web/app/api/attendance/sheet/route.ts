@@ -1,10 +1,10 @@
 // Feuille d'émargement (attendance sheet) PDF export. Generates a French A4 PDF for
 // a cohort + session date from persisted attendance rows joined with learner names
-// from the credential store + seed roster. TRAINER/ADMIN only. Server-only.
+// from the credential store + backend roster. TRAINER/ADMIN only. Server-only.
 import { getSession } from "@/lib/auth/session";
-import { seed } from "@/lib/config";
 import { listCredentials } from "@/lib/auth/store";
 import { getAttendance } from "@/lib/attendance/store";
+import { learnersForCohort, loadTenantContext } from "@/lib/tenant-context";
 import { buildAttendanceSheetPdf, type AttendanceSheetLearner } from "@/lib/pdf/attendance";
 
 const ALLOWED = new Set(["TRAINER", "TENANT_ADMIN", "SUPER_ADMIN"]);
@@ -26,24 +26,26 @@ export async function GET(req: Request) {
     });
   }
 
-  const s = seed();
+  const ctx = await loadTenantContext();
+  const cohort = ctx.cohorts.find((c) => c.id === cohortId);
+  const rosterLearners = learnersForCohort(ctx, cohortId);
   const rows = await getAttendance(cohortId, sessionDate);
 
-  // Resolve human names: credential store first, then the seeded roster.
+  // Resolve human names: credential store first, then the backend learner roster.
   const creds = await listCredentials();
   const nameFor = (learnerId: string): string => {
     const c = creds.find((x) => x.userId === learnerId);
     if (c) return c.name;
-    const l = s.learners.find((x) => x.id === learnerId);
+    const l = rosterLearners.find((x) => x.user_id === learnerId);
     if (l) return l.name;
     return learnerId;
   };
 
-  // Build the sheet from the full seeded roster so absentees still appear with a
+  // Build the sheet from the full backend roster so absentees still appear with a
   // blank/absent line — an émargement sheet must list every enrolled stagiaire.
   const byLearner = new Map(rows.map((r) => [r.learnerId, r]));
-  const rosterIds = new Set<string>(s.learners.map((l) => l.id));
-  for (const r of rows) rosterIds.add(r.learnerId); // include anyone marked who isn't in the seed
+  const rosterIds = new Set<string>(rosterLearners.map((l) => l.user_id));
+  for (const r of rows) rosterIds.add(r.learnerId); // include anyone marked who isn't in the roster
 
   const learners: AttendanceSheetLearner[] = Array.from(rosterIds)
     .map((id) => {
@@ -53,8 +55,8 @@ export async function GET(req: Request) {
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
   const pdf = await buildAttendanceSheetPdf({
-    orgName: s.tenantName || s.tenantSlug || "Organisme de formation",
-    cohortName: s.cohortName || cohortId,
+    orgName: ctx.tenantName || ctx.tenantSlug || "Organisme de formation",
+    cohortName: cohort?.name || cohortId,
     sessionDate,
     learners,
   });

@@ -8,17 +8,17 @@
 // PLUGGABLE BACKING:
 //   - DATABASE_URL set   -> Postgres table `lore_attendance` (auto-created on first
 //                           use via CREATE TABLE IF NOT EXISTS). Durable, multi-node,
-//                           tenant-scoped by the seeded tenant id.
+//                           tenant-scoped by the authenticated session tenant id.
 //   - DATABASE_URL unset -> JSON file `.gen/attendance.json` (single-node dev).
 //
-// Tenant scoping: every row carries tenant_id (the active seeded tenant). The web
+// Tenant scoping: every row carries tenant_id (the active session tenant). The web
 // tier already proves tenancy via the per-user bearer token on backend calls; this
 // table mirrors that boundary by stamping + filtering on tenant_id.
 import "server-only";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { Pool } from "pg";
-import { seed } from "@/lib/config";
+import { requireCurrentTenantId } from "@/lib/tenant-context";
 
 // A single durable attendance record. One row per (cohort, session_date, learner).
 export interface AttendanceRecord {
@@ -171,9 +171,9 @@ function saveFile(records: AttendanceRecord[]): void {
 // ---------------------------------------------------------------------------
 
 // List the distinct sessions (dates with attendance) for a cohort, most recent first,
-// with present/absent tallies. Tenant-scoped to the active seeded tenant.
+// with present/absent tallies. Tenant-scoped to the active session tenant.
 export async function listSessions(cohortId: string): Promise<AttendanceSession[]> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   if (usePg()) {
     await ensureReady();
     const { rows } = await pool().query<{ session_date: Date | string; present: string; absent: string; total: string }>(
@@ -210,7 +210,7 @@ export async function listSessions(cohortId: string): Promise<AttendanceSession[
 
 // Get the attendance rows for one cohort + session date (one row per marked learner).
 export async function getAttendance(cohortId: string, sessionDate: string): Promise<AttendanceRecord[]> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   const date = normDate(sessionDate);
   if (usePg()) {
     await ensureReady();
@@ -236,7 +236,7 @@ export async function markPresence(
   present: boolean,
   method = "trainer-marked"
 ): Promise<AttendanceRecord> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   const date = normDate(sessionDate);
   const now = new Date().toISOString();
   // signed_at is the moment presence was captured — only meaningful when present.
@@ -291,7 +291,7 @@ export async function markPresence(
 // but the learner is re-keyed to a non-identifying pseudonym so the rows no longer
 // point back to a person. Returns the number of rows re-keyed. Tenant-scoped.
 export async function anonymizeLearnerAttendance(learnerId: string): Promise<number> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   const pseudonym = `anonymized-${learnerId}`;
   if (usePg()) {
     await ensureReady();
@@ -316,7 +316,7 @@ export async function anonymizeLearnerAttendance(learnerId: string): Promise<num
 // All attendance rows for a single learner (used by the RGPD export aggregator).
 // Tenant-scoped. Most recent session first.
 export async function getLearnerAttendance(learnerId: string): Promise<AttendanceRecord[]> {
-  const tenantId = seed().tenantId;
+  const tenantId = await requireCurrentTenantId();
   if (usePg()) {
     await ensureReady();
     const { rows } = await pool().query<Row>(

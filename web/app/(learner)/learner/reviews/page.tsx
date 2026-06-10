@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { seed } from "@/lib/config";
+import { loadTenantContext } from "@/lib/tenant-context";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Pill } from "@/components/Mark";
 import { fmtDate, fmtPct } from "@/lib/format";
@@ -20,11 +20,10 @@ interface Row extends Record<string, unknown> {
 }
 
 export default async function ReviewsScreen() {
-  const s = seed();
   const learner = await activeLearner();
-  const [cardsRes, graphRes] = await Promise.all([
+  const [ctx, cardsRes] = await Promise.all([
+    loadTenantContext(),
     loadReviewsDue(learner.id),
-    loadDomainGraph(s.domainId),
   ]);
 
   if (!cardsRes.ok) {
@@ -43,6 +42,8 @@ export default async function ReviewsScreen() {
   }
 
   const cards = cardsRes.data;
+  const domainId = cards[0]?.domain_id || ctx.primaryDomain?.id || "";
+  const graphRes = await loadDomainGraph(domainId);
   const graph = graphRes.ok ? graphRes.data : { concepts: [], dependencies: [] };
   const now = Date.now();
 

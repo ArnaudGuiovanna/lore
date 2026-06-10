@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { api, tpath } from "@/lib/api";
-import { seed } from "@/lib/config";
+import { api, tpath, type ApiResult } from "@/lib/api";
+import { learnersForCohort, loadTenantContext } from "@/lib/tenant-context";
 import type {
   Alert,
   Concept,
@@ -24,13 +24,36 @@ function asArray<T>(data: unknown, key?: string): T[] {
   return [];
 }
 
+function unavailable<T>(error: string): ApiResult<T> {
+  return { ok: false, status: 404, error };
+}
+
+function stringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of ["items", "ids", "concept_ids", "objectives", "outcomes"]) {
+      const nested = obj[key];
+      if (Array.isArray(nested)) return nested.filter((v): v is string => typeof v === "string");
+    }
+    return Object.values(obj).filter((v): v is string => typeof v === "string");
+  }
+  return [];
+}
+
 export default async function TrainerHome() {
-  const s = seed();
+  const ctx = await loadTenantContext();
+  const cohort = ctx.primaryCohort;
+  const cohortId = cohort?.id ?? "";
+  const cohortName = cohort?.name ?? "groupe";
+  const domain = ctx.primaryDomain;
+  const domainId = domain?.id ?? "";
+  const rosterLearners = learnersForCohort(ctx, cohortId);
 
   // ---- reads (Server Components, live backend) ----
   const [graphRes, analyticsRes, alertsRes] = await Promise.all([
-    api.get<DomainGraph>(tpath(`/domains/${s.domainId}`)),
-    api.get<CohortAnalytics>(tpath(`/analytics/cohorts/${s.cohortId}`)),
+    domainId ? api.get<DomainGraph>(tpath(`/domains/${domainId}`)) : Promise.resolve(unavailable<DomainGraph>("no domain available")),
+    cohortId ? api.get<CohortAnalytics>(tpath(`/analytics/cohorts/${cohortId}`)) : Promise.resolve(unavailable<CohortAnalytics>("no cohort available")),
     api.get<Alert[]>(tpath(`/alerts`)),
   ]);
 
@@ -52,7 +75,7 @@ export default async function TrainerHome() {
               ← LORE
             </Link>
             <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {s.tenantSlug} · TRAINER · R. Köhler
+              tenant {ctx.tenantSlug} · TRAINER · R. Köhler
             </span>
           </div>
           <section
@@ -65,12 +88,12 @@ export default async function TrainerHome() {
               Le runtime n&apos;a pas répondu.
             </h1>
             <p className="soft" style={{ marginBottom: 16 }}>
-              Le graphe du domaine pour <strong>{s.cohortName}</strong> n&apos;a pas pu être joint ; il n&apos;y a
+              Le graphe du domaine pour <strong>{cohortName}</strong> n&apos;a pas pu être joint ; il n&apos;y a
               donc rien de durable à afficher — aucun concept sur lequel rédiger, aucune liste à trier. C&apos;est
               un problème d&apos;accès au backend, pas une perte de travail. Rien n&apos;a été modifié.
             </p>
             <p className="mono quiet" style={{ fontSize: 11, marginBottom: 18 }}>
-              GET /domains/{s.domainId.slice(0, 8)}… · pas de réponse
+              GET /domains/{domainId.slice(0, 8)}… · pas de réponse
             </p>
             <Link href="/trainer" className="btn primary" style={{ textDecoration: "none" }}>
               Réessayer
@@ -83,11 +106,11 @@ export default async function TrainerHome() {
 
   // Per-learner runtime state + review pressure + snapshots (the durable evidence).
   const learnerData = await Promise.all(
-    s.learners.map(async (l) => {
+    rosterLearners.map(async (l) => {
       const [stateRes, dueRes, snapRes] = await Promise.all([
-        api.get<LearnerState[]>(tpath(`/learners/${l.id}/state`)),
-        api.get<ReviewCard[]>(tpath(`/learners/${l.id}/reviews/due`)),
-        api.get<PedagogicalSnapshot[]>(tpath(`/learners/${l.id}/snapshots`)),
+        api.get<LearnerState[]>(tpath(`/learners/${l.user_id}/state`)),
+        api.get<ReviewCard[]>(tpath(`/learners/${l.user_id}/reviews/due`)),
+        api.get<PedagogicalSnapshot[]>(tpath(`/learners/${l.user_id}/snapshots`)),
       ]);
       const states = stateRes.ok ? asArray<LearnerState>(stateRes.data) : [];
       const due = dueRes.ok ? asArray<ReviewCard>(dueRes.data) : [];
@@ -96,13 +119,13 @@ export default async function TrainerHome() {
       const avgMastery = tracked ? states.reduce((a, x) => a + x.mastery, 0) / tracked : null;
       const avgRetention = tracked ? states.reduce((a, x) => a + x.retention, 0) / tracked : null;
       const relearning = states.filter((x) => x.card_state === "relearning").length;
-      const myAlerts = alerts.filter((a) => a.learner_id === l.id && a.status !== "RESOLVED");
+      const myAlerts = alerts.filter((a) => a.learner_id === l.user_id && a.status !== "RESOLVED");
       const openAlerts = myAlerts.length;
       // An ACTIVE misconception is a runtime fact: a Misconception-type alert open on
       // this learner. It is what makes a "repair" intervention available.
       const hasMisconception = myAlerts.some((a) => a.alert_type.toLowerCase().includes("misconception"));
       const row: LearnerRow = {
-        id: l.id,
+        id: l.user_id,
         name: l.name,
         tracked,
         avgMastery,
@@ -119,15 +142,17 @@ export default async function TrainerHome() {
     })
   );
 
-  // The seeded, live syllabus (the backend exposes no list/get for syllabi —
-  // it is bound to this cohort and is the source of the learners' provenance).
+  const syllabus = ctx.primarySyllabus;
+  const objectiveIds = stringList(syllabus?.objectives);
+  const outcomeLabels = stringList(syllabus?.outcomes);
   const liveSyllabus: SeedSyllabus = {
-    id: s.syllabusId,
-    title: "Production-grade Go persistence",
-    description:
-      "Concevoir une persistance durable et transactionnelle pour un backend Go — cycle de vie des connexions, transactions et migrations sûres.",
-    objectives: concepts.filter((c) => ["persistence", "transactions", "migrations"].includes(c.id)).map((c) => c.id),
-    outcomes: [
+    id: syllabus?.id ?? "",
+    title: syllabus?.title ?? "Syllabus non défini",
+    description: syllabus?.description ?? "Aucun syllabus n'est encore exposé par le backend pour ce tenant.",
+    objectives: objectiveIds.length
+      ? objectiveIds
+      : concepts.filter((c) => ["persistence", "transactions", "migrations"].includes(c.id)).map((c) => c.id),
+    outcomes: outcomeLabels.length ? outcomeLabels : [
       "Ouvrir et réutiliser un pool de connexions sans fuite.",
       "Encapsuler des écritures multi-étapes dans une transaction avec un rollback correct.",
       "Appliquer des migrations en avant uniquement, en toute sécurité, sur des données en production.",
@@ -148,16 +173,16 @@ export default async function TrainerHome() {
               Émargement / Présences →
             </Link>
             <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {s.tenantSlug} · TRAINER · R. Köhler
+              tenant {ctx.tenantSlug} · TRAINER · R. Köhler
             </span>
           </span>
         </div>
 
         <TrainerConsole
-          cohortName={s.cohortName}
-          cohortId={s.cohortId}
-          domainName={graph?.domain.name ?? "Go Backend"}
-          domainId={s.domainId}
+          cohortName={cohortName}
+          cohortId={cohortId}
+          domainName={graph?.domain.name ?? domain?.name ?? "Domaine"}
+          domainId={domainId}
           concepts={concepts}
           dependencies={dependencies}
           liveSyllabus={liveSyllabus}

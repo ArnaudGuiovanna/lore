@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { seed } from "@/lib/config";
+import { cohortForLearner, loadTenantContext } from "@/lib/tenant-context";
 import { Mark, Pill } from "@/components/Mark";
 import {
   activeLearner,
@@ -14,12 +14,15 @@ import { buildLineage, prerequisites } from "@/components/learner/lineage";
 export const dynamic = "force-dynamic";
 
 export default async function ProvenanceScreen() {
-  const s = seed();
   const learner = await activeLearner();
-  const [statesRes, graphRes] = await Promise.all([
+  const [ctx, statesRes] = await Promise.all([
+    loadTenantContext(),
     loadStates(learner.id),
-    loadDomainGraph(s.domainId),
   ]);
+  const states = statesRes.ok ? statesRes.data : [];
+  const focus = focusState(states);
+  const domainId = focus?.domain_id || states[0]?.domain_id || ctx.primaryDomain?.id || "";
+  const graphRes = await loadDomainGraph(domainId);
 
   // The lineage is built from the domain graph; without it we can't honestly
   // draw where the parcours comes from.
@@ -38,14 +41,14 @@ export default async function ProvenanceScreen() {
     );
   }
 
-  const states = statesRes.ok ? statesRes.data : [];
   const graph = graphRes.data;
-  const focus = focusState(states);
-  const conceptId = focus?.concept_id ?? graph.concepts[0]?.id ?? "persistence";
+  const conceptId = focus?.concept_id ?? graph.concepts[0]?.id ?? "";
+  const cohortName = cohortForLearner(ctx, learner.id)?.name || ctx.primaryCohort?.name || "votre groupe";
+  const syllabusId = ctx.primarySyllabus?.id || "";
 
   const nodes = buildLineage({
-    cohortName: s.cohortName,
-    syllabusId: s.syllabusId,
+    cohortName,
+    syllabusId,
     conceptId,
     concepts: graph.concepts,
     dependencies: graph.dependencies,

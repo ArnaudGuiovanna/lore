@@ -4,7 +4,41 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 )
+
+func (s *PostgresStore) ApplyMigrationsPath(ctx context.Context, path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat migrations path %s: %w", path, err)
+	}
+	if !info.IsDir() {
+		version := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		return s.ApplyMigrationFile(ctx, version, path)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("read migrations dir %s: %w", path, err)
+	}
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		files = append(files, entry.Name())
+	}
+	sort.Strings(files)
+	for _, name := range files {
+		fullPath := filepath.Join(path, name)
+		version := strings.TrimSuffix(name, filepath.Ext(name))
+		if err := s.ApplyMigrationFile(ctx, version, fullPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (s *PostgresStore) ApplyMigrationFile(ctx context.Context, version, path string) error {
 	sql, err := os.ReadFile(path)

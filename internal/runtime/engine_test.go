@@ -96,6 +96,45 @@ func TestRecordInteractionUpdatesStateAndRejectsInvalidScore(t *testing.T) {
 	}
 }
 
+func TestSubmitAssessmentUsesCorrectedEvidenceForMastery(t *testing.T) {
+	ctx := context.Background()
+	mem, tenantID, domainID := runtimeFixture(t)
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	engine := runtime.NewEngine(mem).WithClock(func() time.Time { return now })
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenantID, LearnerID: "learner-1", DomainID: domainID, Intent: "assessment"})
+	if err != nil {
+		t.Fatalf("plan assessment: %v", err)
+	}
+	selfSuccess := true
+	selfScore := 1.0
+	confidence := 1.0
+
+	delta, err := engine.SubmitAssessment(ctx, core.AssessmentSubmissionCommand{
+		TenantID:            tenantID,
+		LearnerID:           "learner-1",
+		ActivityID:          decision.Activity.ID,
+		SelfReportedSuccess: &selfSuccess,
+		SelfReportedScore:   &selfScore,
+		Confidence:          &confidence,
+		Answers: []core.AssessmentAnswer{
+			{ItemID: "concept-check", ChoiceID: "not_sure"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("submit assessment: %v", err)
+	}
+	if delta.Interaction.Score != 0 || delta.Evaluation.Score != 0 || delta.Interaction.Success {
+		t.Fatalf("corrected score should override self-report, got interaction=%+v evaluation=%+v", delta.Interaction, delta.Evaluation)
+	}
+	if delta.Evaluation.Rubric["score_source"] != "runtime_correction" {
+		t.Fatalf("missing runtime correction evidence in rubric: %+v", delta.Evaluation.Rubric)
+	}
+	expected := runtime.ApplyReviewSchedule(runtime.BKTUpdate(delta.Before, false), false, 0, now)
+	if delta.After.Mastery != expected.Mastery || delta.After.Reps != expected.Reps {
+		t.Fatalf("mastery was not fed by corrected failure: got after=%+v want=%+v", delta.After, expected)
+	}
+}
+
 func TestPlanNextEscapesOverloadAfterConsecutiveFailures(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)

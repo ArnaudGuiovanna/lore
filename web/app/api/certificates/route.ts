@@ -12,9 +12,9 @@
 // program title from the cohort's bound syllabus, and the org name from the tenant.
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { seed } from "@/lib/config";
 import { getStates, getDomainGraph, conceptName } from "@/components/learner/data";
 import { BOUND_SYLLABUS_TITLE } from "@/components/learner/lineage";
+import { learnerDisplay, loadTenantContext } from "@/lib/tenant-context";
 import {
   buildCertificatePdf,
   attestationFilename,
@@ -49,14 +49,13 @@ export async function GET(req: Request) {
     );
   }
 
-  const s = seed();
+  const ctx = await loadTenantContext();
 
   // Real reads. The bearer token on these tenant-scoped calls is the authenticated
   // user's, so the backend independently authorizes the access (defence in depth).
-  const [states, graph] = await Promise.all([
-    getStates(learnerId),
-    getDomainGraph(s.domainId),
-  ]);
+  const states = await getStates(learnerId);
+  const domainId = states[0]?.domain_id || ctx.primaryDomain?.id || "";
+  const graph = await getDomainGraph(domainId);
 
   // Honest concept lines, sorted most-mastered first (the strongest evidence leads).
   const concepts: CertificateConcept[] = states
@@ -67,11 +66,11 @@ export async function GET(req: Request) {
     }))
     .sort((a, b) => b.mastery - a.mastery);
 
-  // The learner's display name: their own session name when self, else the seeded
-  // roster name (the trainer/admin roster the staff member is acting from).
+  // The learner's display name: their own session name when self, else the backend
+  // learner roster name.
   const learnerName = isSelf
     ? session.name || "Apprenant"
-    : s.learners.find((l) => l.id === learnerId)?.name || learnerId;
+    : learnerDisplay(ctx, learnerId).name || learnerId;
 
   // Period: earliest → latest interaction the runtime recorded, when available.
   const interactionTimes = states
@@ -82,11 +81,11 @@ export async function GET(req: Request) {
   const periodEnd = interactionTimes[interactionTimes.length - 1] ?? null;
 
   const pdfBytes = await buildCertificatePdf({
-    organizationName: s.tenantName,
+    organizationName: ctx.tenantName || ctx.tenantSlug,
     learnerName,
     learnerId,
-    tenantId: s.tenantId,
-    programTitle: BOUND_SYLLABUS_TITLE,
+    tenantId: ctx.tenantId,
+    programTitle: ctx.primarySyllabus?.title || BOUND_SYLLABUS_TITLE,
     periodStart,
     periodEnd,
     concepts,

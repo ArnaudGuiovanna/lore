@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { api, tpath } from "@/lib/api";
-import { seed } from "@/lib/config";
 import { getSession } from "@/lib/auth/session";
 import { listCredentials } from "@/lib/auth/store";
 import { listErasures } from "@/lib/rgpd/erasures";
+import { learnerDisplay, loadTenantContext } from "@/lib/tenant-context";
 import type { Membership, Role } from "@/lib/types";
 import { RgpdConsole, type RgpdUser } from "@/components/admin/RgpdConsole";
 
@@ -15,10 +15,10 @@ function asArray<T>(r: { ok: boolean; data?: unknown }): T[] {
 
 // Admin RGPD surface: list the tenant's users and offer per-user export + erasure.
 // Users are derived from live memberships (source of truth for who-holds-which-role)
-// joined with the credential store + seed for names/emails — never fabricated.
+// joined with the credential store + backend learner list for names/emails.
 export default async function RgpdPage() {
-  const s = seed();
   const session = await getSession();
+  const ctx = await loadTenantContext();
 
   const [membershipsRes, creds, erasures] = await Promise.all([
     api.get<Membership[]>(tpath("/memberships")),
@@ -30,11 +30,7 @@ export default async function RgpdPage() {
   const nameFor = (userId: string): { name: string; email: string } => {
     const c = creds.find((x) => x.userId === userId);
     if (c) return { name: c.name, email: c.email };
-    const u = s.users.find((x) => x.id === userId);
-    if (u) return { name: u.name, email: u.email };
-    const l = s.learners.find((x) => x.id === userId);
-    if (l) return { name: l.name, email: `${userId.slice(0, 8)}@${s.tenantSlug}.unknown` };
-    return { name: `user ${userId.slice(0, 8)}`, email: `${userId.slice(0, 8)}@${s.tenantSlug}.unknown` };
+    return learnerDisplay(ctx, userId);
   };
 
   const memberships = asArray<Membership>(membershipsRes);
@@ -72,7 +68,7 @@ export default async function RgpdPage() {
             ← Console admin
           </Link>
           <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-            tenant {s.tenantSlug} · TENANT_ADMIN · RGPD
+            tenant {ctx.tenantSlug} · TENANT_ADMIN · RGPD
           </span>
         </div>
 
@@ -83,7 +79,7 @@ export default async function RgpdPage() {
 
         <RgpdConsole
           users={users}
-          tenantName={s.tenantName || s.tenantSlug}
+          tenantName={ctx.tenantName || ctx.tenantSlug}
         />
       </div>
     </main>

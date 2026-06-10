@@ -45,6 +45,9 @@ func newPostgresTestStore(t *testing.T) (*store.PostgresStore, *pgxpool.Pool) {
 	if err := st.ApplyMigrationFile(ctx, "000001_init", "../../db/migrations/000001_init.sql"); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
+	if err := st.ApplyMigrationFile(ctx, "000002_admin_crud", "../../db/migrations/000002_admin_crud.sql"); err != nil {
+		t.Fatalf("apply admin migration: %v", err)
+	}
 	t.Cleanup(func() {
 		st.Close()
 		pool.Close()
@@ -135,6 +138,64 @@ func TestPostgresRuntimeFlowPersistsStateReviewsAndEvents(t *testing.T) {
 		if !seen[required] {
 			t.Fatalf("missing durable event %q; got %v", required, seen)
 		}
+	}
+}
+
+func TestPostgresCohortAnalyticsAggregatesTrainingTime(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+	tenantID, domainID := seedDomain(t, st, "Acme", "acme")
+	program, err := st.CreateProgram(ctx, tenantID, "Go Backend")
+	if err != nil {
+		t.Fatalf("program: %v", err)
+	}
+	cohort, err := st.CreateCohort(ctx, tenantID, program.ID, "June", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("cohort: %v", err)
+	}
+	if _, err := st.EnrollLearner(ctx, tenantID, cohort.ID, "learner-1"); err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	engine := runtime.NewEngine(st).WithClock(func() time.Time {
+		return time.Date(2026, 6, 5, 9, 0, 0, 0, time.UTC)
+	})
+	decision, err := engine.PlanNext(ctx, runtime.PlanNextInput{TenantID: tenantID, LearnerID: "learner-1", DomainID: domainID, Intent: "assessment"})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	started, err := st.StartActivity(ctx, tenantID, decision.Activity.ID)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if started.StartedAt == nil {
+		t.Fatalf("started activity missing started_at: %+v", started)
+	}
+	completedAt := started.StartedAt.Add(90 * time.Minute)
+	engine.WithClock(func() time.Time { return completedAt })
+	if _, err := engine.SubmitAssessment(ctx, core.AssessmentSubmissionCommand{
+		TenantID:   tenantID,
+		LearnerID:  "learner-1",
+		ActivityID: decision.Activity.ID,
+		Answers: []core.AssessmentAnswer{
+			{ItemID: "concept-check", ChoiceID: decision.Activity.ConceptID},
+		},
+	}); err != nil {
+		t.Fatalf("submit assessment: %v", err)
+	}
+
+	analytics, err := st.CohortAnalytics(ctx, tenantID, cohort.ID)
+	if err != nil {
+		t.Fatalf("analytics: %v", err)
+	}
+	if got, want := analytics["training_time_seconds"], int64(90*time.Minute/time.Second); got != want {
+		t.Fatalf("training seconds=%v want=%d analytics=%+v", got, want, analytics)
+	}
+	learnerTime, ok := analytics["learner_time"].([]core.TrainingTimeSummary)
+	if !ok || len(learnerTime) != 1 {
+		t.Fatalf("expected one learner time summary, got %#v", analytics["learner_time"])
+	}
+	if learnerTime[0].LearnerID != "learner-1" || learnerTime[0].ActivityCount != 1 {
+		t.Fatalf("unexpected learner time summary: %+v", learnerTime[0])
 	}
 }
 
@@ -292,6 +353,222 @@ func TestPostgresTenantIsolationEnforcedByRLS(t *testing.T) {
 	}
 	if countUnscoped != 0 {
 		t.Fatalf("RLS leak: unscoped connection read %d memberships", countUnscoped)
+	}
+}
+
+func TestPostgresTenantScopedListMethods(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+
+	tenantA, domainA := seedDomain(t, st, "Alpha", "alpha")
+	tenantB, domainB := seedDomain(t, st, "Beta", "beta")
+	programA, err := st.CreateProgram(ctx, tenantA, "Go Backend")
+	if err != nil {
+		t.Fatalf("create program a: %v", err)
+	}
+	programB, err := st.CreateProgram(ctx, tenantB, "Rust Backend")
+	if err != nil {
+		t.Fatalf("create program b: %v", err)
+	}
+	cohortA, err := st.CreateCohort(ctx, tenantA, programA.ID, "June", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("create cohort a: %v", err)
+	}
+	cohortB, err := st.CreateCohort(ctx, tenantB, programB.ID, "July", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("create cohort b: %v", err)
+	}
+	syllabusA, err := st.CreateSyllabus(ctx, tenantA, "Go Syllabus", "", nil, nil)
+	if err != nil {
+		t.Fatalf("create syllabus a: %v", err)
+	}
+	if _, err := st.CreateSyllabus(ctx, tenantB, "Rust Syllabus", "", nil, nil); err != nil {
+		t.Fatalf("create syllabus b: %v", err)
+	}
+	learnerA, err := st.CreateUser(ctx, "learner-a@example.test", "Learner A")
+	if err != nil {
+		t.Fatalf("create learner a: %v", err)
+	}
+	trainerA, err := st.CreateUser(ctx, "trainer-a@example.test", "Trainer A")
+	if err != nil {
+		t.Fatalf("create trainer a: %v", err)
+	}
+	learnerB, err := st.CreateUser(ctx, "learner-b@example.test", "Learner B")
+	if err != nil {
+		t.Fatalf("create learner b: %v", err)
+	}
+	if _, err := st.AddMembership(ctx, tenantA, learnerA.ID, core.RoleLearner); err != nil {
+		t.Fatalf("learner membership a: %v", err)
+	}
+	if _, err := st.AddMembership(ctx, tenantA, trainerA.ID, core.RoleTrainer); err != nil {
+		t.Fatalf("trainer membership a: %v", err)
+	}
+	if _, err := st.AddMembership(ctx, tenantB, learnerB.ID, core.RoleLearner); err != nil {
+		t.Fatalf("learner membership b: %v", err)
+	}
+	enrollmentA, err := st.EnrollLearner(ctx, tenantA, cohortA.ID, learnerA.ID)
+	if err != nil {
+		t.Fatalf("enroll learner a: %v", err)
+	}
+	if _, err := st.EnrollLearner(ctx, tenantB, cohortB.ID, learnerB.ID); err != nil {
+		t.Fatalf("enroll learner b: %v", err)
+	}
+
+	tenants, err := st.ListTenants(ctx)
+	if err != nil {
+		t.Fatalf("list tenants: %v", err)
+	}
+	if len(tenants) != 2 {
+		t.Fatalf("expected two tenants, got %+v", tenants)
+	}
+	programs, err := st.ListPrograms(ctx, tenantA)
+	if err != nil {
+		t.Fatalf("list programs a: %v", err)
+	}
+	if len(programs) != 1 || programs[0].ID != programA.ID || programs[0].TenantID != tenantA {
+		t.Fatalf("program list leaked or missed data: %+v", programs)
+	}
+	cohorts, err := st.ListCohorts(ctx, tenantA)
+	if err != nil {
+		t.Fatalf("list cohorts a: %v", err)
+	}
+	if len(cohorts) != 1 || cohorts[0].ID != cohortA.ID || cohorts[0].TenantID != tenantA {
+		t.Fatalf("cohort list leaked or missed data: %+v", cohorts)
+	}
+	syllabi, err := st.ListSyllabi(ctx, tenantA)
+	if err != nil {
+		t.Fatalf("list syllabi a: %v", err)
+	}
+	if len(syllabi) != 1 || syllabi[0].ID != syllabusA.ID || syllabi[0].TenantID != tenantA {
+		t.Fatalf("syllabus list leaked or missed data: %+v", syllabi)
+	}
+	domains, err := st.ListDomains(ctx, tenantA)
+	if err != nil {
+		t.Fatalf("list domains a: %v", err)
+	}
+	if len(domains) != 1 || domains[0].ID != domainA || domains[0].TenantID != tenantA {
+		t.Fatalf("domain list leaked or missed data: got %+v want domain %s; tenant B domain %s", domains, domainA, domainB)
+	}
+	memberships, err := st.ListMemberships(ctx, tenantA)
+	if err != nil {
+		t.Fatalf("list memberships a: %v", err)
+	}
+	if len(memberships) != 2 {
+		t.Fatalf("membership list leaked or missed data: %+v", memberships)
+	}
+	learners, err := st.ListLearners(ctx, tenantA)
+	if err != nil {
+		t.Fatalf("list learners a: %v", err)
+	}
+	if len(learners) != 1 || learners[0].UserID != learnerA.ID || learners[0].TenantID != tenantA {
+		t.Fatalf("learner list leaked or missed data: %+v", learners)
+	}
+	enrollments, err := st.ListCohortEnrollments(ctx, tenantA, cohortA.ID)
+	if err != nil {
+		t.Fatalf("list enrollments a: %v", err)
+	}
+	if len(enrollments) != 1 || enrollments[0].LearnerID != enrollmentA.LearnerID || enrollments[0].TenantID != tenantA {
+		t.Fatalf("enrollment list leaked or missed data: %+v", enrollments)
+	}
+	if _, err := st.ListCohortEnrollments(ctx, tenantA, cohortB.ID); !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("expected cross-tenant cohort enrollment list to be not found, got %v", err)
+	}
+}
+
+func TestPostgresAdminCRUDSessionsAndAudit(t *testing.T) {
+	ctx := context.Background()
+	st, _ := newPostgresTestStore(t)
+	tenantA, _ := seedDomain(t, st, "Alpha", "alpha")
+	tenantB, _ := seedDomain(t, st, "Beta", "beta")
+	learner, err := st.CreateUser(ctx, "learner-admin@example.test", "Learner")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := st.AddMembership(ctx, tenantA, learner.ID, core.RoleLearner, "admin-a"); err != nil {
+		t.Fatalf("membership: %v", err)
+	}
+	programA, err := st.CreateProgram(ctx, tenantA, "Go Backend", "admin-a")
+	if err != nil {
+		t.Fatalf("program a: %v", err)
+	}
+	programB, err := st.CreateProgram(ctx, tenantB, "Rust Backend", "admin-b")
+	if err != nil {
+		t.Fatalf("program b: %v", err)
+	}
+	if _, err := st.UpdateProgram(ctx, tenantA, programB.ID, "Leak", "", "admin-a"); !errors.Is(err, core.ErrNotFound) {
+		t.Fatalf("cross-tenant program update should be not found, got %v", err)
+	}
+	programA, err = st.UpdateProgram(ctx, tenantA, programA.ID, "Go Backend Advanced", "ACTIVE", "admin-a")
+	if err != nil {
+		t.Fatalf("update program: %v", err)
+	}
+	if programA.Name != "Go Backend Advanced" || programA.UpdatedAt.IsZero() {
+		t.Fatalf("program not updated: %+v", programA)
+	}
+	cohort, err := st.CreateCohort(ctx, tenantA, programA.ID, "June", time.Time{}, time.Time{}, "admin-a")
+	if err != nil {
+		t.Fatalf("cohort: %v", err)
+	}
+	if _, err := st.EnrollLearner(ctx, tenantA, cohort.ID, learner.ID, "admin-a"); err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	enrollment, err := st.UpdateCohortEnrollmentStatus(ctx, tenantA, cohort.ID, learner.ID, "COMPLETED", "admin-a")
+	if err != nil {
+		t.Fatalf("update enrollment: %v", err)
+	}
+	if enrollment.Status != "COMPLETED" {
+		t.Fatalf("enrollment status=%s", enrollment.Status)
+	}
+	startsAt := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
+	session, err := st.CreateTrainingSession(ctx, core.TrainingSession{
+		TenantID: tenantA,
+		CohortID: cohort.ID,
+		Title:    "Seance 1",
+		StartsAt: startsAt,
+		EndsAt:   startsAt.Add(2 * time.Hour),
+		Capacity: 12,
+		Location: "Lyon",
+		VideoURL: "https://video.example.test/s1",
+	}, "admin-a")
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	if session.ProgramID != programA.ID || session.Status != "SCHEDULED" {
+		t.Fatalf("session did not derive program/status: %+v", session)
+	}
+	status := "COMPLETED"
+	session, err = st.UpdateTrainingSession(ctx, tenantA, session.ID, core.TrainingSessionPatch{Status: &status}, "admin-a")
+	if err != nil {
+		t.Fatalf("update session: %v", err)
+	}
+	if session.Status != "COMPLETED" {
+		t.Fatalf("session status not updated: %+v", session)
+	}
+	session, err = st.ArchiveTrainingSession(ctx, tenantA, session.ID, "admin-a")
+	if err != nil {
+		t.Fatalf("archive session: %v", err)
+	}
+	if session.Status != "ARCHIVED" || session.ArchivedAt == nil {
+		t.Fatalf("session not archived: %+v", session)
+	}
+	tenantUser, err := st.ArchiveTenantUser(ctx, tenantA, learner.ID, "admin-a")
+	if err != nil {
+		t.Fatalf("archive tenant user: %v", err)
+	}
+	if tenantUser.MembershipStatus != "ARCHIVED" || tenantUser.MembershipArchivedAt == nil {
+		t.Fatalf("tenant user not archived: %+v", tenantUser)
+	}
+	audit, err := st.ListAdminAuditLogs(ctx, tenantA, "training_session", session.ID)
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if len(audit) != 3 {
+		t.Fatalf("expected create/update/archive session audit entries, got %+v", audit)
+	}
+	for _, entry := range audit {
+		if entry.TenantID != tenantA || entry.ActorUserID != "admin-a" {
+			t.Fatalf("audit leaked or lost actor: %+v", entry)
+		}
 	}
 }
 

@@ -7,7 +7,7 @@ services:
       PORT: "8080"
       STORE_DRIVER: postgres
       LORE_AUTO_MIGRATE: "on"
-      LORE_MIGRATION_PATH: /db/migrations/000001_init.sql
+      LORE_MIGRATION_PATH: /db/migrations
       DATABASE_URL: postgres://lore:lore@postgres:5432/lore?sslmode=disable
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222

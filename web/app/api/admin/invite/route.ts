@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { ensureUserAndMembership } from "@/lib/auth/lore";
 import { getByEmail, upsertCredential, setMustChangePassword } from "@/lib/auth/store";
 import { sendMail, inviteMessage } from "@/lib/email";
-import { seed } from "@/lib/config";
+import { loadTenantContext } from "@/lib/tenant-context";
 import type { Role } from "@/lib/types";
 
 interface Body {
@@ -82,8 +82,9 @@ export async function POST(req: Request) {
   // (a poisoned Host header would inject an attacker link into the invite email).
   const base = process.env.PUBLIC_APP_URL || "";
   const loginUrl = base ? new URL("/login", base).toString() : "/login";
+  const ctx = await loadTenantContext();
   const mail = await sendMail(
-    inviteMessage({ name, email, tempPassword: password, loginUrl, orgName: seed().tenantName })
+    inviteMessage({ name, email, tempPassword: password, loginUrl, orgName: ctx.tenantName || ctx.tenantSlug })
   );
 
   // (d) hand the temp password back exactly once (admin can also share manually).

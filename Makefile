@@ -91,7 +91,7 @@ backup-db:
 	TS=$$(date +%Y%m%d-%H%M%S); \
 	OUT=$(BACKUP_DIR)/lore-$$TS.sql.gz; \
 	echo "==> Dumping database to $$OUT"; \
-	$(PROD_COMPOSE) exec -T postgres pg_dump -U "$${POSTGRES_USER:-lore}" "$${POSTGRES_DB:-lore}" | gzip > $$OUT; \
+	$(PROD_COMPOSE) exec -T postgres pg_dump -U "$${POSTGRES_SUPERUSER:-postgres}" "$${POSTGRES_DB:-lore}" | gzip > $$OUT; \
 	echo "==> Done: $$OUT"
 
 restore-db:
@@ -101,5 +101,5 @@ restore-db:
 	@set -e; \
 	. deploy/.env; \
 	echo "==> Restoring $(FILE) into database $${POSTGRES_DB:-lore} (existing data will be overwritten)"; \
-	gunzip -c "$(FILE)" | $(PROD_COMPOSE) exec -T postgres psql -U "$${POSTGRES_USER:-lore}" -d "$${POSTGRES_DB:-lore}"; \
+	gunzip -c "$(FILE)" | $(PROD_COMPOSE) exec -T postgres psql -U "$${POSTGRES_SUPERUSER:-postgres}" -d "$${POSTGRES_DB:-lore}"; \
 	echo "==> Restore complete"

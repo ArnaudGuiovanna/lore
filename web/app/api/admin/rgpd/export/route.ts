@@ -8,10 +8,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { api, tpath } from "@/lib/api";
-import { seed } from "@/lib/config";
 import { listCredentials } from "@/lib/auth/store";
 import { getLearnerAttendance } from "@/lib/attendance/store";
 import { listErasures } from "@/lib/rgpd/erasures";
+import { learnerDisplay, loadTenantContext } from "@/lib/tenant-context";
 import type {
   Alert,
   LearnerState,
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
   const userId = (url.searchParams.get("userId") || "").trim();
   if (!userId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
 
-  const s = seed();
+  const ctx = await loadTenantContext();
 
   // ---- web-tier personal data: credential (sans hash) + membership/role ----
   const creds = await listCredentials();
@@ -84,9 +84,9 @@ export async function GET(req: Request) {
     generatedBy: { userId: session.userId, role: session.role },
     subject: {
       userId,
-      tenantId: s.tenantId,
-      tenantName: s.tenantName,
-      displayName: cred?.name ?? s.learners.find((l) => l.id === userId)?.name ?? null,
+      tenantId: ctx.tenantId,
+      tenantName: ctx.tenantName,
+      displayName: cred?.name ?? learnerDisplay(ctx, userId).name ?? null,
     },
     notice:
       "Ce document agrège les données détenues par LORE pour la personne concernée. " +

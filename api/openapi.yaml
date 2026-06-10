@@ -45,6 +45,17 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
 
   /v1/tenants:
+    get:
+      responses:
+        "200":
+          description: Tenants visible to a super-admin
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Tenant" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
     post:
       security: []
       requestBody:
@@ -130,7 +141,70 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Membership" }
 
+  /v1/tenants/{tenant_id}/users:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      responses:
+        "200":
+          description: Tenant users with membership context
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TenantUser" }
+
+  /v1/tenants/{tenant_id}/users/{user_id}:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TenantUserPatch" }
+      responses:
+        "200":
+          description: Tenant user updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TenantUser" }
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: Tenant user archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TenantUser" }
+
+  /v1/tenants/{tenant_id}/learners:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      responses:
+        "200":
+          description: Tenant learners
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Learner" }
+
   /v1/tenants/{tenant_id}/programs:
+    get:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      responses:
+        "200":
+          description: Tenant programs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Program" }
     post:
       parameters: [{ $ref: "#/components/parameters/TenantID" }]
       requestBody:
@@ -149,7 +223,44 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Program" }
 
+  /v1/tenants/{tenant_id}/programs/{program_id}:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/ProgramID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProgramPatch" }
+      responses:
+        "200":
+          description: Program updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Program" }
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/ProgramID"
+      responses:
+        "200":
+          description: Program archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Program" }
+
   /v1/tenants/{tenant_id}/cohorts:
+    get:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      responses:
+        "200":
+          description: Tenant cohorts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Cohort" }
     post:
       parameters: [{ $ref: "#/components/parameters/TenantID" }]
       requestBody:
@@ -171,7 +282,47 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Cohort" }
 
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CohortPatch" }
+      responses:
+        "200":
+          description: Cohort updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cohort" }
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      responses:
+        "200":
+          description: Cohort archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cohort" }
+
   /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      responses:
+        "200":
+          description: Cohort enrollments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CohortEnrollment" }
+        "404": { $ref: "#/components/responses/Error" }
     post:
       parameters:
         - $ref: "#/components/parameters/TenantID"
@@ -192,7 +343,128 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CohortEnrollment" }
 
+  /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments/{learner_id}:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+        - $ref: "#/components/parameters/LearnerID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string }
+      responses:
+        "200":
+          description: Enrollment updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CohortEnrollment" }
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+        - $ref: "#/components/parameters/LearnerID"
+      responses:
+        "200":
+          description: Enrollment archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CohortEnrollment" }
+
+  /v1/tenants/{tenant_id}/training-sessions:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: cohort_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Planned training sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrainingSession" }
+    post:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrainingSessionRequest" }
+      responses:
+        "201":
+          description: Training session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingSession" }
+
+  /v1/tenants/{tenant_id}/training-sessions/{session_id}:
+    patch:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/SessionID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrainingSessionPatch" }
+      responses:
+        "200":
+          description: Training session updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingSession" }
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "200":
+          description: Training session archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingSession" }
+
+  /v1/tenants/{tenant_id}/admin-audit-logs:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - name: target_type
+          in: query
+          required: false
+          schema: { type: string }
+        - name: target_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Tenant admin audit log
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminAuditLog" }
+
   /v1/tenants/{tenant_id}/syllabi:
+    get:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      responses:
+        "200":
+          description: Tenant syllabi
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Syllabus" }
     post:
       parameters: [{ $ref: "#/components/parameters/TenantID" }]
       requestBody:
@@ -241,6 +513,16 @@ paths:
               schema: { $ref: "#/components/schemas/SyllabusBinding" }
 
   /v1/tenants/{tenant_id}/domains:
+    get:
+      parameters: [{ $ref: "#/components/parameters/TenantID" }]
+      responses:
+        "200":
+          description: Tenant domains
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Domain" }
     post:
       parameters: [{ $ref: "#/components/parameters/TenantID" }]
       requestBody:
@@ -574,6 +856,19 @@ paths:
                 type: object
                 additionalProperties: true
 
+  /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}/training-time.csv:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/CohortID"
+      responses:
+        "200":
+          description: Cohort training time CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+
   /v1/tenants/{tenant_id}/alerts:
     get:
       parameters: [{ $ref: "#/components/parameters/TenantID" }]
@@ -631,6 +926,16 @@ components:
       in: path
       required: true
       schema: { type: string }
+    UserID:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string }
+    ProgramID:
+      name: program_id
+      in: path
+      required: true
+      schema: { type: string }
     ActivityID:
       name: activity_id
       in: path
@@ -638,6 +943,11 @@ components:
       schema: { type: string }
     CohortID:
       name: cohort_id
+      in: path
+      required: true
+      schema: { type: string }
+    SessionID:
+      name: session_id
       in: path
       required: true
       schema: { type: string }
@@ -714,13 +1024,56 @@ components:
         role: { $ref: "#/components/schemas/Role" }
         status: { type: string }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        archived_at: { type: string, format: date-time }
+    TenantUser:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        user_id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        user_status: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        membership_status: { type: string }
+        user_created_at: { type: string, format: date-time }
+        user_updated_at: { type: string, format: date-time }
+        user_archived_at: { type: string, format: date-time }
+        membership_created_at: { type: string, format: date-time }
+        membership_updated_at: { type: string, format: date-time }
+        membership_archived_at: { type: string, format: date-time }
+    TenantUserPatch:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+        status: { type: string }
+    Learner:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        user_id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        user_status: { type: string }
+        membership_status: { type: string }
+        user_created_at: { type: string, format: date-time }
+        membership_created_at: { type: string, format: date-time }
     Program:
       type: object
       properties:
         tenant_id: { type: string, format: uuid }
         id: { type: string }
         name: { type: string }
+        status: { type: string }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        archived_at: { type: string, format: date-time }
+    ProgramPatch:
+      type: object
+      properties:
+        name: { type: string }
+        status: { type: string }
     Cohort:
       type: object
       properties:
@@ -730,7 +1083,18 @@ components:
         name: { type: string }
         start_date: { type: string, format: date-time }
         end_date: { type: string, format: date-time }
+        status: { type: string }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        archived_at: { type: string, format: date-time }
+    CohortPatch:
+      type: object
+      properties:
+        program_id: { type: string }
+        name: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        status: { type: string }
     CohortEnrollment:
       type: object
       properties:
@@ -738,6 +1102,58 @@ components:
         cohort_id: { type: string }
         learner_id: { type: string }
         status: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        archived_at: { type: string, format: date-time }
+    TrainingSession:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        cohort_id: { type: string }
+        program_id: { type: string }
+        title: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 0 }
+        location: { type: string }
+        video_url: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        archived_at: { type: string, format: date-time }
+    TrainingSessionRequest:
+      type: object
+      required: [cohort_id, title, starts_at, ends_at]
+      properties:
+        cohort_id: { type: string }
+        title: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 0 }
+        location: { type: string }
+        video_url: { type: string }
+    TrainingSessionPatch:
+      type: object
+      properties:
+        cohort_id: { type: string }
+        title: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 0 }
+        location: { type: string }
+        video_url: { type: string }
+        status: { type: string }
+    AdminAuditLog:
+      type: object
+      properties:
+        tenant_id: { type: string, format: uuid }
+        id: { type: string }
+        actor_user_id: { type: string }
+        action: { type: string }
+        target_type: { type: string }
+        target_id: { type: string }
+        payload: { type: object, additionalProperties: true }
         created_at: { type: string, format: date-time }
     Syllabus:
       type: object

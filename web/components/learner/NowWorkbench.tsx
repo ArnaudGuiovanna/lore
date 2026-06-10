@@ -7,7 +7,7 @@ import { SourceMark } from "@/components/runtime/SourceMark";
 import { Metric } from "@/components/ui/Metric";
 import { Mark } from "@/components/Mark";
 import { fmtPct } from "@/lib/format";
-import type { LearnerState } from "@/lib/types";
+import type { AssessmentAnswer, AssessmentItem, GeneratedContent, LearnerState } from "@/lib/types";
 
 export interface NowIntent {
   conceptId: string;
@@ -26,11 +26,24 @@ interface PlannedActivity {
   rationale: string;
   difficultyTarget: number;
   misconception?: string;
+  content: WorkbenchContent;
+  assessmentItems: AssessmentItem[];
 }
 
-// The runtime-authored fallback scaffold. Because the seed resolves to
-// instruction_only, this numbered scaffold (amber, instruction-only) is the
-// default content path — faithful to the learner's resolved tutor config.
+type WorkbenchContent = {
+  source: "llm" | "fallbk";
+  text: string;
+  code?: string;
+  provider?: string;
+  model?: string;
+  generatedId?: string;
+  persisted: boolean;
+  reason?: string;
+};
+
+// The runtime-authored fallback scaffold. This is only used when the web/backend
+// API did not return generated content. Backend instruction_only content is shown
+// separately as persisted instruction-only content.
 function fallbackScaffold(intent: NowIntent, misconception?: string): { prose: string; code: string } {
   const c = intent.conceptName.toLowerCase();
   const prose =
@@ -53,6 +66,109 @@ function fallbackScaffold(intent: NowIntent, misconception?: string): { prose: s
   return { prose, code };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function generatedContent(value: unknown): GeneratedContent | null {
+  if (!isRecord(value)) return null;
+  const content = stringField(value.content).trim();
+  if (!content) return null;
+  return {
+    tenant_id: stringField(value.tenant_id),
+    id: stringField(value.id),
+    instruction_id: stringField(value.instruction_id),
+    provider: stringField(value.provider),
+    model: stringField(value.model),
+    content,
+    created_at: stringField(value.created_at),
+  };
+}
+
+function assessmentItemsFrom(value: unknown): AssessmentItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((raw): AssessmentItem | null => {
+      if (!isRecord(raw)) return null;
+      const id = stringField(raw.id).trim();
+      const prompt = stringField(raw.prompt).trim();
+      if (!id || !prompt) return null;
+      const choices = Array.isArray(raw.choices)
+        ? raw.choices
+            .map((choice): { id: string; label: string } | null => {
+              if (!isRecord(choice)) return null;
+              const choiceId = stringField(choice.id).trim();
+              const label = stringField(choice.label).trim();
+              return choiceId && label ? { id: choiceId, label } : null;
+            })
+            .filter((choice): choice is { id: string; label: string } => Boolean(choice))
+        : [];
+      return {
+        id,
+        kind: stringField(raw.kind) || "single_choice",
+        concept_id: stringField(raw.concept_id) || undefined,
+        prompt,
+        choices,
+        points: typeof raw.points === "number" ? raw.points : 1,
+      };
+    })
+    .filter((item): item is AssessmentItem => Boolean(item));
+}
+
+function isInstructionOnlyProvider(provider?: string): boolean {
+  const p = (provider || "").trim().toLowerCase();
+  return p === "instruction_only" || p === "runtime";
+}
+
+function localInstructionOnlyContent(intent: NowIntent, misconception?: string, reason?: string): WorkbenchContent {
+  const scaffold = fallbackScaffold(intent, misconception);
+  return {
+    source: "fallbk",
+    text: scaffold.prose,
+    code: scaffold.code,
+    provider: "instruction_only",
+    model: "local",
+    persisted: false,
+    reason,
+  };
+}
+
+function workbenchContentFrom(
+  value: unknown,
+  intent: NowIntent,
+  misconception?: string,
+  generationError?: string
+): WorkbenchContent {
+  const generated = generatedContent(value);
+  if (!generated) {
+    return localInstructionOnlyContent(
+      intent,
+      misconception,
+      generationError ? `génération indisponible: ${generationError}` : "aucun contenu généré retourné"
+    );
+  }
+  const instructionOnly = isInstructionOnlyProvider(generated.provider);
+  return {
+    source: instructionOnly ? "fallbk" : "llm",
+    text: generated.content,
+    provider: generated.provider || (instructionOnly ? "instruction_only" : "backend"),
+    model: generated.model,
+    generatedId: generated.id,
+    persisted: true,
+  };
+}
+
+function contentDetail(content: WorkbenchContent): string {
+  const origin = content.persisted ? "contenu persisté" : "fallback local";
+  const provider = [content.provider, content.model].filter(Boolean).join("/");
+  const bits = [provider, origin, content.generatedId ? `id ${content.generatedId}` : "", content.reason || ""].filter(Boolean);
+  return bits.join(" · ");
+}
+
 type Phase = "intent" | "reading" | "evidence" | "delta";
 
 export function NowWorkbench({
@@ -72,6 +188,7 @@ export function NowWorkbench({
   const [planned, setPlanned] = useState<PlannedActivity | null>(null);
   const [success, setSuccess] = useState(true);
   const [score, setScore] = useState(70);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [planning, setPlanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,13 +196,17 @@ export function NowWorkbench({
   const formId = useId();
 
   const misconception = planned?.misconception ?? intent.misconception;
-  const scaffold = useMemo(() => fallbackScaffold(intent, misconception), [intent, misconception]);
+  const localFallback = useMemo(
+    () => localInstructionOnlyContent(intent, misconception, "activité planifiée sans contenu généré"),
+    [intent, misconception]
+  );
 
   // Begin: ask the runtime to plan the next real activity. The runtime owns
   // progression; we only relay its decision and use its real activity_id.
   const begin = useCallback(async () => {
     setPlanning(true);
     setError(null);
+    setDoneReading(false);
     try {
       const res = await fetch("/api/activities/next", {
         method: "POST",
@@ -101,6 +222,12 @@ export function NowWorkbench({
       const instruction = ((data.tutor_instruction ?? data.instruction) ?? {}) as Record<string, unknown>;
       const ctx = (instruction.context ?? {}) as Record<string, unknown>;
       const mc = ctx.misconception as Record<string, unknown> | undefined;
+      const misconception =
+        (typeof mc?.description === "string" && mc.description) || intent.misconception || undefined;
+      const generated = data.generated_content ?? data.generatedContent;
+      const generationError = data.generated_content_error as Record<string, unknown> | undefined;
+      const generationErrorText = generationError?.error ? String(generationError.error) : undefined;
+      const assessmentItems = assessmentItemsFrom(ctx.assessment_items);
       setPlanned({
         activityId: String(activity.id ?? ""),
         activityType: String(activity.activity_type ?? intent.activityType),
@@ -109,9 +236,11 @@ export function NowWorkbench({
           typeof activity.difficulty_target === "number"
             ? (activity.difficulty_target as number)
             : intent.difficultyTarget,
-        misconception:
-          (typeof mc?.description === "string" && mc.description) || intent.misconception || undefined,
+        misconception,
+        content: workbenchContentFrom(generated, intent, misconception, generationErrorText),
+        assessmentItems,
       });
+      setAnswers({});
       setPhase("reading");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impossible de planifier votre prochaine étape.");
@@ -129,18 +258,47 @@ export function NowWorkbench({
     setError(null);
     const idempotencyKey = `now-${learnerId}-${planned.activityId}-${Date.now()}`;
     try {
-      const res = await fetch("/api/interactions", {
+      const isAssessment = planned.activityType === "ASSESSMENT";
+      const assessmentAnswers: AssessmentAnswer[] = planned.assessmentItems.map((item) => ({
+        item_id: item.id,
+        choice_id: answers[item.id],
+      }));
+      if (isAssessment && assessmentAnswers.length === 0) {
+        setError("Aucun item corrigé n'a été fourni par le runtime pour cette évaluation.");
+        setBusy(false);
+        return;
+      }
+      if (isAssessment && assessmentAnswers.some((answer) => !answer.choice_id)) {
+        setError("Répondez à chaque item corrigé avant d'enregistrer.");
+        setBusy(false);
+        return;
+      }
+      const res = await fetch(
+        isAssessment ? `/api/assessments/${encodeURIComponent(planned.activityId)}/submit` : "/api/interactions",
+        {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          learner_id: learnerId,
-          activity_id: planned.activityId,
-          success,
-          score: score / 100,
-          error_type: success ? undefined : misconception ?? "unspecified",
-          idempotencyKey,
-        }),
-      });
+          body: JSON.stringify(
+            isAssessment
+              ? {
+                  learner_id: learnerId,
+                  answers: assessmentAnswers,
+                  success,
+                  score: score / 100,
+                  confidence: score / 100,
+                  idempotencyKey,
+                }
+              : {
+                  learner_id: learnerId,
+                  activity_id: planned.activityId,
+                  success,
+                  score: score / 100,
+                  error_type: success ? undefined : misconception ?? "unspecified",
+                  idempotencyKey,
+                }
+          ),
+        }
+      );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -158,7 +316,7 @@ export function NowWorkbench({
     } finally {
       setBusy(false);
     }
-  }, [learnerId, planned, intent.conceptId, success, score, misconception]);
+  }, [learnerId, planned, answers, intent.conceptId, success, score, misconception]);
 
   // ---- INTENT (the amorce: one runtime-decided intention) -------------------
   if (phase === "intent") {
@@ -208,10 +366,11 @@ export function NowWorkbench({
 
   // ---- READING (full-column takeover that streams the practice) -------------
   if (phase === "reading") {
+    const content = planned?.content ?? localFallback;
     return (
       <section className="col" style={{ gap: 20 }}>
         <div className="spread" style={{ flexWrap: "wrap", gap: 10 }}>
-          <SourceMark source="fallbk" detail="rédigé par le runtime · instruction seule" />
+          <SourceMark source={content.source} detail={contentDetail(content)} />
           <button type="button" className="btn ghost" onClick={() => setPhase("intent")}>
             ← retour
           </button>
@@ -222,9 +381,9 @@ export function NowWorkbench({
           </p>
         ) : null}
         <div className="prose" style={{ whiteSpace: "pre-wrap", fontSize: 18 }}>
-          <StreamReader text={scaffold.prose} onDone={() => setDoneReading(true)} />
+          <StreamReader text={content.text} onDone={() => setDoneReading(true)} />
         </div>
-        <CodeBlock code={scaffold.code} language="go" />
+        {content.code ? <CodeBlock code={content.code} language="go" /> : null}
         <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
           <button
             type="button"
@@ -246,22 +405,58 @@ export function NowWorkbench({
 
   // ---- EVIDENCE (form -> POST /api/interactions) ----------------------------
   if (phase === "evidence") {
+    const isAssessment = planned?.activityType === "ASSESSMENT";
+    const assessmentItems = planned?.assessmentItems ?? [];
     return (
       <section className="col" style={{ gap: 18, maxWidth: 560 }}>
         <div className="col" style={{ gap: 6 }}>
-          <span className="kicker">Votre preuve</span>
+          <span className="kicker">{isAssessment ? "Évaluation corrigée" : "Votre preuve"}</span>
           <p className="soft" style={{ fontSize: 14, lineHeight: 1.6 }}>
-            Dites au runtime ce qui s&apos;est passé. C&apos;est lui — pas le contenu — qui décide
-            de la maîtrise, de la rétention et de votre prochaine étape.
+            {isAssessment
+              ? "Répondez aux items corrigés. Le runtime calcule le score à partir de vos réponses, puis met à jour la maîtrise."
+              : "Dites au runtime ce qui s'est passé. C'est lui — pas le contenu — qui décide de la maîtrise, de la rétention et de votre prochaine étape."}
           </p>
         </div>
+
+        {isAssessment ? (
+          <div className="col" style={{ gap: 14 }}>
+            {assessmentItems.map((item, index) => (
+              <fieldset
+                key={item.id}
+                className="col"
+                style={{ gap: 10, border: "1px solid var(--line)", borderRadius: 12, padding: 16 }}
+              >
+                <legend className="kicker" style={{ padding: "0 6px" }}>
+                  item {index + 1}
+                </legend>
+                <p style={{ margin: 0, lineHeight: 1.5 }}>{item.prompt}</p>
+                {(item.choices ?? []).map((choice) => (
+                  <label key={choice.id} className="row" style={{ gap: 10, cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name={`${formId}-${item.id}`}
+                      checked={answers[item.id] === choice.id}
+                      onChange={() => setAnswers((prev) => ({ ...prev, [item.id]: choice.id }))}
+                    />
+                    <span style={{ fontSize: 15 }}>{choice.label}</span>
+                  </label>
+                ))}
+              </fieldset>
+            ))}
+            {assessmentItems.length === 0 ? (
+              <p className="mono" style={{ color: "var(--alarm)", fontSize: 13 }}>
+                Aucun item corrigé n&apos;a été fourni par le runtime pour cette évaluation.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <fieldset
           className="col"
           style={{ gap: 10, border: "1px solid var(--line)", borderRadius: 12, padding: 16 }}
         >
           <legend className="kicker" style={{ padding: "0 6px" }}>
-            résultat
+            {isAssessment ? "ressenti apprenant" : "résultat"}
           </legend>
           <label className="row" style={{ gap: 10, cursor: "pointer" }}>
             <input

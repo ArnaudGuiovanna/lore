@@ -12,6 +12,16 @@ export type ReviewCardState = "new" | "learning" | "review" | "relearning";
 export interface Tenant { id: string; parent_id?: string; name: string; slug: string; status: string; created_at: string; }
 export interface User { id: string; email: string; name: string; status: string; created_at: string; }
 export interface Membership { tenant_id: string; user_id: string; role: Role; status: string; created_at: string; }
+export interface Learner {
+  tenant_id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  user_status: string;
+  membership_status: string;
+  user_created_at: string;
+  membership_created_at: string;
+}
 export interface Program { tenant_id: string; id: string; name: string; created_at: string; }
 export interface Cohort { tenant_id: string; id: string; program_id: string; name: string; start_date: string; end_date: string; created_at: string; }
 export interface CohortEnrollment { tenant_id: string; cohort_id: string; learner_id: string; status: string; created_at: string; }
@@ -47,6 +57,9 @@ export interface TutorInstruction {
   context: Record<string, unknown>; created_at: string;
 }
 export interface GeneratedContent { tenant_id: string; id: string; instruction_id: string; provider: string; model: string; content: string; created_at: string; }
+export interface AssessmentChoice { id: string; label: string; }
+export interface AssessmentItem { id: string; kind: string; concept_id?: string; prompt: string; choices?: AssessmentChoice[]; points: number; }
+export interface AssessmentAnswer { item_id: string; choice_id?: string; answer?: string; }
 export interface LLMConfiguration {
   tenant_id: string; scope_type?: string; scope_id?: string; provider: string; model: string;
   base_url?: string; api_key_configured?: boolean; temperature?: number; max_tokens?: number; created_at: string; updated_at: string;
@@ -67,7 +80,15 @@ export interface LoreEvent {
 }
 
 // Response wrappers seen from the backend.
-export interface PlanNextResponse { activity: Activity; instruction?: TutorInstruction; state_delta?: unknown; [k: string]: unknown; }
+export interface PlanNextResponse {
+  activity: Activity;
+  tutor_instruction?: TutorInstruction;
+  instruction?: TutorInstruction;
+  generated_content?: GeneratedContent;
+  generated_content_error?: { status: number; error: string };
+  state_delta?: unknown;
+  [k: string]: unknown;
+}
 
 // Demo identities for the login/role entry (role is "derived" after sign-in).
 export interface Identity { email: string; name: string; role: Role; learnerId?: string; }

@@ -47,6 +47,10 @@ func main() {
 		slog.Error("jwt configuration failed", "err", err)
 		os.Exit(1)
 	}
+	if err := configureMetrics(server, cfg); err != nil {
+		slog.Error("metrics configuration failed", "err", err)
+		os.Exit(1)
+	}
 	if cfg.BootstrapToken != "" {
 		server.EnableBootstrap(cfg.BootstrapToken)
 	}
@@ -72,11 +76,27 @@ func main() {
 	}
 }
 
+func configureMetrics(server *httpapi.Server, cfg config.Config) error {
+	token := strings.TrimSpace(cfg.MetricsToken)
+	if isProductionLike(cfg.Environment) && len(token) < 32 {
+		return fmt.Errorf("LORE_METRICS_TOKEN must be at least 32 bytes when LORE_ENV=%s", cfg.Environment)
+	}
+	if token != "" {
+		server.EnableMetricsToken(token)
+	}
+	return nil
+}
+
 func configureAuth(server *httpapi.Server, cfg config.Config) error {
+	prodLike := isProductionLike(cfg.Environment)
 	switch strings.ToUpper(strings.TrimSpace(cfg.JWTAlgorithm)) {
 	case "", "HS256":
-		if cfg.JWTSecret != "" {
-			server.EnableJWT(cfg.JWTSecret)
+		secret := strings.TrimSpace(cfg.JWTSecret)
+		if prodLike && len(secret) < 32 {
+			return fmt.Errorf("JWT_SECRET must be at least 32 bytes when LORE_ENV=%s", cfg.Environment)
+		}
+		if secret != "" {
+			server.EnableJWT(secret)
 		}
 		return nil
 	case "RS256":
@@ -91,6 +111,15 @@ func configureAuth(server *httpapi.Server, cfg config.Config) error {
 		return nil
 	default:
 		return fmt.Errorf("unsupported JWT_ALG %q (use HS256 or RS256)", cfg.JWTAlgorithm)
+	}
+}
+
+func isProductionLike(env string) bool {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "", "dev", "development", "local", "test":
+		return false
+	default:
+		return true
 	}
 }
 
@@ -111,7 +140,7 @@ func newRepository(ctx context.Context, cfg config.Config) (httpapi.Repository, 
 				repo.Close()
 				return nil, fmt.Errorf("LORE_MIGRATION_PATH is required when LORE_AUTO_MIGRATE=on")
 			}
-			if err := repo.ApplyMigrationFile(ctx, "000001_init", cfg.MigrationPath); err != nil {
+			if err := repo.ApplyMigrationsPath(ctx, cfg.MigrationPath); err != nil {
 				repo.Close()
 				return nil, err
 			}

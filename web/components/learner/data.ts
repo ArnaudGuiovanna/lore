@@ -1,10 +1,11 @@
-// Server-only data access for the LEARNER surface. Centralises the seeded
+// Server-only data access for the LEARNER surface. Centralises the authenticated
 // identity + the read fetches each screen needs, normalising the backend's
 // occasionally-wrapped response shapes. Reads only — mutations go through /api/*.
 import "server-only";
 import { api, tpath } from "@/lib/api";
 import { seed } from "@/lib/config";
 import { getSession } from "@/lib/auth/session";
+import { explicitSeedFallbackEnabled } from "@/lib/tenant-context";
 import type {
   Concept,
   Dependency,
@@ -16,13 +17,16 @@ import type {
 } from "@/lib/types";
 
 // The active learner is the AUTHENTICATED user (their LORE user id is the learner
-// id; the bearer token only authorizes their own routes). Falls back to the seed
-// for resilience if called outside a session.
+// id; the bearer token only authorizes their own routes). Seed identity is only a
+// demo/local fallback when explicitly enabled.
 export async function activeLearner(): Promise<{ id: string; name: string }> {
   const session = await getSession();
   if (session?.userId) return { id: session.userId, name: session.name || "Learner" };
-  const s = seed();
-  return s.learners[0] ?? { id: "learner-1", name: "Amara Okafor" };
+  if (explicitSeedFallbackEnabled()) {
+    const s = seed();
+    return s.learners[0] ?? { id: "learner-1", name: "Amara Okafor" };
+  }
+  return { id: "", name: "Learner" };
 }
 
 // Some endpoints return a bare array, some wrap it ({ states: [...] }).
@@ -80,6 +84,7 @@ export interface DomainGraphData {
 
 // The domain endpoint returns { domain, concepts, dependencies } (the graph).
 export async function getDomainGraph(domainId: string): Promise<DomainGraphData> {
+  if (!domainId) return { concepts: [], dependencies: [] };
   const r = await api.get<unknown>(tpath(`/domains/${domainId}`));
   if (!r.ok || !r.data || typeof r.data !== "object") {
     return { concepts: [], dependencies: [] };
@@ -95,6 +100,7 @@ export async function getDomainGraph(domainId: string): Promise<DomainGraphData>
 export async function loadDomainGraph(
   domainId: string
 ): Promise<{ ok: true; data: DomainGraphData } | { ok: false; error: string }> {
+  if (!domainId) return { ok: true, data: { concepts: [], dependencies: [] } };
   const r = await api.get<unknown>(tpath(`/domains/${domainId}`));
   if (!r.ok) return { ok: false, error: r.error };
   if (!r.data || typeof r.data !== "object") return { ok: true, data: { concepts: [], dependencies: [] } };

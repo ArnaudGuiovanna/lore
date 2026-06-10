@@ -85,44 +85,132 @@ type Tenant struct {
 }
 
 type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         string     `json:"id"`
+	Email      string     `json:"email"`
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 type Membership struct {
-	TenantID  string    `json:"tenant_id"`
-	UserID    string    `json:"user_id"`
-	Role      Role      `json:"role"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	TenantID   string     `json:"tenant_id"`
+	UserID     string     `json:"user_id"`
+	Role       Role       `json:"role"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+type Learner struct {
+	TenantID            string    `json:"tenant_id"`
+	UserID              string    `json:"user_id"`
+	Email               string    `json:"email"`
+	Name                string    `json:"name"`
+	UserStatus          string    `json:"user_status"`
+	MembershipStatus    string    `json:"membership_status"`
+	UserCreatedAt       time.Time `json:"user_created_at"`
+	MembershipCreatedAt time.Time `json:"membership_created_at"`
+}
+
+type TenantUser struct {
+	TenantID             string     `json:"tenant_id"`
+	UserID               string     `json:"user_id"`
+	Email                string     `json:"email"`
+	Name                 string     `json:"name"`
+	UserStatus           string     `json:"user_status"`
+	Role                 Role       `json:"role"`
+	MembershipStatus     string     `json:"membership_status"`
+	UserCreatedAt        time.Time  `json:"user_created_at"`
+	UserUpdatedAt        time.Time  `json:"user_updated_at"`
+	UserArchivedAt       *time.Time `json:"user_archived_at,omitempty"`
+	MembershipCreatedAt  time.Time  `json:"membership_created_at"`
+	MembershipUpdatedAt  time.Time  `json:"membership_updated_at"`
+	MembershipArchivedAt *time.Time `json:"membership_archived_at,omitempty"`
 }
 
 type Program struct {
-	TenantID  string    `json:"tenant_id"`
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 type Cohort struct {
-	TenantID  string    `json:"tenant_id"`
-	ID        string    `json:"id"`
-	ProgramID string    `json:"program_id"`
-	Name      string    `json:"name"`
-	StartDate time.Time `json:"start_date"`
-	EndDate   time.Time `json:"end_date"`
-	CreatedAt time.Time `json:"created_at"`
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	ProgramID  string     `json:"program_id"`
+	Name       string     `json:"name"`
+	StartDate  time.Time  `json:"start_date"`
+	EndDate    time.Time  `json:"end_date"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 type CohortEnrollment struct {
-	TenantID  string    `json:"tenant_id"`
-	CohortID  string    `json:"cohort_id"`
-	LearnerID string    `json:"learner_id"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	TenantID   string     `json:"tenant_id"`
+	CohortID   string     `json:"cohort_id"`
+	LearnerID  string     `json:"learner_id"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+type TrainingSession struct {
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	CohortID   string     `json:"cohort_id"`
+	ProgramID  string     `json:"program_id,omitempty"`
+	Title      string     `json:"title"`
+	StartsAt   time.Time  `json:"starts_at"`
+	EndsAt     time.Time  `json:"ends_at"`
+	Capacity   int        `json:"capacity"`
+	Location   string     `json:"location,omitempty"`
+	VideoURL   string     `json:"video_url,omitempty"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+type TrainingSessionPatch struct {
+	CohortID *string    `json:"cohort_id,omitempty"`
+	Title    *string    `json:"title,omitempty"`
+	StartsAt *time.Time `json:"starts_at,omitempty"`
+	EndsAt   *time.Time `json:"ends_at,omitempty"`
+	Capacity *int       `json:"capacity,omitempty"`
+	Location *string    `json:"location,omitempty"`
+	VideoURL *string    `json:"video_url,omitempty"`
+	Status   *string    `json:"status,omitempty"`
+}
+
+type AdminAuditLog struct {
+	TenantID    string         `json:"tenant_id"`
+	ID          string         `json:"id"`
+	ActorUserID string         `json:"actor_user_id,omitempty"`
+	Action      string         `json:"action"`
+	TargetType  string         `json:"target_type"`
+	TargetID    string         `json:"target_id"`
+	Payload     map[string]any `json:"payload,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+}
+
+type TrainingTimeSummary struct {
+	TenantID            string  `json:"tenant_id"`
+	ProgramID           string  `json:"program_id,omitempty"`
+	CohortID            string  `json:"cohort_id"`
+	LearnerID           string  `json:"learner_id"`
+	ActivityCount       int     `json:"activity_count"`
+	TrainingTimeSeconds int64   `json:"training_time_seconds"`
+	TrainingHours       float64 `json:"training_hours"`
 }
 
 type Syllabus struct {
@@ -311,6 +399,36 @@ type Evaluation struct {
 	CreatedAt     time.Time      `json:"created_at"`
 }
 
+type AssessmentChoice struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+type AssessmentItem struct {
+	ID        string             `json:"id"`
+	Kind      string             `json:"kind"`
+	ConceptID string             `json:"concept_id,omitempty"`
+	Prompt    string             `json:"prompt"`
+	Choices   []AssessmentChoice `json:"choices,omitempty"`
+	Points    float64            `json:"points"`
+}
+
+type AssessmentAnswer struct {
+	ItemID   string `json:"item_id"`
+	ChoiceID string `json:"choice_id,omitempty"`
+	Answer   string `json:"answer,omitempty"`
+}
+
+type AssessmentCorrection struct {
+	ItemID           string  `json:"item_id"`
+	ExpectedChoiceID string  `json:"expected_choice_id,omitempty"`
+	GivenChoiceID    string  `json:"given_choice_id,omitempty"`
+	GivenAnswer      string  `json:"given_answer,omitempty"`
+	Correct          bool    `json:"correct"`
+	PointsAwarded    float64 `json:"points_awarded"`
+	PointsPossible   float64 `json:"points_possible"`
+}
+
 type Misconception struct {
 	TenantID    string    `json:"tenant_id"`
 	ID          string    `json:"id"`
@@ -391,6 +509,18 @@ type InteractionCommand struct {
 	ErrorType  string         `json:"error_type,omitempty"`
 	Feedback   string         `json:"feedback,omitempty"`
 	Payload    map[string]any `json:"payload,omitempty"`
+}
+
+type AssessmentSubmissionCommand struct {
+	TenantID            string             `json:"tenant_id"`
+	LearnerID           string             `json:"learner_id"`
+	ActivityID          string             `json:"activity_id"`
+	Answers             []AssessmentAnswer `json:"answers"`
+	SelfReportedSuccess *bool              `json:"success,omitempty"`
+	SelfReportedScore   *float64           `json:"score,omitempty"`
+	Confidence          *float64           `json:"confidence,omitempty"`
+	Feedback            string             `json:"feedback,omitempty"`
+	Payload             map[string]any     `json:"payload,omitempty"`
 }
 
 type StateDelta struct {

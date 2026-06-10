@@ -3,9 +3,13 @@ package httpapi
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,15 +26,36 @@ type Repository interface {
 	runtime.Store
 	CreateTenant(ctx context.Context, name, slug, parentID string) (core.Tenant, error)
 	GetTenant(ctx context.Context, tenantID string) (core.Tenant, error)
+	ListTenants(ctx context.Context) ([]core.Tenant, error)
 	CreateUser(ctx context.Context, email, name string) (core.User, error)
-	AddMembership(ctx context.Context, tenantID, userID string, role core.Role) (core.Membership, error)
+	AddMembership(ctx context.Context, tenantID, userID string, role core.Role, actorUserID ...string) (core.Membership, error)
 	ListMemberships(ctx context.Context, tenantID string) ([]core.Membership, error)
-	CreateProgram(ctx context.Context, tenantID, name string) (core.Program, error)
-	CreateCohort(ctx context.Context, tenantID, programID, name string, start, end time.Time) (core.Cohort, error)
-	EnrollLearner(ctx context.Context, tenantID, cohortID, learnerID string) (core.CohortEnrollment, error)
+	ListTenantUsers(ctx context.Context, tenantID string) ([]core.TenantUser, error)
+	UpdateTenantUser(ctx context.Context, tenantID, userID, email, name, status string, actorUserID ...string) (core.TenantUser, error)
+	ArchiveTenantUser(ctx context.Context, tenantID, userID string, actorUserID ...string) (core.TenantUser, error)
+	ListLearners(ctx context.Context, tenantID string) ([]core.Learner, error)
+	CreateProgram(ctx context.Context, tenantID, name string, actorUserID ...string) (core.Program, error)
+	ListPrograms(ctx context.Context, tenantID string) ([]core.Program, error)
+	UpdateProgram(ctx context.Context, tenantID, programID, name, status string, actorUserID ...string) (core.Program, error)
+	ArchiveProgram(ctx context.Context, tenantID, programID string, actorUserID ...string) (core.Program, error)
+	CreateCohort(ctx context.Context, tenantID, programID, name string, start, end time.Time, actorUserID ...string) (core.Cohort, error)
+	ListCohorts(ctx context.Context, tenantID string) ([]core.Cohort, error)
+	UpdateCohort(ctx context.Context, tenantID, cohortID, programID, name, status string, start, end time.Time, actorUserID ...string) (core.Cohort, error)
+	ArchiveCohort(ctx context.Context, tenantID, cohortID string, actorUserID ...string) (core.Cohort, error)
+	EnrollLearner(ctx context.Context, tenantID, cohortID, learnerID string, actorUserID ...string) (core.CohortEnrollment, error)
+	ListCohortEnrollments(ctx context.Context, tenantID, cohortID string) ([]core.CohortEnrollment, error)
+	UpdateCohortEnrollmentStatus(ctx context.Context, tenantID, cohortID, learnerID, status string, actorUserID ...string) (core.CohortEnrollment, error)
+	ArchiveCohortEnrollment(ctx context.Context, tenantID, cohortID, learnerID string, actorUserID ...string) (core.CohortEnrollment, error)
+	CreateTrainingSession(ctx context.Context, session core.TrainingSession, actorUserID ...string) (core.TrainingSession, error)
+	ListTrainingSessions(ctx context.Context, tenantID, cohortID string) ([]core.TrainingSession, error)
+	UpdateTrainingSession(ctx context.Context, tenantID, sessionID string, patch core.TrainingSessionPatch, actorUserID ...string) (core.TrainingSession, error)
+	ArchiveTrainingSession(ctx context.Context, tenantID, sessionID string, actorUserID ...string) (core.TrainingSession, error)
+	ListAdminAuditLogs(ctx context.Context, tenantID, targetType, targetID string) ([]core.AdminAuditLog, error)
 	CreateSyllabus(ctx context.Context, tenantID, title, description string, objectives, outcomes map[string]any) (core.Syllabus, error)
+	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
 	CreateDomain(ctx context.Context, tenantID, ownerID, name, description, source string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error)
+	ListDomains(ctx context.Context, tenantID string) ([]core.Domain, error)
 	ReplaceDomainGraph(ctx context.Context, tenantID, domainID string, drafts []core.ConceptDraft, depDrafts []core.DependencyDraft) (core.DomainGraph, error)
 	StartActivity(ctx context.Context, tenantID, activityID string) (core.Activity, error)
 	ListDueReviews(ctx context.Context, tenantID, learnerID string, now time.Time) ([]core.ReviewCard, error)
@@ -70,14 +95,37 @@ type Server struct {
 	bootstrapToken string
 	cache          cache.Cache
 	metrics        *observability.Metrics
+	metricsToken   string
+	authMu         sync.Mutex
+	authAttempts   map[string]authAttempt
 }
 
 // maxTokenTTL caps the lifetime of any issued JWT regardless of the requested
 // ttl_seconds, limiting the blast radius of a leaked token.
 const maxTokenTTL = 24 * time.Hour
 
+const (
+	maxAuthFailures   = 5
+	authFailureWindow = 15 * time.Minute
+	authLockout       = 15 * time.Minute
+)
+
+type authAttempt struct {
+	Failures     int
+	FirstFailure time.Time
+	LockedUntil  time.Time
+}
+
 func NewServer(store Repository, engine *runtime.Engine, generator llm.Generator, provider, model string) *Server {
-	return &Server{store: store, engine: engine, generator: generator, llmProvider: provider, llmModel: model, metrics: observability.NewMetrics()}
+	return &Server{
+		store:        store,
+		engine:       engine,
+		generator:    generator,
+		llmProvider:  provider,
+		llmModel:     model,
+		metrics:      observability.NewMetrics(),
+		authAttempts: map[string]authAttempt{},
+	}
 }
 
 func (s *Server) EnableJWT(secret string) {
@@ -102,6 +150,12 @@ func (s *Server) EnableBootstrap(token string) {
 	s.bootstrapToken = token
 }
 
+// EnableMetricsToken protects GET /metrics with a static bearer token suitable
+// for Prometheus scrape credentials.
+func (s *Server) EnableMetricsToken(token string) {
+	s.metricsToken = strings.TrimSpace(token)
+}
+
 func (s *Server) EnableCache(c cache.Cache) {
 	if c != nil {
 		s.cache = c
@@ -111,21 +165,42 @@ func (s *Server) EnableCache(c cache.Cache) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
-	mux.Handle("GET /metrics", s.metrics.Handler())
+	mux.Handle("GET /metrics", s.metricsEndpoint(s.metrics.Handler()))
 
 	mux.HandleFunc("POST /v1/auth/token", s.issueToken)
+	mux.HandleFunc("GET /v1/tenants", s.listTenants)
 	mux.HandleFunc("POST /v1/tenants", s.createTenant)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}", s.getTenant)
 	mux.HandleFunc("POST /v1/users", s.createUser)
 
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/memberships", s.addMembership)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/memberships", s.listMemberships)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/users", s.listTenantUsers)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/users/{user_id}", s.patchTenantUser)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/users/{user_id}", s.archiveTenantUser)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/learners", s.listLearners)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/programs", s.listPrograms)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/programs", s.createProgram)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/programs/{program_id}", s.patchProgram)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/programs/{program_id}", s.archiveProgram)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts", s.listCohorts)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts", s.createCohort)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/cohorts/{cohort_id}", s.patchCohort)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/cohorts/{cohort_id}", s.archiveCohort)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments", s.listCohortEnrollments)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments", s.enrollLearner)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments/{learner_id}", s.patchCohortEnrollment)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/cohorts/{cohort_id}/enrollments/{learner_id}", s.archiveCohortEnrollment)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/training-sessions", s.listTrainingSessions)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/training-sessions", s.createTrainingSession)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/training-sessions/{session_id}", s.patchTrainingSession)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/training-sessions/{session_id}", s.archiveTrainingSession)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/admin-audit-logs", s.listAdminAuditLogs)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/syllabi", s.listSyllabi)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/domains", s.listDomains)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/domains", s.createDomain)
 	mux.HandleFunc("PUT /v1/tenants/{tenant_id}/domains/{domain_id}/graph", s.replaceDomainGraph)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/domains/{domain_id}", s.getDomain)
@@ -148,6 +223,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/events/outbox", s.outboxEvents)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/events/{event_id}/published", s.markEventPublished)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}", s.cohortAnalytics)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/analytics/cohorts/{cohort_id}/training-time.csv", s.cohortTrainingTimeCSV)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/alerts", s.alerts)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/alerts/{alert_id}", s.patchAlert)
 	var handler http.Handler = mux
@@ -163,6 +239,48 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) metricsEndpoint(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.authorizeMetrics(w, r) {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) authorizeMetrics(w http.ResponseWriter, r *http.Request) bool {
+	expected := strings.TrimSpace(s.metricsToken)
+	if expected == "" {
+		return true
+	}
+	provided := bearerToken(r.Header.Get("Authorization"))
+	if provided == "" {
+		provided = strings.TrimSpace(r.Header.Get("X-LORE-Metrics-Token"))
+	}
+	if subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1 {
+		return true
+	}
+	w.Header().Set("WWW-Authenticate", `Bearer realm="lore-metrics"`)
+	problem(w, http.StatusUnauthorized, "metrics token is required")
+	return false
+}
+
+func bearerToken(value string) string {
+	scheme, token, ok := strings.Cut(strings.TrimSpace(value), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(token)
+}
+
+func (s *Server) listTenants(w http.ResponseWriter, r *http.Request) {
+	if !s.authorizeTenantList(w, r) {
+		return
+	}
+	tenants, err := s.store.ListTenants(r.Context())
+	respond(w, tenants, err, http.StatusOK)
 }
 
 func (s *Server) createTenant(w http.ResponseWriter, r *http.Request) {
@@ -212,6 +330,20 @@ func (s *Server) issueToken(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	authKey := authAttemptKey(r, req.TenantID, req.UserID)
+	if retryAfter, locked := s.authAttemptLocked(authKey, time.Now().UTC()); locked {
+		w.Header().Set("Retry-After", strconv.FormatInt(int64(retryAfter.Seconds()), 10))
+		problem(w, http.StatusTooManyRequests, "too many failed token requests; retry later")
+		return
+	}
+	authFailed := true
+	defer func() {
+		if authFailed {
+			s.recordAuthFailure(authKey, time.Now().UTC())
+			return
+		}
+		s.recordAuthSuccess(authKey)
+	}()
 	if !s.authorizeTokenIssue(w, r, req.TenantID, req.UserID) {
 		return
 	}
@@ -240,6 +372,7 @@ func (s *Server) issueToken(w http.ResponseWriter, r *http.Request) {
 		respond(w, nil, err, http.StatusOK)
 		return
 	}
+	authFailed = false
 	writeJSON(w, http.StatusOK, map[string]any{"access_token": token, "token_type": "Bearer"})
 }
 
@@ -263,7 +396,7 @@ func (s *Server) addMembership(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeMembershipWrite(w, r, tenantID, role) {
 		return
 	}
-	membership, err := s.store.AddMembership(r.Context(), tenantID, req.UserID, role)
+	membership, err := s.store.AddMembership(r.Context(), tenantID, req.UserID, role, actorUserIDFromRequest(r))
 	respond(w, membership, err, http.StatusCreated)
 }
 
@@ -272,18 +405,97 @@ func (s *Server) listMemberships(w http.ResponseWriter, r *http.Request) {
 	respond(w, memberships, err, http.StatusOK)
 }
 
+func (s *Server) listTenantUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := s.store.ListTenantUsers(r.Context(), r.PathValue("tenant_id"))
+	respond(w, users, err, http.StatusOK)
+}
+
+func (s *Server) patchTenantUser(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		Email  string `json:"email"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	user, err := s.store.UpdateTenantUser(r.Context(), tenantID, r.PathValue("user_id"), req.Email, req.Name, req.Status, actorUserIDFromRequest(r))
+	respond(w, user, err, http.StatusOK)
+}
+
+func (s *Server) archiveTenantUser(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	user, err := s.store.ArchiveTenantUser(r.Context(), tenantID, r.PathValue("user_id"), actorUserIDFromRequest(r))
+	respond(w, user, err, http.StatusOK)
+}
+
+func (s *Server) listLearners(w http.ResponseWriter, r *http.Request) {
+	learners, err := s.store.ListLearners(r.Context(), r.PathValue("tenant_id"))
+	respond(w, learners, err, http.StatusOK)
+}
+
+func (s *Server) listPrograms(w http.ResponseWriter, r *http.Request) {
+	programs, err := s.store.ListPrograms(r.Context(), r.PathValue("tenant_id"))
+	respond(w, programs, err, http.StatusOK)
+}
+
 func (s *Server) createProgram(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
 	var req struct {
 		Name string `json:"name"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
-	program, err := s.store.CreateProgram(r.Context(), r.PathValue("tenant_id"), req.Name)
+	program, err := s.store.CreateProgram(r.Context(), tenantID, req.Name, actorUserIDFromRequest(r))
 	respond(w, program, err, http.StatusCreated)
 }
 
+func (s *Server) patchProgram(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	program, err := s.store.UpdateProgram(r.Context(), tenantID, r.PathValue("program_id"), req.Name, req.Status, actorUserIDFromRequest(r))
+	respond(w, program, err, http.StatusOK)
+}
+
+func (s *Server) archiveProgram(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	program, err := s.store.ArchiveProgram(r.Context(), tenantID, r.PathValue("program_id"), actorUserIDFromRequest(r))
+	respond(w, program, err, http.StatusOK)
+}
+
+func (s *Server) listCohorts(w http.ResponseWriter, r *http.Request) {
+	cohorts, err := s.store.ListCohorts(r.Context(), r.PathValue("tenant_id"))
+	respond(w, cohorts, err, http.StatusOK)
+}
+
 func (s *Server) createCohort(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
 	var req struct {
 		ProgramID string `json:"program_id"`
 		Name      string `json:"name"`
@@ -303,19 +515,200 @@ func (s *Server) createCohort(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	cohort, err := s.store.CreateCohort(r.Context(), r.PathValue("tenant_id"), req.ProgramID, req.Name, start, end)
+	cohort, err := s.store.CreateCohort(r.Context(), tenantID, req.ProgramID, req.Name, start, end, actorUserIDFromRequest(r))
 	respond(w, cohort, err, http.StatusCreated)
 }
 
+func (s *Server) patchCohort(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		ProgramID string `json:"program_id"`
+		Name      string `json:"name"`
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+		Status    string `json:"status"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	start, err := parseDate(req.StartDate)
+	if err != nil {
+		problem(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	end, err := parseDate(req.EndDate)
+	if err != nil {
+		problem(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cohort, err := s.store.UpdateCohort(r.Context(), tenantID, r.PathValue("cohort_id"), req.ProgramID, req.Name, req.Status, start, end, actorUserIDFromRequest(r))
+	respond(w, cohort, err, http.StatusOK)
+}
+
+func (s *Server) archiveCohort(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	cohort, err := s.store.ArchiveCohort(r.Context(), tenantID, r.PathValue("cohort_id"), actorUserIDFromRequest(r))
+	respond(w, cohort, err, http.StatusOK)
+}
+
+func (s *Server) listCohortEnrollments(w http.ResponseWriter, r *http.Request) {
+	enrollments, err := s.store.ListCohortEnrollments(r.Context(), r.PathValue("tenant_id"), r.PathValue("cohort_id"))
+	respond(w, enrollments, err, http.StatusOK)
+}
+
 func (s *Server) enrollLearner(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
 	var req struct {
 		LearnerID string `json:"learner_id"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
-	enrollment, err := s.store.EnrollLearner(r.Context(), r.PathValue("tenant_id"), r.PathValue("cohort_id"), req.LearnerID)
+	enrollment, err := s.store.EnrollLearner(r.Context(), tenantID, r.PathValue("cohort_id"), req.LearnerID, actorUserIDFromRequest(r))
 	respond(w, enrollment, err, http.StatusCreated)
+}
+
+func (s *Server) patchCohortEnrollment(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	enrollment, err := s.store.UpdateCohortEnrollmentStatus(r.Context(), tenantID, r.PathValue("cohort_id"), r.PathValue("learner_id"), req.Status, actorUserIDFromRequest(r))
+	respond(w, enrollment, err, http.StatusOK)
+}
+
+func (s *Server) archiveCohortEnrollment(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	enrollment, err := s.store.ArchiveCohortEnrollment(r.Context(), tenantID, r.PathValue("cohort_id"), r.PathValue("learner_id"), actorUserIDFromRequest(r))
+	respond(w, enrollment, err, http.StatusOK)
+}
+
+func (s *Server) listTrainingSessions(w http.ResponseWriter, r *http.Request) {
+	sessions, err := s.store.ListTrainingSessions(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("cohort_id"))
+	respond(w, sessions, err, http.StatusOK)
+}
+
+func (s *Server) createTrainingSession(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		CohortID string `json:"cohort_id"`
+		Title    string `json:"title"`
+		StartsAt string `json:"starts_at"`
+		EndsAt   string `json:"ends_at"`
+		Capacity int    `json:"capacity"`
+		Location string `json:"location"`
+		VideoURL string `json:"video_url"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	startsAt, err := parseDateTime(req.StartsAt)
+	if err != nil {
+		problem(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	endsAt, err := parseDateTime(req.EndsAt)
+	if err != nil {
+		problem(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	session, err := s.store.CreateTrainingSession(r.Context(), core.TrainingSession{
+		TenantID: tenantID,
+		CohortID: req.CohortID,
+		Title:    req.Title,
+		StartsAt: startsAt,
+		EndsAt:   endsAt,
+		Capacity: req.Capacity,
+		Location: req.Location,
+		VideoURL: req.VideoURL,
+	}, actorUserIDFromRequest(r))
+	respond(w, session, err, http.StatusCreated)
+}
+
+func (s *Server) patchTrainingSession(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	var req struct {
+		CohortID *string `json:"cohort_id"`
+		Title    *string `json:"title"`
+		StartsAt *string `json:"starts_at"`
+		EndsAt   *string `json:"ends_at"`
+		Capacity *int    `json:"capacity"`
+		Location *string `json:"location"`
+		VideoURL *string `json:"video_url"`
+		Status   *string `json:"status"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	patch := core.TrainingSessionPatch{
+		CohortID: req.CohortID,
+		Title:    req.Title,
+		Capacity: req.Capacity,
+		Location: req.Location,
+		VideoURL: req.VideoURL,
+		Status:   req.Status,
+	}
+	if req.StartsAt != nil {
+		startsAt, err := parseDateTime(*req.StartsAt)
+		if err != nil {
+			problem(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		patch.StartsAt = &startsAt
+	}
+	if req.EndsAt != nil {
+		endsAt, err := parseDateTime(*req.EndsAt)
+		if err != nil {
+			problem(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		patch.EndsAt = &endsAt
+	}
+	session, err := s.store.UpdateTrainingSession(r.Context(), tenantID, r.PathValue("session_id"), patch, actorUserIDFromRequest(r))
+	respond(w, session, err, http.StatusOK)
+}
+
+func (s *Server) archiveTrainingSession(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeAdminMutation(w, r, tenantID) {
+		return
+	}
+	session, err := s.store.ArchiveTrainingSession(r.Context(), tenantID, r.PathValue("session_id"), actorUserIDFromRequest(r))
+	respond(w, session, err, http.StatusOK)
+}
+
+func (s *Server) listAdminAuditLogs(w http.ResponseWriter, r *http.Request) {
+	logs, err := s.store.ListAdminAuditLogs(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("target_type"), r.URL.Query().Get("target_id"))
+	respond(w, logs, err, http.StatusOK)
+}
+
+func (s *Server) listSyllabi(w http.ResponseWriter, r *http.Request) {
+	syllabi, err := s.store.ListSyllabi(r.Context(), r.PathValue("tenant_id"))
+	respond(w, syllabi, err, http.StatusOK)
 }
 
 func (s *Server) createSyllabus(w http.ResponseWriter, r *http.Request) {
@@ -343,6 +736,11 @@ func (s *Server) bindSyllabus(w http.ResponseWriter, r *http.Request) {
 	}
 	binding, err := s.store.BindSyllabus(r.Context(), r.PathValue("tenant_id"), r.PathValue("syllabus_id"), req.TargetType, req.TargetID, req.AdaptationMode)
 	respond(w, binding, err, http.StatusCreated)
+}
+
+func (s *Server) listDomains(w http.ResponseWriter, r *http.Request) {
+	domains, err := s.store.ListDomains(r.Context(), r.PathValue("tenant_id"))
+	respond(w, domains, err, http.StatusOK)
 }
 
 func (s *Server) createDomain(w http.ResponseWriter, r *http.Request) {
@@ -409,6 +807,9 @@ func (s *Server) recordInteraction(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeLearnerCommand(w, r, req.LearnerID) {
 		return
 	}
+	if !s.allowRawInteraction(w, r, req) {
+		return
+	}
 	if s.recordInteractionIdempotently(w, r, req) {
 		return
 	}
@@ -436,7 +837,7 @@ func (s *Server) planAssessment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) submitAssessment(w http.ResponseWriter, r *http.Request) {
-	var req core.InteractionCommand
+	var req core.AssessmentSubmissionCommand
 	if !decode(w, r, &req) {
 		return
 	}
@@ -445,14 +846,27 @@ func (s *Server) submitAssessment(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeLearnerCommand(w, r, req.LearnerID) {
 		return
 	}
-	if s.recordInteractionIdempotently(w, r, req) {
+	if s.submitAssessmentIdempotently(w, r, req) {
 		return
 	}
-	delta, err := s.engine.RecordInteraction(r.Context(), req)
+	delta, err := s.engine.SubmitAssessment(r.Context(), req)
 	if err == nil {
 		s.invalidateLearnerState(r.Context(), req.TenantID, req.LearnerID)
 	}
 	respond(w, delta, err, http.StatusCreated)
+}
+
+func (s *Server) allowRawInteraction(w http.ResponseWriter, r *http.Request, req core.InteractionCommand) bool {
+	activity, _, err := s.store.GetActivity(r.Context(), req.TenantID, req.ActivityID)
+	if err != nil {
+		handleError(w, err)
+		return false
+	}
+	if activity.ActivityType == core.ActivityAssessment {
+		problem(w, http.StatusBadRequest, "assessment activities must be submitted through the corrected assessment endpoint")
+		return false
+	}
+	return true
 }
 
 func (s *Server) recordInteractionIdempotently(w http.ResponseWriter, r *http.Request, req core.InteractionCommand) bool {
@@ -475,6 +889,61 @@ func (s *Server) recordInteractionIdempotently(w http.ResponseWriter, r *http.Re
 	}
 
 	delta, completed, err := s.engine.PrepareInteractionDelta(r.Context(), req)
+	if err != nil {
+		handleError(w, err)
+		return true
+	}
+	response, err := json.Marshal(delta)
+	if err != nil {
+		handleError(w, err)
+		return true
+	}
+	record = core.IdempotencyRecord{
+		TenantID:   req.TenantID,
+		Key:        idempotencyKey,
+		StatusCode: http.StatusCreated,
+		Response:   response,
+		CreatedAt:  delta.Interaction.CreatedAt,
+	}
+	err = s.store.SaveInteractionDeltaIdempotent(r.Context(), delta, completed, record)
+	if errors.Is(err, core.ErrConflict) {
+		record, replayErr := s.store.GetIdempotencyRecord(r.Context(), req.TenantID, idempotencyKey)
+		if replayErr != nil {
+			handleError(w, replayErr)
+			return true
+		}
+		writeIdempotencyReplay(w, record)
+		return true
+	}
+	if err != nil {
+		handleError(w, err)
+		return true
+	}
+	s.invalidateLearnerState(r.Context(), req.TenantID, req.LearnerID)
+	writeRawJSON(w, http.StatusCreated, response)
+	return true
+}
+
+func (s *Server) submitAssessmentIdempotently(w http.ResponseWriter, r *http.Request, req core.AssessmentSubmissionCommand) bool {
+	idempotencyKey := strings.TrimSpace(r.Header.Get(idempotencyKeyHeader))
+	if idempotencyKey == "" {
+		return false
+	}
+	if len(idempotencyKey) > 255 {
+		problem(w, http.StatusBadRequest, "idempotency key must be 255 characters or fewer")
+		return true
+	}
+	record, err := s.store.GetIdempotencyRecord(r.Context(), req.TenantID, idempotencyKey)
+	if err == nil {
+		writeIdempotencyReplay(w, record)
+		return true
+	}
+	if !errors.Is(err, core.ErrNotFound) {
+		handleError(w, err)
+		return true
+	}
+
+	delta, completed, err := s.engine.PrepareAssessmentSubmissionDelta(r.Context(), req)
 	if err != nil {
 		handleError(w, err)
 		return true
@@ -731,6 +1200,44 @@ func (s *Server) cohortAnalytics(w http.ResponseWriter, r *http.Request) {
 	respond(w, analytics, err, http.StatusOK)
 }
 
+func (s *Server) cohortTrainingTimeCSV(w http.ResponseWriter, r *http.Request) {
+	analytics, err := s.store.CohortAnalytics(r.Context(), r.PathValue("tenant_id"), r.PathValue("cohort_id"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	rows, err := trainingTimeRows(analytics["learner_time"])
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="lore-training-time.csv"`)
+	w.WriteHeader(http.StatusOK)
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"tenant_id", "program_id", "cohort_id", "learner_id", "activity_count", "training_time_seconds", "training_hours"})
+	for _, row := range rows {
+		_ = cw.Write([]string{
+			row.TenantID,
+			row.ProgramID,
+			row.CohortID,
+			row.LearnerID,
+			strconv.Itoa(row.ActivityCount),
+			strconv.FormatInt(row.TrainingTimeSeconds, 10),
+			strconv.FormatFloat(row.TrainingHours, 'f', 4, 64),
+		})
+	}
+	cw.Flush()
+}
+
+func trainingTimeRows(value any) ([]core.TrainingTimeSummary, error) {
+	rows, ok := value.([]core.TrainingTimeSummary)
+	if !ok {
+		return nil, fmt.Errorf("%w: analytics learner_time is unavailable", core.ErrInvalidInput)
+	}
+	return rows, nil
+}
+
 func (s *Server) alerts(w http.ResponseWriter, r *http.Request) {
 	alerts, err := s.store.ListAlerts(r.Context(), r.PathValue("tenant_id"), time.Now().UTC())
 	respond(w, alerts, err, http.StatusOK)
@@ -826,6 +1333,17 @@ func parseDate(value string) (time.Time, error) {
 	return parsed, nil
 }
 
+func parseDateTime(value string) (time.Time, error) {
+	if strings.TrimSpace(value) == "" {
+		return time.Time{}, fmt.Errorf("datetime is required")
+	}
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.UTC(), nil
+}
+
 // callerIsBootstrap reports whether the request carries the operator bootstrap
 // secret. The comparison is constant time to avoid leaking the secret through
 // timing, and a request never qualifies when no bootstrap secret is configured.
@@ -883,6 +1401,72 @@ func (s *Server) authorizeTokenIssue(w http.ResponseWriter, r *http.Request, ten
 	}
 }
 
+func authAttemptKey(r *http.Request, tenantID, userID string) string {
+	ip := clientIP(r)
+	if tenantID == "" {
+		tenantID = "unknown-tenant"
+	}
+	if userID == "" {
+		userID = "unknown-user"
+	}
+	return ip + "|" + tenantID + "|" + userID
+}
+
+func clientIP(r *http.Request) string {
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		if first, _, ok := strings.Cut(forwarded, ","); ok {
+			forwarded = first
+		}
+		if ip := strings.TrimSpace(forwarded); ip != "" {
+			return ip
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil && host != "" {
+		return host
+	}
+	if r.RemoteAddr != "" {
+		return r.RemoteAddr
+	}
+	return "unknown-ip"
+}
+
+func (s *Server) authAttemptLocked(key string, now time.Time) (time.Duration, bool) {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	attempt, ok := s.authAttempts[key]
+	if !ok {
+		return 0, false
+	}
+	if attempt.LockedUntil.After(now) {
+		return attempt.LockedUntil.Sub(now), true
+	}
+	if now.Sub(attempt.FirstFailure) > authFailureWindow {
+		delete(s.authAttempts, key)
+	}
+	return 0, false
+}
+
+func (s *Server) recordAuthFailure(key string, now time.Time) {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	attempt := s.authAttempts[key]
+	if attempt.FirstFailure.IsZero() || now.Sub(attempt.FirstFailure) > authFailureWindow {
+		attempt = authAttempt{FirstFailure: now}
+	}
+	attempt.Failures++
+	if attempt.Failures >= maxAuthFailures {
+		attempt.LockedUntil = now.Add(authLockout)
+	}
+	s.authAttempts[key] = attempt
+}
+
+func (s *Server) recordAuthSuccess(key string) {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	delete(s.authAttempts, key)
+}
+
 // authorizeMembershipWrite gates membership creation when authentication is
 // enabled: the bootstrap secret, a super-admin, or a tenant administrator of
 // the path tenant. Only the bootstrap secret or a super-admin may grant the
@@ -911,6 +1495,57 @@ func (s *Server) authorizeMembershipWrite(w http.ResponseWriter, r *http.Request
 		return false
 	}
 	return true
+}
+
+func (s *Server) authorizeTenantList(w http.ResponseWriter, r *http.Request) bool {
+	if s.tokens == nil {
+		return true
+	}
+	claims, ok := s.callerClaims(r)
+	if !ok {
+		problem(w, http.StatusUnauthorized, "super-admin bearer token is required to list tenants")
+		return false
+	}
+	if claims.Role != string(core.RoleSuperAdmin) {
+		problem(w, http.StatusForbidden, "only a super-admin may list tenants")
+		return false
+	}
+	return true
+}
+
+func (s *Server) authorizeAdminMutation(w http.ResponseWriter, r *http.Request, tenantID string) bool {
+	if s.tokens == nil {
+		return true
+	}
+	if s.callerIsBootstrap(r) {
+		return true
+	}
+	claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims)
+	if !ok {
+		var found bool
+		claims, found = s.callerClaims(r)
+		ok = found
+	}
+	if !ok {
+		problem(w, http.StatusUnauthorized, "authentication is required for admin mutation")
+		return false
+	}
+	if claims.Role == string(core.RoleSuperAdmin) {
+		return true
+	}
+	if claims.Role == string(core.RoleTenantAdmin) && claims.TenantID == tenantID {
+		return true
+	}
+	problem(w, http.StatusForbidden, "only a tenant administrator or super-admin may perform this admin mutation")
+	return false
+}
+
+func actorUserIDFromRequest(r *http.Request) string {
+	claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims)
+	if !ok {
+		return ""
+	}
+	return claims.Subject
 }
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {

@@ -6,6 +6,7 @@ import (
 )
 
 type Config struct {
+	Environment    string
 	Port           string
 	StoreDriver    string
 	DatabaseURL    string
@@ -18,6 +19,7 @@ type Config struct {
 	JWTPrivateKey  string
 	JWTPublicKey   string
 	BootstrapToken string
+	MetricsToken   string
 	LLMProvider    string
 	LLMModel       string
 	OllamaBaseURL  string
@@ -27,6 +29,7 @@ type Config struct {
 
 func Load() Config {
 	cfg := Config{
+		Environment:    getenv("LORE_ENV", "development"),
 		Port:           getenv("PORT", "8080"),
 		StoreDriver:    getenv("STORE_DRIVER", "memory"),
 		DatabaseURL:    getenv("DATABASE_URL", ""),
@@ -39,6 +42,7 @@ func Load() Config {
 		JWTPrivateKey:  fileOrValue("JWT_PRIVATE_KEY"),
 		JWTPublicKey:   fileOrValue("JWT_PUBLIC_KEY"),
 		BootstrapToken: getenv("LORE_BOOTSTRAP_TOKEN", ""),
+		MetricsToken:   getenv("LORE_METRICS_TOKEN", ""),
 		LLMProvider:    getenv("LORE_LLM_PROVIDER", "ollama"),
 		LLMModel:       getenv("LORE_LLM_MODEL", "gemma4"),
 		OllamaBaseURL:  getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
