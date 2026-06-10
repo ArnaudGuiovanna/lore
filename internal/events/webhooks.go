@@ -15,8 +15,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -43,10 +45,59 @@ func NewWebhookDispatcher(store WebhookStore, logger *slog.Logger) *WebhookDispa
 	return &WebhookDispatcher{
 		store:    store,
 		logger:   logger,
-		client:   &http.Client{Timeout: 10 * time.Second},
+		client:   newSafeWebhookClient(false),
 		interval: 2 * time.Second,
 		limit:    100,
 	}
+}
+
+// AllowPrivateNetworks disables the SSRF dial guard — for tests and for
+// on-prem deployments whose receiver legitimately lives on a private network.
+func (d *WebhookDispatcher) AllowPrivateNetworks() *WebhookDispatcher {
+	d.client = newSafeWebhookClient(true)
+	return d
+}
+
+var errPrivateAddress = errors.New("webhook destination resolves to a private, loopback or link-local address")
+
+// newSafeWebhookClient builds the delivery client. The SSRF guard runs at
+// DIAL time (not at subscription validation) so DNS rebinding cannot bypass
+// it, and redirects are refused outright — a 302 must not steer a delivery
+// into the metadata range after the initial check.
+func newSafeWebhookClient(allowPrivate bool) *http.Client {
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if !allowPrivate {
+				host, _, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, err
+				}
+				ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+				if err != nil {
+					return nil, err
+				}
+				for _, ip := range ips {
+					if isForbiddenWebhookIP(ip) {
+						return nil, errPrivateAddress
+					}
+				}
+			}
+			return dialer.DialContext(ctx, network, addr)
+		},
+	}
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return fmt.Errorf("webhook deliveries do not follow redirects")
+		},
+	}
+}
+
+func isForbiddenWebhookIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
 }
 
 func (d *WebhookDispatcher) Run(ctx context.Context) {

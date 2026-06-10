@@ -93,7 +93,7 @@ func TestWebhookDispatcherSignsAndMarksPublished(t *testing.T) {
 			TenantID: "t1", ID: "sub-1", URL: receiver.URL, Secret: "secret-0123456789abcdef", Active: true,
 		}},
 	}
-	dispatcher := NewWebhookDispatcher(store, nil)
+	dispatcher := NewWebhookDispatcher(store, nil).AllowPrivateNetworks()
 	dispatcher.drainOnce(context.Background())
 
 	if len(received) == 0 {
@@ -124,9 +124,30 @@ func TestWebhookDispatcherKeepsEventOnFailure(t *testing.T) {
 			TenantID: "t1", ID: "sub-1", URL: receiver.URL, Secret: "secret-0123456789abcdef", Active: true,
 		}},
 	}
-	dispatcher := NewWebhookDispatcher(store, nil)
+	dispatcher := NewWebhookDispatcher(store, nil).AllowPrivateNetworks()
 	dispatcher.drainOnce(context.Background())
 	if len(store.marked) != 0 {
 		t.Fatalf("failed delivery must keep the event unpublished: %+v", store.marked)
+	}
+}
+
+func TestWebhookDispatcherBlocksPrivateDestinations(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("SSRF guard let a loopback delivery through")
+	}))
+	defer receiver.Close()
+	event := core.Event{TenantID: "t1", ID: "evt-3", EventType: "alert.created"}
+	store := &fakeWebhookStore{
+		fakeOutboxStore: fakeOutboxStore{events: []core.Event{event}},
+		subs: []core.WebhookSubscription{{
+			TenantID: "t1", ID: "sub-1", URL: receiver.URL, Secret: "secret-0123456789abcdef", Active: true,
+		}},
+	}
+	// Default client (no AllowPrivateNetworks): loopback must be refused and
+	// the event must stay unpublished.
+	dispatcher := NewWebhookDispatcher(store, nil)
+	dispatcher.drainOnce(context.Background())
+	if len(store.marked) != 0 {
+		t.Fatalf("event must remain unpublished when the destination is private: %+v", store.marked)
 	}
 }

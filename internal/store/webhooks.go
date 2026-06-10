@@ -6,6 +6,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -16,9 +18,19 @@ import (
 	"lore/internal/ids"
 )
 
+// validateWebhookSubscription rejects obviously hostile URLs early; the real
+// SSRF guard lives in the dispatcher's dialer (dial-time IP check, redirects
+// refused) so DNS rebinding cannot route a delivery to internal services.
 func validateWebhookSubscription(sub core.WebhookSubscription) error {
-	if !strings.HasPrefix(sub.URL, "http://") && !strings.HasPrefix(sub.URL, "https://") {
-		return fmt.Errorf("%w: webhook url must be http(s)", core.ErrInvalidInput)
+	parsed, err := url.Parse(sub.URL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" {
+		return fmt.Errorf("%w: webhook url must be a valid http(s) URL", core.ErrInvalidInput)
+	}
+	if host := parsed.Hostname(); host == "localhost" || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
+		return fmt.Errorf("%w: webhook url cannot target an internal host", core.ErrInvalidInput)
+	}
+	if ip := net.ParseIP(parsed.Hostname()); ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()) {
+		return fmt.Errorf("%w: webhook url cannot target a private or loopback address", core.ErrInvalidInput)
 	}
 	if len(sub.Secret) < 16 {
 		return fmt.Errorf("%w: webhook secret must be at least 16 bytes", core.ErrInvalidInput)

@@ -78,7 +78,13 @@ func main() {
 			os.Exit(1)
 		}
 		if webhookStore, ok := repo.(events.WebhookStore); ok {
-			go events.NewWebhookDispatcher(webhookStore, slog.Default()).Run(context.Background())
+			dispatcher := events.NewWebhookDispatcher(webhookStore, slog.Default())
+			// LORE_WEBHOOKS_ALLOW_PRIVATE=on: on-prem receivers on private
+			// networks (the SSRF dial guard stays on by default).
+			if cfg.WebhooksAllowPrivate {
+				dispatcher = dispatcher.AllowPrivateNetworks()
+			}
+			go dispatcher.Run(context.Background())
 		}
 	}
 

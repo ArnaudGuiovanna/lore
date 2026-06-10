@@ -6,54 +6,56 @@ import (
 )
 
 type Config struct {
-	Environment     string
-	Port            string
-	StoreDriver     string
-	DatabaseURL     string
-	AutoMigrate     bool
-	MigrationPath   string
-	RedisURL        string
-	NATSURL         string
-	JWTSecret       string
-	JWTAlgorithm    string
-	JWTPrivateKey   string
-	JWTPublicKey    string
-	BootstrapToken  string
-	MetricsToken    string
-	OIDCIssuer      string
-	OIDCAudience    string
-	WebhooksEnabled bool
-	LLMProvider     string
-	LLMModel        string
-	OllamaBaseURL   string
-	LLMBaseURL      string
-	LLMAPIKey       string
+	Environment          string
+	Port                 string
+	StoreDriver          string
+	DatabaseURL          string
+	AutoMigrate          bool
+	MigrationPath        string
+	RedisURL             string
+	NATSURL              string
+	JWTSecret            string
+	JWTAlgorithm         string
+	JWTPrivateKey        string
+	JWTPublicKey         string
+	BootstrapToken       string
+	MetricsToken         string
+	OIDCIssuer           string
+	OIDCAudience         string
+	WebhooksEnabled      bool
+	WebhooksAllowPrivate bool
+	LLMProvider          string
+	LLMModel             string
+	OllamaBaseURL        string
+	LLMBaseURL           string
+	LLMAPIKey            string
 }
 
 func Load() Config {
 	cfg := Config{
-		Environment:     getenv("LORE_ENV", "development"),
-		Port:            getenv("PORT", "8080"),
-		StoreDriver:     getenv("STORE_DRIVER", "memory"),
-		DatabaseURL:     getenv("DATABASE_URL", ""),
-		AutoMigrate:     boolenv("LORE_AUTO_MIGRATE", false),
-		MigrationPath:   getenv("LORE_MIGRATION_PATH", ""),
-		RedisURL:        getenv("REDIS_URL", ""),
-		NATSURL:         getenv("NATS_URL", ""),
-		JWTSecret:       getenv("JWT_SECRET", ""),
-		JWTAlgorithm:    getenv("JWT_ALG", "HS256"),
-		JWTPrivateKey:   fileOrValue("JWT_PRIVATE_KEY"),
-		JWTPublicKey:    fileOrValue("JWT_PUBLIC_KEY"),
-		BootstrapToken:  getenv("LORE_BOOTSTRAP_TOKEN", ""),
-		MetricsToken:    getenv("LORE_METRICS_TOKEN", ""),
-		OIDCIssuer:      getenv("OIDC_ISSUER", ""),
-		OIDCAudience:    getenv("OIDC_AUDIENCE", ""),
-		WebhooksEnabled: isTruthy(getenv("LORE_WEBHOOKS", "")),
-		LLMProvider:     getenv("LORE_LLM_PROVIDER", "ollama"),
-		LLMModel:        getenv("LORE_LLM_MODEL", "gemma4"),
-		OllamaBaseURL:   getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-		LLMBaseURL:      getenv("LORE_LLM_BASE_URL", ""),
-		LLMAPIKey:       getenv("LORE_LLM_API_KEY", ""),
+		Environment:          getenv("LORE_ENV", "development"),
+		Port:                 getenv("PORT", "8080"),
+		StoreDriver:          getenv("STORE_DRIVER", "memory"),
+		DatabaseURL:          getenv("DATABASE_URL", ""),
+		AutoMigrate:          boolenv("LORE_AUTO_MIGRATE", false),
+		MigrationPath:        getenv("LORE_MIGRATION_PATH", ""),
+		RedisURL:             getenv("REDIS_URL", ""),
+		NATSURL:              getenv("NATS_URL", ""),
+		JWTSecret:            getenv("JWT_SECRET", ""),
+		JWTAlgorithm:         getenv("JWT_ALG", "HS256"),
+		JWTPrivateKey:        fileOrValue("JWT_PRIVATE_KEY"),
+		JWTPublicKey:         fileOrValue("JWT_PUBLIC_KEY"),
+		BootstrapToken:       getenv("LORE_BOOTSTRAP_TOKEN", ""),
+		MetricsToken:         getenv("LORE_METRICS_TOKEN", ""),
+		OIDCIssuer:           getenv("OIDC_ISSUER", ""),
+		OIDCAudience:         getenv("OIDC_AUDIENCE", ""),
+		WebhooksEnabled:      isTruthy(getenv("LORE_WEBHOOKS", "")),
+		WebhooksAllowPrivate: isTruthy(getenv("LORE_WEBHOOKS_ALLOW_PRIVATE", "")),
+		LLMProvider:          getenv("LORE_LLM_PROVIDER", "ollama"),
+		LLMModel:             getenv("LORE_LLM_MODEL", "gemma4"),
+		OllamaBaseURL:        getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+		LLMBaseURL:           getenv("LORE_LLM_BASE_URL", ""),
+		LLMAPIKey:            getenv("LORE_LLM_API_KEY", ""),
 	}
 	return cfg
 }
