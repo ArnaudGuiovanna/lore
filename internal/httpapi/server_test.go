@@ -2073,3 +2073,39 @@ func TestResourcesUploadAndLearnerScope(t *testing.T) {
 	}
 	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenant.ID+"/resources/"+hidden.ID+"/download", nil, bearerHeaders(learnerToken), http.StatusNotFound)
 }
+
+func TestWebhookSubscriptionsAPI(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	admin := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "wh-admin@example.test", "name": "Admin"}, http.StatusCreated)
+	manager := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "wh-manager@example.test", "name": "G"}, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": admin.ID, "role": string(core.RoleTenantAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": manager.ID, "role": string(core.RoleManager)}, bootstrapHeaders(), http.StatusCreated)
+	adminToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": admin.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	managerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": manager.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	created := postJSONWithHeadersValue[map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/webhooks", map[string]any{
+		"url": "https://hooks.example.test/lore", "event_types": []string{"alert.created"},
+	}, bearerHeaders(adminToken), http.StatusCreated)
+	secret, _ := created["secret"].(string)
+	if len(secret) != 64 {
+		t.Fatalf("secret should be a 32-byte hex string, got %q", secret)
+	}
+	// La liste ne resert JAMAIS le secret.
+	subs := getJSONWithHeaders[[]map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/webhooks", bearerHeaders(adminToken), http.StatusOK)
+	if len(subs) != 1 {
+		t.Fatalf("subs = %+v", subs)
+	}
+	if _, leaked := subs[0]["secret"]; leaked {
+		t.Fatal("secret leaked in list response")
+	}
+	// Le gestionnaire n'a pas la main sur la configuration technique.
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenant.ID+"/webhooks", nil, bearerHeaders(managerToken), http.StatusForbidden)
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/webhooks", map[string]any{"url": "https://x.test"}, bearerHeaders(managerToken), http.StatusForbidden)
+
+	subID, _ := created["subscription"].(map[string]any)["id"].(string)
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenant.ID+"/webhooks/"+subID, nil, bearerHeaders(adminToken), http.StatusOK)
+	if remaining := getJSONWithHeaders[[]map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/webhooks", bearerHeaders(adminToken), http.StatusOK); len(remaining) != 0 {
+		t.Fatalf("subscription not archived: %+v", remaining)
+	}
+}

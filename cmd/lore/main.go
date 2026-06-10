@@ -71,6 +71,16 @@ func main() {
 			go events.NewNATSPublisher(cfg.NATSURL, outbox, slog.Default()).Run(context.Background())
 		}
 	}
+	// B-20: signed webhooks drain the same outbox as NATS — enable only one.
+	if cfg.WebhooksEnabled {
+		if cfg.NATSURL != "" {
+			slog.Error("LORE_WEBHOOKS and NATS_URL are mutually exclusive (single outbox cursor)")
+			os.Exit(1)
+		}
+		if webhookStore, ok := repo.(events.WebhookStore); ok {
+			go events.NewWebhookDispatcher(webhookStore, slog.Default()).Run(context.Background())
+		}
+	}
 
 	addr := ":" + cfg.Port
 	slog.Info("starting LORE headless LMS", "addr", addr, "llm_provider", cfg.LLMProvider, "llm_model", cfg.LLMModel)

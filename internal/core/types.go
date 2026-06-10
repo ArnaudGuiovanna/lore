@@ -662,6 +662,20 @@ type Resource struct {
 	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
 }
 
+// WebhookSubscription (B-20) — un endpoint externe abonné aux événements du
+// tenant. EventTypes vide = tous. Les livraisons sont signées HMAC-SHA256.
+type WebhookSubscription struct {
+	TenantID   string     `json:"tenant_id"`
+	ID         string     `json:"id"`
+	URL        string     `json:"url"`
+	Secret     string     `json:"-"`
+	EventTypes []string   `json:"event_types"`
+	Active     bool       `json:"active"`
+	CreatedBy  string     `json:"created_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
 type LLMConfiguration struct {
 	TenantID         string    `json:"tenant_id"`
 	ScopeType        string    `json:"scope_type,omitempty"`

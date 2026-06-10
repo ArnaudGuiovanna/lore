@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,6 +78,9 @@ type Repository interface {
 	ListResources(ctx context.Context, tenantID, learnerID string) ([]core.Resource, error)
 	GetResourceContent(ctx context.Context, tenantID, resourceID, learnerID string) (core.Resource, error)
 	ArchiveResource(ctx context.Context, tenantID, resourceID string, actorUserID ...string) (core.Resource, error)
+	CreateWebhookSubscription(ctx context.Context, sub core.WebhookSubscription, actorUserID ...string) (core.WebhookSubscription, error)
+	ListWebhookSubscriptions(ctx context.Context, tenantID string) ([]core.WebhookSubscription, error)
+	ArchiveWebhookSubscription(ctx context.Context, tenantID, subscriptionID string, actorUserID ...string) (core.WebhookSubscription, error)
 	CreateDocument(ctx context.Context, doc core.OFDocument, actorUserID ...string) (core.OFDocument, error)
 	NewDocumentVersion(ctx context.Context, tenantID, documentID, title, body string, actorUserID ...string) (core.OFDocument, error)
 	ListDocuments(ctx context.Context, tenantID, learnerID string) ([]core.OFDocument, error)
@@ -300,6 +305,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/resources", s.listResources)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/resources/{resource_id}/download", s.downloadResource)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/resources/{resource_id}", s.archiveResource)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/webhooks", s.createWebhookSubscription)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/webhooks", s.listWebhookSubscriptions)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/webhooks/{subscription_id}", s.archiveWebhookSubscription)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents", s.createDocument)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents", s.listDocuments)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents/{document_id}", s.getDocument)
@@ -1091,6 +1099,59 @@ func (s *Server) downloadResource(w http.ResponseWriter, r *http.Request) {
 func (s *Server) archiveResource(w http.ResponseWriter, r *http.Request) {
 	resource, err := s.store.ArchiveResource(r.Context(), r.PathValue("tenant_id"), r.PathValue("resource_id"), actorUserIDFromRequest(r))
 	respond(w, resource, err, http.StatusOK)
+}
+
+// --- Webhooks signés (B-20) ----------------------------------------------------
+
+// createWebhookSubscription: the secret is generated server-side and returned
+// ONCE — afterwards the API never serves it again (json:"-").
+func (s *Server) createWebhookSubscription(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capConfigureTechnical) {
+		return
+	}
+	var req struct {
+		URL        string   `json:"url"`
+		EventTypes []string `json:"event_types"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	secretBytes := make([]byte, 32)
+	if _, err := rand.Read(secretBytes); err != nil {
+		problem(w, http.StatusInternalServerError, "secret generation failed")
+		return
+	}
+	secret := hex.EncodeToString(secretBytes)
+	sub, err := s.store.CreateWebhookSubscription(r.Context(), core.WebhookSubscription{
+		TenantID:   tenantID,
+		URL:        req.URL,
+		Secret:     secret,
+		EventTypes: req.EventTypes,
+	}, actorUserIDFromRequest(r))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"subscription": sub, "secret": secret})
+}
+
+func (s *Server) listWebhookSubscriptions(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capConfigureTechnical) {
+		return
+	}
+	subs, err := s.store.ListWebhookSubscriptions(r.Context(), tenantID)
+	respond(w, subs, err, http.StatusOK)
+}
+
+func (s *Server) archiveWebhookSubscription(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capConfigureTechnical) {
+		return
+	}
+	sub, err := s.store.ArchiveWebhookSubscription(r.Context(), tenantID, r.PathValue("subscription_id"), actorUserIDFromRequest(r))
+	respond(w, sub, err, http.StatusOK)
 }
 
 // --- Textes légaux + consentements (B-28) ------------------------------------

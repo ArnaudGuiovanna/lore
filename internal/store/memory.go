@@ -43,6 +43,7 @@ type MemoryStore struct {
 	legalTexts            map[string]core.LegalText
 	consents              map[string]core.Consent
 	resources             map[string]core.Resource
+	webhookSubscriptions  map[string]core.WebhookSubscription
 
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
@@ -91,6 +92,7 @@ func NewMemoryStore() *MemoryStore {
 		legalTexts:            map[string]core.LegalText{},
 		consents:              map[string]core.Consent{},
 		resources:             map[string]core.Resource{},
+		webhookSubscriptions:  map[string]core.WebhookSubscription{},
 		domains:               map[string]core.Domain{},
 		concepts:              map[string]core.Concept{},
 		dependencies:          map[string]core.Dependency{},

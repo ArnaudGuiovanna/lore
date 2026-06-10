@@ -25,6 +25,9 @@ const (
 	capManageQuality     capability = "manage_quality"
 	// capEraseData: destruction RGPD — volontairement réservée aux admins.
 	capEraseData capability = "erase_data"
+	// capConfigureTechnical: intégrations et configuration technique (webhooks,
+	// LLM...) — réservée aux admins.
+	capConfigureTechnical capability = "configure_technical"
 )
 
 // roleCan is THE capability matrix. Admins hold everything; the manager holds
@@ -37,7 +40,7 @@ func roleCan(role string, tenantMatches bool, cap capability) bool {
 	case string(core.RoleTenantAdmin):
 		return tenantMatches
 	case string(core.RoleManager):
-		return tenantMatches && cap != capEraseData
+		return tenantMatches && cap != capEraseData && cap != capConfigureTechnical
 	default:
 		return false
 	}
@@ -83,7 +86,7 @@ func isManagerAllowedRoute(r *http.Request) bool {
 	tail := parts[3:]
 	// Configuration technique : interdite, lecture comprise (la config LLM
 	// porte des secrets).
-	if tail[0] == "llm-configurations" {
+	if tail[0] == "llm-configurations" || tail[0] == "webhooks" {
 		return false
 	}
 	if r.Method == http.MethodGet {
