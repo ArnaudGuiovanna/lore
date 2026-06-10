@@ -25,10 +25,12 @@ interface NavItem {
 
 const LEARNER_ITEMS: NavItem[] = [
   { path: "/learner", label: "Maintenant", title: "lire & répondre" },
+  { path: "/learner/path", label: "Parcours", title: "modules & déblocage" },
   { path: "/learner/provenance", label: "Provenance", title: "pourquoi ce parcours" },
   { path: "/learner/reviews", label: "Révisions", title: "rappel espacé" },
   { path: "/learner/progress", label: "Progression", title: "signaux honnêtes" },
   { path: "/learner/history", label: "Historique", title: "instantanés" },
+  { path: "/learner/agenda", label: "Agenda", title: "sessions" },
 ];
 
 const TRAINER_ITEMS: NavItem[] = [

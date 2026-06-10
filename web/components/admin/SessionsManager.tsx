@@ -139,7 +139,17 @@ export function SessionsManager({ programs }: { programs: ManagedProgram[] }) {
 
   return (
     <div className="col" style={{ gap: 22 }}>
-      <Panel kicker="Planification" title="Sessions planifiées">
+      <Panel
+        kicker="Planification"
+        title="Sessions planifiées"
+        aside={
+          // B-25: iCalendar export of the planned sessions (text/calendar
+          // passthrough; learners get the same link on their Agenda).
+          <a className="btn ghost" href="/api/sessions/ics" style={{ textDecoration: "none", fontSize: 13 }}>
+            ↓ exporter le calendrier (ICS)
+          </a>
+        }
+      >
         {sessions === null ? (
           <LoadingState label="Chargement des sessions…" />
         ) : loadError && sessions.length === 0 ? (

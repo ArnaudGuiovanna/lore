@@ -32,6 +32,31 @@ export interface TrainingSession {
 }
 
 export interface Syllabus { tenant_id: string; id: string; title: string; description: string; objectives?: Record<string, unknown>; outcomes?: Record<string, unknown>; created_at: string; }
+
+// B-24 — editorial course modules a trainer lays over the adaptive runtime.
+export interface CourseModule {
+  tenant_id: string;
+  id: string;
+  syllabus_id: string;
+  title: string;
+  description?: string;
+  position: number;
+  concept_ids: string[];
+  prerequisite_ids: string[];
+  required_mastery: number;
+  created_at: string;
+  updated_at: string;
+  archived_at?: string | null;
+}
+export type ModuleStatus = "LOCKED" | "AVAILABLE" | "IN_PROGRESS" | "COMPLETED";
+// Learner-facing status of one module in their path (evidence-based, runtime-owned).
+export interface ModuleProgress {
+  module: CourseModule;
+  status: ModuleStatus;
+  concepts_total: number;
+  concepts_mastered: number;
+  avg_mastery: number;
+}
 export interface SyllabusBinding { tenant_id: string; id: string; syllabus_id: string; target_type: string; target_id: string; adaptation_mode: string; created_at: string; }
 
 export interface Domain { tenant_id: string; id: string; owner_id: string; name: string; description: string; source: string; graph_version: number; status: string; phase: Phase; created_at: string; updated_at: string; }

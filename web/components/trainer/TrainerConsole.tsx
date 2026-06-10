@@ -13,6 +13,7 @@ import { Alerts } from "./Alerts";
 import { Inspection } from "./Inspection";
 import { Intervention } from "./Intervention";
 import { CohortHealth } from "./CohortHealth";
+import { PathEditor } from "./PathEditor";
 import { asTrainerSection, TRAINER_DEFAULT_SECTION, type TrainerSection as Section } from "./sections";
 import type { CohortAnalytics, LearnerRow, SeedSyllabus } from "./types";
 import t from "./trainer.module.css";
@@ -265,6 +266,14 @@ export function TrainerConsole({
           learnerCount={learners.length}
           concepts={concepts}
           dependencies={dependencies}
+        />
+      ) : null}
+
+      {section === "path" ? (
+        <PathEditor
+          syllabusId={liveSyllabus.id}
+          syllabusTitle={liveSyllabus.title}
+          concepts={concepts}
         />
       ) : null}
 
