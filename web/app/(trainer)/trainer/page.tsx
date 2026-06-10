@@ -69,15 +69,8 @@ export default async function TrainerHome() {
   if (!graphRes.ok) {
     return (
       <main style={{ minHeight: "100vh" }}>
-        <div className="wrap" style={{ paddingTop: 28, paddingBottom: 80 }}>
-          <div className="spread" style={{ marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-            <Link href="/" className="mono quiet" style={{ fontSize: 12 }}>
-              ← LORE
-            </Link>
-            <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {ctx.tenantSlug} · TRAINER · R. Köhler
-            </span>
-          </div>
+        {/* Chrome (tenant, role, nav) lives in the layout's AppBar + AppNav. */}
+        <div className="wrap" style={{ paddingTop: 14, paddingBottom: 80 }}>
           <section
             className="panel"
             style={{ maxWidth: "60ch", marginTop: 24, textAlign: "left" }}
@@ -163,21 +156,8 @@ export default async function TrainerHome() {
 
   return (
     <main style={{ minHeight: "100vh" }}>
-      <div className="wrap" style={{ paddingTop: 28, paddingBottom: 80 }}>
-        <div className="spread" style={{ marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-          <Link href="/" className="mono quiet" style={{ fontSize: 12 }}>
-            ← LORE
-          </Link>
-          <span className="row" style={{ gap: 16, alignItems: "center" }}>
-            <Link href="/trainer/emargement" className="mono" style={{ fontSize: 12, textDecoration: "underline" }}>
-              Émargement / Présences →
-            </Link>
-            <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {ctx.tenantSlug} · TRAINER · R. Köhler
-            </span>
-          </span>
-        </div>
-
+      {/* Chrome (tenant, role, Émargement) lives in the layout's AppBar + AppNav. */}
+      <div className="wrap" style={{ paddingTop: 14, paddingBottom: 80 }}>
         <TrainerConsole
           cohortName={cohortName}
           cohortId={cohortId}

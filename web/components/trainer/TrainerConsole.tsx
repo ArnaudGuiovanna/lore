@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Alert, Concept, Dependency, Syllabus } from "@/lib/types";
 import { Panel } from "@/components/ui/Panel";
 import { Card } from "@/components/ui/Card";
@@ -12,30 +13,9 @@ import { Alerts } from "./Alerts";
 import { Inspection } from "./Inspection";
 import { Intervention } from "./Intervention";
 import { CohortHealth } from "./CohortHealth";
-import { classNames } from "@/lib/format";
+import { asTrainerSection, TRAINER_DEFAULT_SECTION, type TrainerSection as Section } from "./sections";
 import type { CohortAnalytics, LearnerRow, SeedSyllabus } from "./types";
 import t from "./trainer.module.css";
-
-type Section =
-  | "design"
-  | "author"
-  | "attach"
-  | "versions"
-  | "health"
-  | "alerts"
-  | "inspection"
-  | "intervention";
-
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "design", label: "Concevoir" },
-  { id: "author", label: "Rédiger" },
-  { id: "attach", label: "Rattacher un groupe" },
-  { id: "versions", label: "Versions" },
-  { id: "health", label: "Santé du groupe" },
-  { id: "alerts", label: "Alertes" },
-  { id: "inspection", label: "Inspection" },
-  { id: "intervention", label: "Intervention" },
-];
 
 // A syllabus the trainer authored or that ships seeded/bound, tracked client-side
 // (the backend exposes no list endpoint for syllabi).
@@ -72,7 +52,22 @@ export function TrainerConsole({
   learners: LearnerRow[];
   backendOk: boolean;
 }) {
-  const [section, setSection] = useState<Section>("design");
+  // The rendered section is addressable: /trainer?section=… (UX-01). The URL
+  // is the shared source of truth with the lateral AppNav; programmatic jumps
+  // update it shallowly so links stay shareable without refetching the page.
+  const urlSection = asTrainerSection(useSearchParams().get("section"));
+  const [section, setSection] = useState<Section>(urlSection);
+  useEffect(() => {
+    setSection(urlSection);
+  }, [urlSection]);
+  function go(next: Section) {
+    setSection(next);
+    window.history.replaceState(
+      null,
+      "",
+      next === TRAINER_DEFAULT_SECTION ? "/trainer" : `/trainer?section=${next}`
+    );
+  }
   const [authored, setAuthored] = useState<SylCard[]>([]);
   // Which syllabus the Attach screen targets (defaults to the live/bound one).
   const [activeSyllabus, setActiveSyllabus] = useState<SeedSyllabus>(liveSyllabus);
@@ -114,14 +109,32 @@ export function TrainerConsole({
       bound: false,
       createdAt: s.created_at,
     });
-    setSection("attach");
+    go("attach");
   }
 
   const conceptName = (id: string) => concepts.find((c) => c.id === id)?.name ?? id;
 
   return (
     <div>
-      <p className="kicker">Console formateur · {cohortName}</p>
+      <div className="spread" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+        <p className="kicker" style={{ margin: 0 }}>Console formateur · {cohortName}</p>
+        {/* Alert pressure stays visible from every section (the nav moved to AppNav). */}
+        {openAlerts > 0 && section !== "alerts" ? (
+          <button
+            type="button"
+            className="pill"
+            onClick={() => go("alerts")}
+            style={{
+              cursor: "pointer",
+              color: "var(--alarm)",
+              background: "var(--alarm-soft)",
+              borderColor: "rgba(124, 37, 49, 0.28)",
+            }}
+          >
+            {openAlerts} alerte{openAlerts > 1 ? "s" : ""} ouverte{openAlerts > 1 ? "s" : ""} →
+          </button>
+        ) : null}
+      </div>
       <h1 className="standfirst" style={{ marginTop: 8, marginBottom: 6 }}>
         Vous ne construisez pas de cours — vous rédigez un syllabus.
       </h1>
@@ -140,42 +153,15 @@ export function TrainerConsole({
         </div>
       ) : null}
 
-      <nav className={t.nav} aria-label="Sections du formateur">
-        {SECTIONS.map((sx) => (
-          <button
-            key={sx.id}
-            type="button"
-            className={classNames(t.navBtn, section === sx.id && t.navOn)}
-            aria-current={section === sx.id ? "page" : undefined}
-            onClick={() => setSection(sx.id)}
-          >
-            {sx.label}
-            {sx.id === "alerts" && openAlerts > 0 ? <span className={t.navCount}>{openAlerts}</span> : null}
-          </button>
-        ))}
-      </nav>
-
       {section === "design" ? (
         <div className="col" style={{ gap: 22 }}>
-          <Panel kicker="Concevoir l'apprentissage" title="L'intention, pas les artefacts">
-            <p className="prose" style={{ fontSize: 18, marginBottom: 14 }}>
-              Vous ne construisez pas de cours. Vous concevez l&apos;apprentissage : un <strong>syllabus</strong>
-              d&apos;intention — titre, description, objectifs, acquis mesurables. Pas de constructeur de cours,
-              pas d&apos;import de ressources, pas d&apos;ordonnancement manuel.
-            </p>
-            <div className={t.frameNeg}>
-              <span className={t.negChip}><s>construire des cours</s></span>
-              <span className={t.negChip}><s>importer des ressources</s></span>
-              <span className={t.negChip}><s>ordonner les activités</s></span>
-              <span className={t.negChip}><s>modifier la maîtrise</s></span>
-            </div>
-          </Panel>
-
+          {/* Primary action first (UX hierarchy): your syllabi + "Rédiger" above
+              the fold; the framing manifesto follows. */}
           <Panel
             kicker="Syllabus"
             title="Vos syllabus"
             aside={
-              <button type="button" className="btn primary" onClick={() => setSection("author")}>
+              <button type="button" className="btn primary" onClick={() => go("author")}>
                 + Rédiger un nouveau syllabus
               </button>
             }
@@ -222,7 +208,7 @@ export function TrainerConsole({
                             version: c.version,
                             bound: false,
                           });
-                          setSection("attach");
+                          go("attach");
                         }}
                       >
                         Rattacher un groupe →
@@ -234,13 +220,27 @@ export function TrainerConsole({
                       type="button"
                       className="btn ghost"
                       style={{ alignSelf: "flex-start", padding: "4px 10px" }}
-                      onClick={() => setSection("versions")}
+                      onClick={() => go("versions")}
                     >
                       Gérer / historique des versions →
                     </button>
                   ) : null}
                 </Card>
               ))}
+            </div>
+          </Panel>
+
+          <Panel kicker="Concevoir l'apprentissage" title="L'intention, pas les artefacts">
+            <p className="prose" style={{ fontSize: 18, marginBottom: 14 }}>
+              Vous ne construisez pas de cours. Vous concevez l&apos;apprentissage : un <strong>syllabus</strong>
+              d&apos;intention — titre, description, objectifs, acquis mesurables. Pas de constructeur de cours,
+              pas d&apos;import de ressources, pas d&apos;ordonnancement manuel.
+            </p>
+            <div className={t.frameNeg}>
+              <span className={t.negChip}><s>construire des cours</s></span>
+              <span className={t.negChip}><s>importer des ressources</s></span>
+              <span className={t.negChip}><s>ordonner les activités</s></span>
+              <span className={t.negChip}><s>modifier la maîtrise</s></span>
             </div>
           </Panel>
         </div>
@@ -285,14 +285,14 @@ export function TrainerConsole({
           learners={learners}
           cohortName={cohortName}
           cohortId={cohortId}
-          onInspect={() => setSection("inspection")}
+          onInspect={() => go("inspection")}
         />
       ) : null}
 
       {section === "alerts" ? <Alerts initial={alerts} learnerName={learnerName} /> : null}
 
       {section === "inspection" ? (
-        <Inspection learners={learners} onIntervene={() => setSection("intervention")} />
+        <Inspection learners={learners} onIntervene={() => go("intervention")} />
       ) : null}
 
       {section === "intervention" ? <Intervention learners={learners} /> : null}

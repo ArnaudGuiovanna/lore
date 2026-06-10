@@ -94,15 +94,8 @@ export default async function AdminHome() {
   if (coreDown) {
     return (
       <main style={{ minHeight: "100vh" }}>
-        <div className="wrap" style={{ paddingTop: 28, paddingBottom: 80 }}>
-          <div className="spread" style={{ marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-            <Link href="/" className="mono quiet" style={{ fontSize: 12 }}>
-              ← LORE
-            </Link>
-            <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {ctx.tenantSlug} · TENANT_ADMIN · S. Aalto
-            </span>
-          </div>
+        {/* Chrome (tenant, role, nav) lives in the layout's AppBar + AppNav. */}
+        <div className="wrap" style={{ paddingTop: 14, paddingBottom: 80 }}>
           <section className="panel" style={{ maxWidth: "60ch", marginTop: 24 }} role="alert">
             <p className="kicker" style={{ color: "var(--alarm)" }}>Plan de contrôle · indisponible</p>
             <h1 className="standfirst" style={{ margin: "10px 0 12px" }}>
@@ -334,21 +327,8 @@ export default async function AdminHome() {
 
   return (
     <main style={{ minHeight: "100vh" }}>
-      <div className="wrap" style={{ paddingTop: 28, paddingBottom: 90 }}>
-        <div className="spread" style={{ marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-          <Link href="/" className="mono quiet" style={{ fontSize: 12 }}>
-            ← LORE
-          </Link>
-          <span className="row" style={{ gap: 16, alignItems: "center" }}>
-            <Link href="/admin/rgpd" className="mono" style={{ fontSize: 12, textDecoration: "underline" }}>
-              RGPD / Données personnelles →
-            </Link>
-            <span className="mono quiet" style={{ fontSize: 11, letterSpacing: "0.05em" }}>
-              tenant {ctx.tenantSlug} · TENANT_ADMIN · S. Aalto
-            </span>
-          </span>
-        </div>
-
+      {/* Chrome (tenant, role, RGPD) lives in the layout's AppBar + AppNav. */}
+      <div className="wrap" style={{ paddingTop: 14, paddingBottom: 90 }}>
         <AdminConsole
           tenantSlug={ctx.tenantSlug}
           tenantName={ctx.tenantName || ctx.tenantSlug}

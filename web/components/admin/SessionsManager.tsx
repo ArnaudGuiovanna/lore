@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+import { ErrorState, LoadingState } from "@/components/ui/States";
 import type { TrainingSession } from "@/lib/types";
 import type { ManagedProgram } from "./types";
 
@@ -20,6 +21,9 @@ function fmtDate(value: string): string {
 export function SessionsManager({ programs }: { programs: ManagedProgram[] }) {
   const cohorts = programs.flatMap((p) => p.cohorts.map((c) => ({ ...c, programName: p.name })));
   const [sessions, setSessions] = useState<TrainingSession[] | null>(null);
+  // List-read failures (loadError) are surfaced as an ErrorState; form-level
+  // failures (error) stay next to the form that caused them.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
@@ -34,13 +38,13 @@ export function SessionsManager({ programs }: { programs: ManagedProgram[] }) {
   });
 
   const refresh = useCallback(async () => {
-    setError(null);
+    setLoadError(null);
     try {
       const res = await fetch("/api/admin/sessions");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSessions(((await res.json()) as TrainingSession[]) ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "chargement impossible");
+      setLoadError(e instanceof Error ? e.message : "chargement impossible");
       setSessions([]);
     }
   }, []);
@@ -137,7 +141,18 @@ export function SessionsManager({ programs }: { programs: ManagedProgram[] }) {
     <div className="col" style={{ gap: 22 }}>
       <Panel kicker="Planification" title="Sessions planifiées">
         {sessions === null ? (
-          <p className="quiet mono" style={{ fontSize: 12 }}>Chargement des sessions…</p>
+          <LoadingState label="Chargement des sessions…" />
+        ) : loadError && sessions.length === 0 ? (
+          <ErrorState
+            kicker="La liste des sessions n'a pas répondu"
+            detail="Les sessions persistées n'ont pas pu être lues — rien n'est inventé pour combler le manque. Vos sessions existantes ne sont pas perdues ; ceci n'est qu'une lecture."
+            message={loadError}
+            action={
+              <button type="button" className="btn" onClick={() => void refresh()}>
+                ↺ réessayer
+              </button>
+            }
+          />
         ) : (
           <DataTable<Row>
             columns={columns}

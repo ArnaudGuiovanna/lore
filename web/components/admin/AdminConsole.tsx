@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { classNames } from "@/lib/format";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type {
   DomainGraphData,
   EnrollableLearner,
@@ -20,20 +20,8 @@ import { ImportLearners } from "./ImportLearners";
 import { DomainGraph } from "./DomainGraph";
 import { LlmMatrix } from "./LlmMatrix";
 import { EventOutbox } from "./EventOutbox";
+import { asAdminSection, ADMIN_DEFAULT_SECTION, type AdminSection as Section } from "./sections";
 import a from "./admin.module.css";
-
-type Section = "overview" | "identity" | "structure" | "sessions" | "import" | "graph" | "llm" | "outbox";
-
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "overview", label: "Vue d'ensemble" },
-  { id: "identity", label: "Identité" },
-  { id: "structure", label: "Structure de l'organisation" },
-  { id: "sessions", label: "Sessions" },
-  { id: "import", label: "Import CSV" },
-  { id: "graph", label: "Graphe du domaine" },
-  { id: "llm", label: "Matrice LLM" },
-  { id: "outbox", label: "Boîte d'événements" },
-];
 
 export function AdminConsole({
   tenantSlug,
@@ -74,7 +62,22 @@ export function AdminConsole({
   trainingTimeCsvHref?: string;
   backendOk: boolean;
 }) {
-  const [section, setSection] = useState<Section>("overview");
+  // The rendered section is addressable: /admin?section=… (UX-01). The URL is
+  // the shared source of truth with the lateral AppNav; programmatic jumps
+  // update it shallowly so links stay shareable without refetching the page.
+  const urlSection = asAdminSection(useSearchParams().get("section"));
+  const [section, setSection] = useState<Section>(urlSection);
+  useEffect(() => {
+    setSection(urlSection);
+  }, [urlSection]);
+  function go(next: Section) {
+    setSection(next);
+    window.history.replaceState(
+      null,
+      "",
+      next === ADMIN_DEFAULT_SECTION ? "/admin" : `/admin?section=${next}`
+    );
+  }
   // Newly-written configs are reflected optimistically into the matrix + outbox.
   const [localMatrix, setLocalMatrix] = useState<ScopeRow[]>(matrix);
   const [localEvents, setLocalEvents] = useState<OutboxEvent[]>(events);
@@ -118,21 +121,6 @@ export function AdminConsole({
         </div>
       ) : null}
 
-      <nav className={a.nav} aria-label="Sections d'administration">
-        {SECTIONS.map((sx) => (
-          <button
-            key={sx.id}
-            type="button"
-            data-testid={`admin-nav-${sx.id}`}
-            className={classNames(a.navBtn, section === sx.id && a.navOn)}
-            aria-current={section === sx.id ? "page" : undefined}
-            onClick={() => setSection(sx.id)}
-          >
-            {sx.label}
-          </button>
-        ))}
-      </nav>
-
       {section === "overview" ? (
         <Overview
           tenantName={tenantName}
@@ -147,7 +135,7 @@ export function AdminConsole({
           avgMastery={avgMastery}
           openAlerts={openAlerts}
           highAlerts={highAlerts}
-          onGoto={() => setSection("llm")}
+          onGoto={() => go("llm")}
         />
       ) : null}
 
@@ -178,7 +166,7 @@ export function AdminConsole({
           onApplied={(row, event) => {
             setLocalMatrix((m) => m.map((r) => (r.tier === row.tier && r.scopeId === row.scopeId ? row : r)));
             setLocalEvents((e) => [event, ...e]);
-            setSection("outbox");
+            go("outbox");
           }}
         />
       ) : null}

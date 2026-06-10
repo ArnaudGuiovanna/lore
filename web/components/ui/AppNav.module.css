@@ -1,0 +1,39 @@
+/* Shared per-role nav (UX-01) — pill links under the AppBar, identical across
+   the three surfaces. Mirrors the former console section navs so the look does
+   not drift. Tokens from app/globals.css. */
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+.item {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 13px;
+  transition: 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.item:hover {
+  color: var(--accent);
+  border-color: var(--line-2);
+}
+
+.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: rgba(42, 79, 62, 0.3);
+}
