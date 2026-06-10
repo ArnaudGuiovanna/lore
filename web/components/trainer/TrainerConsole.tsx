@@ -15,6 +15,9 @@ import { Intervention } from "./Intervention";
 import { CohortHealth } from "./CohortHealth";
 import { PathEditor } from "./PathEditor";
 import { Evaluations } from "./Evaluations";
+import { Curation } from "./Curation";
+import { ResourcesManager } from "./Resources";
+import { Announcements } from "./Announcements";
 import { asTrainerSection, TRAINER_DEFAULT_SECTION, type TrainerSection as Section } from "./sections";
 import type { CohortAnalytics, LearnerRow, SeedSyllabus } from "./types";
 import t from "./trainer.module.css";
@@ -286,8 +289,15 @@ export function TrainerConsole({
           domainId={domainId}
           concepts={concepts}
           learnerName={learnerName}
+          learners={learners.map((l) => ({ id: l.id, name: l.name }))}
         />
       ) : null}
+
+      {section === "curation" ? <Curation /> : null}
+
+      {section === "resources" ? <ResourcesManager cohortId={cohortId} cohortName={cohortName} /> : null}
+
+      {section === "announcements" ? <Announcements cohortId={cohortId} cohortName={cohortName} /> : null}
 
       {section === "versions" ? (
         <Versions

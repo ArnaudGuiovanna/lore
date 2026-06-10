@@ -5,7 +5,7 @@ import type { FundingFile } from "@/lib/types";
 
 // B-15 — édition (PATCH) + archivage (DELETE) d'un dossier de financement.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 type Params = { params: Promise<{ fileId: string }> };

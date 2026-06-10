@@ -5,7 +5,7 @@ import type { Complaint } from "@/lib/types";
 
 // B-11 — registre des réclamations (staff) : liste + ouverture au nom d'un tiers.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET() {

@@ -66,6 +66,9 @@ export function roleHome(role: Role): string {
   switch (role) {
     case "LEARNER": return "/learner";
     case "TRAINER": return "/trainer";
+    // B-27 : le gestionnaire (administratif) atterrit sur la console admin —
+    // la console n'y montre que les sections pertinentes pour lui.
+    case "GESTIONNAIRE":
     case "TENANT_ADMIN":
     case "SUPER_ADMIN": return "/admin";
     default: return "/";

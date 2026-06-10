@@ -83,14 +83,17 @@ export default async function AdminHome() {
     )
   );
 
-  const backendOk = domainRes.ok && tenantCfgRes.ok && outboxRes.ok;
+  // B-27 : la config LLM est interdite (lecture comprise) au GESTIONNAIRE — son
+  // 403 attendu ne doit pas peindre la console en « dégradé ».
+  const isManager = session?.role === "GESTIONNAIRE";
+  const backendOk = domainRes.ok && (tenantCfgRes.ok || isManager) && outboxRes.ok;
 
   // The control plane has nothing legible to show if every core read failed: no
   // domain DAG to validate, no tenant LLM default, no outbox trace. Rather than a
   // shell of empty panels, show a calm on-brand "runtime didn't answer" panel —
   // mirroring the trainer surface. A partial failure (some reads ok) degrades
   // gracefully in-console instead (see AdminConsole's degraded banner).
-  const coreDown = !domainRes.ok && !tenantCfgRes.ok && !outboxRes.ok;
+  const coreDown = !domainRes.ok && (!tenantCfgRes.ok && !isManager) && !outboxRes.ok;
   if (coreDown) {
     return (
       <main style={{ minHeight: "100vh" }}>
@@ -210,7 +213,7 @@ export default async function AdminHome() {
           };
         })
         .sort((a, b) => {
-          const order: Record<Role, number> = { SUPER_ADMIN: 0, TENANT_ADMIN: 1, TRAINER: 2, LEARNER: 3 };
+          const order: Record<Role, number> = { SUPER_ADMIN: 0, TENANT_ADMIN: 1, GESTIONNAIRE: 2, TRAINER: 3, LEARNER: 4 };
           return order[a.role] - order[b.role] || a.name.localeCompare(b.name);
         })
     : // Honest fallback if the backend returns no memberships: derive from the
@@ -349,6 +352,7 @@ export default async function AdminHome() {
           highAlerts={highAlerts}
           publicBaseUrl={process.env.PUBLIC_APP_URL || ""}
           backendOk={backendOk}
+          role={session?.role}
         />
       </div>
     </main>

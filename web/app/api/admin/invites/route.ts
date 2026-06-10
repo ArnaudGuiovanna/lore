@@ -6,7 +6,7 @@ import type { CohortInvite } from "@/lib/types";
 // B-23 — cohort invitation links (admin-managed), proxied with the acting
 // admin's bearer token (the backend re-enforces the admin-only rule).
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 // GET ?cohortId=… : the cohort's invites (active and not).

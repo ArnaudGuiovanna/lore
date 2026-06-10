@@ -1,6 +1,6 @@
 // Backend DTOs (mirrors internal/core/types.go). Server + client safe (types only).
 
-export type Role = "SUPER_ADMIN" | "TENANT_ADMIN" | "TRAINER" | "LEARNER";
+export type Role = "SUPER_ADMIN" | "TENANT_ADMIN" | "TRAINER" | "GESTIONNAIRE" | "LEARNER";
 export type Phase = "DIAGNOSTIC" | "INSTRUCTION" | "MAINTENANCE";
 export type ActivityType =
   | "EXPLANATION" | "SOCRATIC_DIALOGUE" | "GUIDED_PRACTICE" | "FREE_PRACTICE"
@@ -87,7 +87,13 @@ export interface TutorInstruction {
   activity_type: ActivityType; difficulty_target: number; constraints: string[]; allowed_variants: string[];
   context: Record<string, unknown>; created_at: string;
 }
-export interface GeneratedContent { tenant_id: string; id: string; instruction_id: string; provider: string; model: string; content: string; created_at: string; }
+// review_* (B-16) : curation par le formateur — un contenu REJECTED disparaît
+// des lectures persistées.
+export type ReviewStatus = "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+export interface GeneratedContent {
+  tenant_id: string; id: string; instruction_id: string; provider: string; model: string; content: string; created_at: string;
+  review_status?: ReviewStatus; reviewed_by?: string; reviewed_at?: string | null; review_note?: string;
+}
 export interface AssessmentChoice { id: string; label: string; }
 export interface AssessmentItem { id: string; kind: string; concept_id?: string; prompt: string; choices?: AssessmentChoice[]; points: number; }
 export interface AssessmentAnswer { item_id: string; choice_id?: string; answer?: string; }
@@ -316,6 +322,36 @@ export interface Consent {
   kind: string;
   version: number;
   consented_at: string;
+}
+
+// B-17 — support pédagogique : fichier (stocké en base, téléchargé via
+// /download) ou lien externe ; cohort_id vide = visible du tenant entier.
+export interface Resource {
+  tenant_id: string;
+  id: string;
+  cohort_id?: string;
+  title: string;
+  description?: string;
+  kind: "FICHIER" | "LIEN";
+  url?: string;
+  file_name?: string;
+  mime_type?: string;
+  size_bytes: number;
+  uploaded_by?: string;
+  created_at: string;
+  archived_at?: string | null;
+}
+
+// B-18 — annonce du formateur/admin vers une cohorte (ou tout le tenant).
+export interface Announcement {
+  tenant_id: string;
+  id: string;
+  cohort_id?: string;
+  title: string;
+  body?: string;
+  created_by?: string;
+  created_at: string;
+  archived_at?: string | null;
 }
 
 // Demo identities for the login/role entry (role is "derived" after sign-in).

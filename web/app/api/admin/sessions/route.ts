@@ -6,7 +6,7 @@ import type { TrainingSession } from "@/lib/types";
 // Planned training sessions (B-12): list + create, proxied to the backend with
 // the acting admin's bearer token (RBAC enforced server-side too).
 function staffOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET(req: Request) {

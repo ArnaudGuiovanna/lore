@@ -5,7 +5,7 @@ import type { Complaint } from "@/lib/types";
 
 // B-11 — workflow d'une réclamation : changement de statut + résolution (admin).
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ complaintId: string }> }) {

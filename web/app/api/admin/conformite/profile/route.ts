@@ -6,7 +6,7 @@ import type { TenantProfile } from "@/lib/types";
 // B-08 — profil légal de l'OF : lecture + mise à jour (admin). Proxy vers
 // GET/PUT /v1/tenants/{id}/profile avec le jeton porteur de l'admin.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET() {

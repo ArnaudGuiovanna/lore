@@ -13,17 +13,19 @@ import a from "./admin.module.css";
 const ROLE_CLASS: Record<Role, string> = {
   SUPER_ADMIN: a.roleSuper,
   TENANT_ADMIN: a.roleAdmin,
+  GESTIONNAIRE: a.roleAdmin,
   TRAINER: a.roleTrainer,
   LEARNER: a.roleLearner,
 };
 
 // A tenant admin may grant these (SUPER_ADMIN is cross-tenant — not offered).
-const GRANTABLE: Role[] = ["TENANT_ADMIN", "TRAINER", "LEARNER"];
+const GRANTABLE: Role[] = ["TENANT_ADMIN", "TRAINER", "GESTIONNAIRE", "LEARNER"];
 
 // French display label for a role (the technical role id stays in the select values).
 const ROLE_FR: Record<Role, string> = {
   SUPER_ADMIN: "super-admin",
   TENANT_ADMIN: "administrateur",
+  GESTIONNAIRE: "gestionnaire",
   TRAINER: "formateur",
   LEARNER: "apprenant",
 };

@@ -43,13 +43,18 @@ export function Conformite({
   cohorts,
   learners,
   people,
+  canErase = true,
 }: {
   cohorts: NamedRef[];
   learners: NamedRef[];
   // user id → nom (memberships) pour le registre des consentements.
   people: NamedRef[];
+  // B-27 : l'effacement RGPD reste un acte d'administrateur — le GESTIONNAIRE
+  // ne voit pas l'onglet (le backend lui refuse la capacité erase_data).
+  canErase?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("profil");
+  const tabs = canErase ? TABS : TABS.filter((t) => t.id !== "rgpd");
 
   return (
     <div className="col" style={{ gap: 20 }}>
@@ -63,7 +68,7 @@ export function Conformite({
       </div>
 
       <nav aria-label="Onglets de conformité" className={a.nav} style={{ flexWrap: "wrap" }}>
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -82,7 +87,7 @@ export function Conformite({
       {tab === "satisfaction" ? <Satisfaction cohorts={cohorts} learners={learners} /> : null}
       {tab === "reclamations" ? <Reclamations people={people} /> : null}
       {tab === "financements" ? <Financements cohorts={cohorts} learners={learners} /> : null}
-      {tab === "rgpd" ? <RgpdErase learners={learners} /> : null}
+      {tab === "rgpd" && canErase ? <RgpdErase learners={learners} /> : null}
       {tab === "legal" ? <TextesLegaux people={people} /> : null}
     </div>
   );

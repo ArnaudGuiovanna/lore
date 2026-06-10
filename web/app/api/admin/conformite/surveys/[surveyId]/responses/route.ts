@@ -6,7 +6,7 @@ import type { SurveyResponse } from "@/lib/types";
 // B-11 — réponses d'une enquête (staff) : la moyenne par question scale et les
 // verbatims sont calculés côté client à partir de ces lignes brutes.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ surveyId: string }> }) {

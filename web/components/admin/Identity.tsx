@@ -7,6 +7,7 @@ import a from "./admin.module.css";
 const ROLE_CLASS: Record<Role, string> = {
   SUPER_ADMIN: a.roleSuper,
   TENANT_ADMIN: a.roleAdmin,
+  GESTIONNAIRE: a.roleAdmin,
   TRAINER: a.roleTrainer,
   LEARNER: a.roleLearner,
 };

@@ -6,7 +6,7 @@ import type { Consent } from "@/lib/types";
 // B-28 — registre des consentements (staff) : qui a accepté quel texte, en
 // quelle version, quand. ?userId= pour filtrer sur un utilisateur.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET(req: Request) {

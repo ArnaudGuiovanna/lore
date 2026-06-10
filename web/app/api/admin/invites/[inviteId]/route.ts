@@ -4,7 +4,7 @@ import { api, tpath } from "@/lib/api";
 import type { CohortInvite } from "@/lib/types";
 
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 // DELETE: revoke an invitation link (B-23). The code stops working immediately;

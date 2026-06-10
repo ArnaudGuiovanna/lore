@@ -5,7 +5,7 @@ import type { OFDocument } from "@/lib/types";
 
 // B-10 — lecture d'une version précise + archivage d'un document (admin).
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 type Params = { params: Promise<{ documentId: string }> };

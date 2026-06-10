@@ -7,7 +7,12 @@ import {
   TRAINER_DEFAULT_SECTION,
   TRAINER_SECTIONS,
 } from "@/components/trainer/sections";
-import { ADMIN_DEFAULT_SECTION, ADMIN_SECTIONS } from "@/components/admin/sections";
+import {
+  ADMIN_DEFAULT_SECTION,
+  ADMIN_SECTIONS,
+  MANAGER_DEFAULT_SECTION,
+  MANAGER_SECTIONS,
+} from "@/components/admin/sections";
 import styles from "./AppNav.module.css";
 
 export type AppNavRole = "learner" | "trainer" | "admin";
@@ -34,6 +39,7 @@ const LEARNER_ITEMS: NavItem[] = [
   { path: "/learner/assignments", label: "Devoirs", title: "rendus & notes", testId: "learner-nav-assignments" },
   { path: "/learner/documents", label: "Documents", title: "convention, programme, règlement", testId: "learner-nav-documents" },
   { path: "/learner/surveys", label: "Mon avis", title: "enquêtes & réclamations", testId: "learner-nav-surveys" },
+  { path: "/learner/resources", label: "Ressources", title: "fichiers & liens du formateur", testId: "learner-nav-resources" },
 ];
 
 const TRAINER_ITEMS: NavItem[] = [
@@ -48,6 +54,12 @@ const ADMIN_ITEMS: NavItem[] = [
   { path: "/admin/rgpd", label: "RGPD", title: "données personnelles", testId: "admin-nav-rgpd" },
 ];
 
+// B-27 — la nav d'un GESTIONNAIRE : mêmes mécanismes que l'admin, mais
+// seulement les sections administratives (pas de LLM, graphe, outbox ni RGPD).
+const MANAGER_ITEMS: NavItem[] = ADMIN_SECTIONS.filter((s) => MANAGER_SECTIONS.includes(s.id)).map(
+  (s): NavItem => ({ path: "/admin", section: s.id, label: s.label, testId: `admin-nav-${s.id}` })
+);
+
 const NAV: Record<AppNavRole, { label: string; items: NavItem[]; defaultSection?: string }> = {
   learner: { label: "Navigation apprenant", items: LEARNER_ITEMS },
   trainer: { label: "Sections du formateur", items: TRAINER_ITEMS, defaultSection: TRAINER_DEFAULT_SECTION },
@@ -56,11 +68,16 @@ const NAV: Record<AppNavRole, { label: string; items: NavItem[]; defaultSection?
 
 // The shared per-role navigation (UX-01). Client component: the active state
 // depends on the current pathname and ?section=, and shallow history updates
-// from the consoles are reflected here too.
-export function AppNav({ role }: { role: AppNavRole }) {
+// from the consoles are reflected here too. `managerView` narrows the admin
+// surface to the GESTIONNAIRE's administrative sections.
+export function AppNav({ role, managerView = false }: { role: AppNavRole; managerView?: boolean }) {
   const pathname = usePathname();
   const search = useSearchParams();
-  const { label, items, defaultSection } = NAV[role];
+  const base = NAV[role];
+  const { label, items, defaultSection } =
+    role === "admin" && managerView
+      ? { label: base.label, items: MANAGER_ITEMS, defaultSection: MANAGER_DEFAULT_SECTION as string }
+      : base;
   const rawSection = search.get("section");
   // Unknown ?section= values resolve to the default, mirroring the consoles.
   const currentSection = items.some((it) => it.section === rawSection) ? rawSection : defaultSection;

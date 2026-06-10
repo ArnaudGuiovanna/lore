@@ -20,7 +20,7 @@ const GRANTABLE: Role[] = ["TENANT_ADMIN", "TRAINER", "LEARNER"];
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
-  if (session.role !== "TENANT_ADMIN" && session.role !== "SUPER_ADMIN") {
+  if (session.role !== "TENANT_ADMIN" && session.role !== "SUPER_ADMIN" && session.role !== "GESTIONNAIRE") {
     return NextResponse.json({ error: "only an administrator may manage memberships" }, { status: 403 });
   }
 

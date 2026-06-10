@@ -5,7 +5,7 @@ import { api, tpath } from "@/lib/api";
 // B-08 — export Qualiopi : bundle JSON de preuves d'une cohorte (admin).
 // GET /api/admin/conformite/qualiopi?cohortId=… → le client télécharge le JSON.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET(req: Request) {

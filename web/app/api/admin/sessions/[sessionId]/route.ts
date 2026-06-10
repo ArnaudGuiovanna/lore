@@ -4,7 +4,7 @@ import { api, tpath } from "@/lib/api";
 import type { TrainingSession } from "@/lib/types";
 
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 // PATCH: update a planned session; DELETE: archive it (B-12).

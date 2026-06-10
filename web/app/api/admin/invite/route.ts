@@ -16,7 +16,7 @@ interface Body {
 // A tenant admin may only invite within their own tenant, and may not grant
 // SUPER_ADMIN (cross-tenant — bootstrap/super-admin only). Mirror the backend's
 // authorizeMembershipWrite boundary so the UI never offers an illegal grant.
-const INVITABLE: Role[] = ["TENANT_ADMIN", "TRAINER", "LEARNER"];
+const INVITABLE: Role[] = ["TENANT_ADMIN", "TRAINER", "GESTIONNAIRE", "LEARNER"];
 
 // Human-friendly temporary password: short, unambiguous, shared once.
 function tempPassword(): string {
@@ -30,7 +30,7 @@ function tempPassword(): string {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
-  if (session.role !== "TENANT_ADMIN" && session.role !== "SUPER_ADMIN") {
+  if (session.role !== "TENANT_ADMIN" && session.role !== "SUPER_ADMIN" && session.role !== "GESTIONNAIRE") {
     return NextResponse.json({ error: "only an administrator may invite users" }, { status: 403 });
   }
 
@@ -45,8 +45,16 @@ export async function POST(req: Request) {
   if (!name) return NextResponse.json({ error: "a name is required" }, { status: 400 });
   if (!role || !INVITABLE.includes(role)) {
     return NextResponse.json(
-      { error: "role must be one of TENANT_ADMIN, TRAINER, LEARNER" },
+      { error: "role must be one of TENANT_ADMIN, TRAINER, GESTIONNAIRE, LEARNER" },
       { status: 400 }
+    );
+  }
+  // B-27 : un GESTIONNAIRE n'accorde que des appartenances LEARNER — miroir
+  // de la règle backend (authorizeMembershipWrite).
+  if (session.role === "GESTIONNAIRE" && role !== "LEARNER") {
+    return NextResponse.json(
+      { error: "un gestionnaire ne peut inviter que des apprenants (LEARNER)" },
+      { status: 403 }
     );
   }
   if (await getByEmail(email)) {

@@ -6,7 +6,7 @@ import type { LegalText } from "@/lib/types";
 // B-28 — textes légaux versionnés (admin) : dernière version par kind
 // (?history=1 pour l'historique complet) + publication d'une nouvelle version.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET(req: Request) {

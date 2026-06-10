@@ -11,6 +11,7 @@ import {
 import { LearnerError, LearnerEmpty } from "@/components/learner/LearnerStatus";
 import { BOUND_SYLLABUS_TITLE } from "@/components/learner/lineage";
 import { NowWorkbench, type NowIntent } from "@/components/learner/NowWorkbench";
+import { AnnouncementsStrip } from "@/components/learner/AnnouncementsStrip";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +41,15 @@ export default async function NowScreen() {
 
   if (!statesRes.ok) {
     return (
-      <LearnerError
-        kicker="Le runtime n'a pas répondu"
-        detail="Nous n'avons pas pu joindre le runtime pour planifier votre prochaine étape. Nous n'en inventerons pas — réessayez dans un instant."
-        message={statesRes.error}
-      />
+      <div className="col" style={{ gap: 24 }}>
+        {/* B-18 : les annonces restent lisibles même si le runtime n'a pas répondu. */}
+        <AnnouncementsStrip />
+        <LearnerError
+          kicker="Le runtime n'a pas répondu"
+          detail="Nous n'avons pas pu joindre le runtime pour planifier votre prochaine étape. Nous n'en inventerons pas — réessayez dans un instant."
+          message={statesRes.error}
+        />
+      </div>
     );
   }
 
@@ -52,10 +57,13 @@ export default async function NowScreen() {
 
   if (!focus) {
     return (
-      <LearnerEmpty kicker="Maintenant">
-        Aucun concept suivi pour l&rsquo;instant. Dès que le runtime aura planifié votre première
-        étape, elle apparaîtra ici — la progression relève de lui, jamais du contenu.
-      </LearnerEmpty>
+      <div className="col" style={{ gap: 24 }}>
+        <AnnouncementsStrip />
+        <LearnerEmpty kicker="Maintenant">
+          Aucun concept suivi pour l&rsquo;instant. Dès que le runtime aura planifié votre première
+          étape, elle apparaîtra ici — la progression relève de lui, jamais du contenu.
+        </LearnerEmpty>
+      </div>
     );
   }
 
@@ -83,6 +91,8 @@ export default async function NowScreen() {
 
   return (
     <div className="col" style={{ gap: 24 }}>
+      {/* B-18 : les 3 annonces les plus récentes du périmètre, en tête. */}
+      <AnnouncementsStrip />
       <div
         className="spread"
         style={{

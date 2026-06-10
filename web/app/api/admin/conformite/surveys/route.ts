@@ -5,7 +5,7 @@ import type { SatisfactionSurvey, SurveyQuestion } from "@/lib/types";
 
 // B-11 — enquêtes de satisfaction (admin) : liste + création sur une cohorte.
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET() {

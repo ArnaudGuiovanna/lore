@@ -22,7 +22,12 @@ import { DomainGraph } from "./DomainGraph";
 import { LlmMatrix } from "./LlmMatrix";
 import { EventOutbox } from "./EventOutbox";
 import { Conformite } from "./conformite/Conformite";
-import { asAdminSection, ADMIN_DEFAULT_SECTION, type AdminSection as Section } from "./sections";
+import {
+  asAdminSection,
+  adminDefaultSectionForRole,
+  adminSectionsForRole,
+  type AdminSection as Section,
+} from "./sections";
 import a from "./admin.module.css";
 
 export function AdminConsole({
@@ -45,6 +50,7 @@ export function AdminConsole({
   trainingTimeCsvHref,
   publicBaseUrl,
   backendOk,
+  role = "TENANT_ADMIN",
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -65,21 +71,28 @@ export function AdminConsole({
   trainingTimeCsvHref?: string;
   publicBaseUrl?: string;
   backendOk: boolean;
+  // B-27 : le GESTIONNAIRE partage cette console mais ne voit que les sections
+  // administratives (jamais LLM, graphe, outbox ni vue d'ensemble).
+  role?: string;
 }) {
+  const isManager = role === "GESTIONNAIRE";
+  const allowed = adminSectionsForRole(role).map((s) => s.id);
+  const defaultSection = adminDefaultSectionForRole(role);
   // The rendered section is addressable: /admin?section=… (UX-01). The URL is
   // the shared source of truth with the lateral AppNav; programmatic jumps
   // update it shallowly so links stay shareable without refetching the page.
-  const urlSection = asAdminSection(useSearchParams().get("section"));
+  const urlSection = asAdminSection(useSearchParams().get("section"), role);
   const [section, setSection] = useState<Section>(urlSection);
   useEffect(() => {
     setSection(urlSection);
   }, [urlSection]);
   function go(next: Section) {
-    setSection(next);
+    const target = allowed.includes(next) ? next : defaultSection;
+    setSection(target);
     window.history.replaceState(
       null,
       "",
-      next === ADMIN_DEFAULT_SECTION ? "/admin" : `/admin?section=${next}`
+      target === defaultSection ? "/admin" : `/admin?section=${target}`
     );
   }
   // Newly-written configs are reflected optimistically into the matrix + outbox.
@@ -101,18 +114,32 @@ export function AdminConsole({
           <span>{tenantName}</span>
           <span className="quiet">· {tenantSlug}</span>
           <span className={a.scopeDiv} />
-          <span className={a.scopeRole}>TENANT_ADMIN</span>
+          <span className={a.scopeRole}>{isManager ? "GESTIONNAIRE" : "TENANT_ADMIN"}</span>
         </span>
       </div>
 
-      <h1 className="standfirst" style={{ marginTop: 6, marginBottom: 6 }}>
-        Vous configurez l&apos;OS d&apos;apprentissage — vous ne rédigez pas de syllabus.
-      </h1>
-      <p className="soft" style={{ maxWidth: "62ch", marginBottom: backendOk ? 20 : 14 }}>
-        Le runtime détient la maîtrise, les révisions, les conceptions erronées et les alertes. Vous façonnez{" "}
-        <em>qui</em> se trouve dans le tenant, <em>comment</em> il est structuré, et <em>quel modèle</em> génère
-        le contenu.
-      </p>
+      {isManager ? (
+        <>
+          <h1 className="standfirst" style={{ marginTop: 6, marginBottom: 6 }}>
+            Vous administrez l&apos;organisme — pas sa configuration technique.
+          </h1>
+          <p className="soft" style={{ maxWidth: "62ch", marginBottom: backendOk ? 20 : 14 }}>
+            Inscriptions, sessions, documents, financements et qualité. La conception pédagogique reste aux
+            formateurs ; la configuration LLM et les intégrations restent aux administrateurs.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1 className="standfirst" style={{ marginTop: 6, marginBottom: 6 }}>
+            Vous configurez l&apos;OS d&apos;apprentissage — vous ne rédigez pas de syllabus.
+          </h1>
+          <p className="soft" style={{ maxWidth: "62ch", marginBottom: backendOk ? 20 : 14 }}>
+            Le runtime détient la maîtrise, les révisions, les conceptions erronées et les alertes. Vous façonnez{" "}
+            <em>qui</em> se trouve dans le tenant, <em>comment</em> il est structuré, et <em>quel modèle</em> génère
+            le contenu.
+          </p>
+        </>
+      )}
 
       {!backendOk ? (
         <div className={a.degraded} role="status">
@@ -125,7 +152,7 @@ export function AdminConsole({
         </div>
       ) : null}
 
-      {section === "overview" ? (
+      {section === "overview" && !isManager ? (
         <Overview
           tenantName={tenantName}
           tenantSlug={tenantSlug}
@@ -162,9 +189,9 @@ export function AdminConsole({
 
       {section === "invites" ? <InvitesManager programs={programs} publicBaseUrl={publicBaseUrl} /> : null}
 
-      {section === "graph" ? <DomainGraph graph={graph} /> : null}
+      {section === "graph" && !isManager ? <DomainGraph graph={graph} /> : null}
 
-      {section === "llm" ? (
+      {section === "llm" && !isManager ? (
         <LlmMatrix
           tenantSlug={tenantSlug}
           matrix={localMatrix}
@@ -177,7 +204,7 @@ export function AdminConsole({
         />
       ) : null}
 
-      {section === "outbox" ? <EventOutbox events={localEvents} /> : null}
+      {section === "outbox" && !isManager ? <EventOutbox events={localEvents} /> : null}
 
       {section === "conformite" ? (
         <Conformite
@@ -186,6 +213,7 @@ export function AdminConsole({
           people={memberships
             .filter((m) => !!m.userId)
             .map((m) => ({ id: m.userId as string, name: m.name }))}
+          canErase={!isManager}
         />
       ) : null}
     </div>

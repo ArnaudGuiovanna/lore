@@ -6,7 +6,7 @@ import type { FundingFile } from "@/lib/types";
 // B-15 — dossiers de financement (admin) : liste + création. Les montants
 // transitent en cents (la conversion € → cents est faite côté client).
 function adminOnly(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN";
+  return role === "TENANT_ADMIN" || role === "SUPER_ADMIN" || role === "GESTIONNAIRE";
 }
 
 export async function GET(req: Request) {

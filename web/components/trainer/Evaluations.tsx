@@ -8,9 +8,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Panel } from "@/components/ui/Panel";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/ui/States";
-import type { Assignment, AssignmentSubmission, BankQuestion, Concept } from "@/lib/types";
+import type { Assignment, AssignmentSubmission, BankQuestion, Concept, Interaction } from "@/lib/types";
 
-type Volet = "bank" | "assignments" | "grading";
+type Volet = "bank" | "assignments" | "grading" | "positioning";
 
 type QuestionRow = BankQuestion & Record<string, unknown>;
 type AssignmentRow = Assignment & Record<string, unknown>;
@@ -33,12 +33,14 @@ export function Evaluations({
   domainId,
   concepts,
   learnerName,
+  learners,
 }: {
   cohortId: string;
   cohortName: string;
   domainId: string;
   concepts: Concept[];
   learnerName: (id: string) => string;
+  learners: { id: string; name: string }[];
 }) {
   const [volet, setVolet] = useState<Volet>("bank");
   const conceptName = useCallback(
@@ -54,6 +56,7 @@ export function Evaluations({
             ["bank", "Banque de questions"],
             ["assignments", "Devoirs"],
             ["grading", "File de correction"],
+            ["positioning", "Positionnement"],
           ] as [Volet, string][]
         ).map(([id, label]) => (
           <button
@@ -84,7 +87,135 @@ export function Evaluations({
       {volet === "grading" ? (
         <GradingQueue cohortId={cohortId} learnerName={learnerName} conceptName={conceptName} />
       ) : null}
+      {volet === "positioning" ? (
+        <PositioningPane domainId={domainId} learners={learners} conceptName={conceptName} />
+      ) : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Volet 4 — positionnement initial (B-13, exigence Qualiopi)
+// ---------------------------------------------------------------------------
+
+type PositioningRow = Interaction & Record<string, unknown>;
+
+// Nombre d'items de la première évaluation corrigée, lu dans le payload de
+// l'interaction (jamais recalculé ici).
+function itemCount(payload?: Record<string, unknown>): string {
+  if (!payload) return "—";
+  const items = payload["items"];
+  if (Array.isArray(items)) return String(items.length);
+  if (typeof items === "number") return String(items);
+  const total = payload["item_count"] ?? payload["total_items"];
+  return typeof total === "number" ? String(total) : "—";
+}
+
+function PositioningPane({
+  domainId,
+  learners,
+  conceptName,
+}: {
+  domainId: string;
+  learners: { id: string; name: string }[];
+  conceptName: (id?: string) => string;
+}) {
+  const [learnerId, setLearnerId] = useState(learners[0]?.id ?? "");
+  const [evidence, setEvidence] = useState<Interaction[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!learnerId) {
+      setEvidence([]);
+      return;
+    }
+    setLoadError(null);
+    try {
+      const res = await fetch(
+        `/api/trainer/positioning?learnerId=${encodeURIComponent(learnerId)}&domainId=${encodeURIComponent(domainId)}`
+      );
+      if (!res.ok) throw new Error(await readError(res));
+      setEvidence(((await res.json()) as Interaction[]) ?? []);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "chargement impossible");
+      setEvidence([]);
+    }
+  }, [learnerId, domainId]);
+
+  useEffect(() => {
+    setEvidence(null);
+    void refresh();
+  }, [refresh]);
+
+  const columns: Column<PositioningRow>[] = [
+    { key: "created_at", header: "Date", mono: true, render: (r) => <span>{fmtDate(r.created_at)}</span> },
+    {
+      key: "concept_id",
+      header: "Concept",
+      render: (r) => <span data-testid="positioning-concept">{conceptName(r.concept_id)}</span>,
+    },
+    {
+      key: "score",
+      header: "Score initial",
+      align: "right",
+      mono: true,
+      render: (r) => (
+        <span data-testid="positioning-score">{Math.round((Number(r.score) || 0) * 100)}/100</span>
+      ),
+    },
+    {
+      key: "items",
+      header: "Items",
+      align: "right",
+      mono: true,
+      render: (r) => <span>{itemCount(r.payload)}</span>,
+    },
+  ];
+
+  return (
+    <Panel
+      kicker="Positionnement · début de formation"
+      title="Le niveau d'entrée, archivé"
+      aside={
+        <label className="col" style={{ gap: 4 }}>
+          <span className="quiet mono" style={{ fontSize: 11 }}>apprenant</span>
+          <select
+            value={learnerId}
+            onChange={(e) => setLearnerId(e.target.value)}
+            data-testid="positioning-learner"
+          >
+            {learners.length === 0 ? <option value="">— aucun apprenant —</option> : null}
+            {learners.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        </label>
+      }
+    >
+      <p className="soft" style={{ marginTop: -6, marginBottom: 16, maxWidth: "62ch" }}>
+        La première évaluation corrigée par concept — la preuve Qualiopi du positionnement de début de
+        formation. Lecture seule : l&apos;évidence est détenue par le runtime, jamais réécrite ici.
+      </p>
+      {evidence === null ? (
+        <LoadingState label="Chargement du positionnement…" />
+      ) : loadError && evidence.length === 0 ? (
+        <ErrorState
+          kicker="Le positionnement n'a pas répondu"
+          detail="L'évidence persistée n'a pas pu être lue — rien n'est inventé pour combler le manque."
+          message={loadError}
+          action={
+            <button type="button" className="btn" onClick={() => void refresh()}>↺ réessayer</button>
+          }
+        />
+      ) : (
+        <DataTable<PositioningRow>
+          columns={columns}
+          rows={(evidence as PositioningRow[]) ?? []}
+          rowKey={(r) => r.id}
+          empty="Aucune évaluation corrigée pour cet apprenant — le positionnement apparaît après sa première évaluation."
+        />
+      )}
+    </Panel>
   );
 }
 

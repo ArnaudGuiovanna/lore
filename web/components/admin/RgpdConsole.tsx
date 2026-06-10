@@ -22,6 +22,7 @@ export interface RgpdUser {
 const ROLE_FR: Record<Role, string> = {
   SUPER_ADMIN: "super-admin",
   TENANT_ADMIN: "administrateur",
+  GESTIONNAIRE: "gestionnaire",
   TRAINER: "formateur",
   LEARNER: "apprenant",
 };

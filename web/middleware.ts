@@ -7,6 +7,8 @@ const COOKIE = "lore_session";
 const roleHome: Record<string, string> = {
   LEARNER: "/learner",
   TRAINER: "/trainer",
+  // B-27 : le gestionnaire partage la surface admin (sections filtrées côté console).
+  GESTIONNAIRE: "/admin",
   TENANT_ADMIN: "/admin",
   SUPER_ADMIN: "/admin",
 };
@@ -15,12 +17,16 @@ const roleHome: Record<string, string> = {
 function requiredRoles(pathname: string): string[] | null {
   if (pathname.startsWith("/learner")) return ["LEARNER"];
   if (pathname.startsWith("/trainer")) return ["TRAINER"];
-  if (pathname.startsWith("/admin")) return ["TENANT_ADMIN", "SUPER_ADMIN"];
+  // /admin/rgpd (effacement) reste réservé aux administrateurs — le backend
+  // refuse de toute façon la capacité erase_data au GESTIONNAIRE.
+  if (pathname.startsWith("/admin/rgpd")) return ["TENANT_ADMIN", "SUPER_ADMIN"];
+  if (pathname.startsWith("/admin")) return ["TENANT_ADMIN", "SUPER_ADMIN", "GESTIONNAIRE"];
   // The forced-reset page is reached by every role, so it's role-agnostic but
   // still requires a session — handled below via the mustChange gate, not here.
-  if (pathname.startsWith("/account")) return ["LEARNER", "TRAINER", "TENANT_ADMIN", "SUPER_ADMIN"];
+  if (pathname.startsWith("/account")) return ["LEARNER", "TRAINER", "TENANT_ADMIN", "SUPER_ADMIN", "GESTIONNAIRE"];
   // Defense in depth: admin API routes (in addition to their per-route getSession gate).
-  if (pathname.startsWith("/api/admin")) return ["TENANT_ADMIN", "SUPER_ADMIN"];
+  if (pathname.startsWith("/api/admin/rgpd")) return ["TENANT_ADMIN", "SUPER_ADMIN"];
+  if (pathname.startsWith("/api/admin")) return ["TENANT_ADMIN", "SUPER_ADMIN", "GESTIONNAIRE"];
   return null;
 }
 

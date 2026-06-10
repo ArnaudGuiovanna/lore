@@ -56,7 +56,7 @@ export default async function RgpdPage() {
       };
     })
     .sort((a, b) => {
-      const order: Record<Role, number> = { SUPER_ADMIN: 0, TENANT_ADMIN: 1, TRAINER: 2, LEARNER: 3 };
+      const order: Record<Role, number> = { SUPER_ADMIN: 0, TENANT_ADMIN: 1, GESTIONNAIRE: 2, TRAINER: 3, LEARNER: 4 };
       return order[a.role] - order[b.role] || a.name.localeCompare(b.name, "fr");
     });
 

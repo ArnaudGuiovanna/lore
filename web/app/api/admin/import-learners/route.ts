@@ -59,7 +59,7 @@ function parseRows(csv: string): Array<{ line: number; name: string; email: stri
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
-  if (session.role !== "TENANT_ADMIN" && session.role !== "SUPER_ADMIN") {
+  if (session.role !== "TENANT_ADMIN" && session.role !== "SUPER_ADMIN" && session.role !== "GESTIONNAIRE") {
     return NextResponse.json({ error: "réservé à un administrateur" }, { status: 403 });
   }
   const body = (await req.json()) as Body;
