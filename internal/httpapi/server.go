@@ -62,6 +62,15 @@ type Repository interface {
 	CreateAnnouncement(ctx context.Context, announcement core.Announcement, actorUserID ...string) (core.Announcement, error)
 	ListAnnouncements(ctx context.Context, tenantID, learnerID string) ([]core.Announcement, error)
 	ArchiveAnnouncement(ctx context.Context, tenantID, announcementID string, actorUserID ...string) (core.Announcement, error)
+	CreateFundingFile(ctx context.Context, file core.FundingFile, actorUserID ...string) (core.FundingFile, error)
+	ListFundingFiles(ctx context.Context, tenantID, learnerID string) ([]core.FundingFile, error)
+	UpdateFundingFile(ctx context.Context, tenantID, fileID string, patch core.FundingFilePatch, actorUserID ...string) (core.FundingFile, error)
+	ArchiveFundingFile(ctx context.Context, tenantID, fileID string, actorUserID ...string) (core.FundingFile, error)
+	BPFExport(ctx context.Context, tenantID string, year int) (core.BPFReport, error)
+	PublishLegalText(ctx context.Context, text core.LegalText, actorUserID ...string) (core.LegalText, error)
+	ListLegalTexts(ctx context.Context, tenantID string, history bool) ([]core.LegalText, error)
+	RecordConsent(ctx context.Context, tenantID, userID, legalTextID string) (core.Consent, error)
+	ListConsents(ctx context.Context, tenantID, userID string) ([]core.Consent, error)
 	CreateDocument(ctx context.Context, doc core.OFDocument, actorUserID ...string) (core.OFDocument, error)
 	NewDocumentVersion(ctx context.Context, tenantID, documentID, title, body string, actorUserID ...string) (core.OFDocument, error)
 	ListDocuments(ctx context.Context, tenantID, learnerID string) ([]core.OFDocument, error)
@@ -250,6 +259,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/announcements", s.createAnnouncement)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/announcements", s.listAnnouncements)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/announcements/{announcement_id}", s.archiveAnnouncement)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/funding-files", s.createFundingFile)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/funding-files", s.listFundingFiles)
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/funding-files/{file_id}", s.updateFundingFile)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/funding-files/{file_id}", s.archiveFundingFile)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/bpf-export", s.bpfExport)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/legal-texts", s.publishLegalText)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/legal-texts", s.listLegalTexts)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/consents", s.recordConsent)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/consents", s.listConsents)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents", s.createDocument)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents", s.listDocuments)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents/{document_id}", s.getDocument)
@@ -477,7 +495,7 @@ func (s *Server) addMembership(w http.ResponseWriter, r *http.Request) {
 		role = core.RoleLearner
 	}
 	if !role.Valid() {
-		problem(w, http.StatusBadRequest, "role must be one of SUPER_ADMIN, TENANT_ADMIN, TRAINER, LEARNER")
+		problem(w, http.StatusBadRequest, "role must be one of SUPER_ADMIN, TENANT_ADMIN, TRAINER, GESTIONNAIRE, LEARNER")
 		return
 	}
 	tenantID := r.PathValue("tenant_id")
@@ -500,7 +518,7 @@ func (s *Server) listTenantUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchTenantUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageUsers) {
 		return
 	}
 	var req struct {
@@ -517,7 +535,7 @@ func (s *Server) patchTenantUser(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) archiveTenantUser(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageUsers) {
 		return
 	}
 	user, err := s.store.ArchiveTenantUser(r.Context(), tenantID, r.PathValue("user_id"), actorUserIDFromRequest(r))
@@ -536,7 +554,7 @@ func (s *Server) listPrograms(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createProgram(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -551,7 +569,7 @@ func (s *Server) createProgram(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchProgram(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -567,7 +585,7 @@ func (s *Server) patchProgram(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) archiveProgram(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	program, err := s.store.ArchiveProgram(r.Context(), tenantID, r.PathValue("program_id"), actorUserIDFromRequest(r))
@@ -581,7 +599,7 @@ func (s *Server) listCohorts(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createCohort(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -609,7 +627,7 @@ func (s *Server) createCohort(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchCohort(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -638,7 +656,7 @@ func (s *Server) patchCohort(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) archiveCohort(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	cohort, err := s.store.ArchiveCohort(r.Context(), tenantID, r.PathValue("cohort_id"), actorUserIDFromRequest(r))
@@ -652,7 +670,7 @@ func (s *Server) listCohortEnrollments(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) enrollLearner(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -667,7 +685,7 @@ func (s *Server) enrollLearner(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchCohortEnrollment(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -682,7 +700,7 @@ func (s *Server) patchCohortEnrollment(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) archiveCohortEnrollment(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	enrollment, err := s.store.ArchiveCohortEnrollment(r.Context(), tenantID, r.PathValue("cohort_id"), r.PathValue("learner_id"), actorUserIDFromRequest(r))
@@ -696,7 +714,7 @@ func (s *Server) listTrainingSessions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createTrainingSession(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageSessions) {
 		return
 	}
 	var req struct {
@@ -736,7 +754,7 @@ func (s *Server) createTrainingSession(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchTrainingSession(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageSessions) {
 		return
 	}
 	var req struct {
@@ -782,7 +800,7 @@ func (s *Server) patchTrainingSession(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) archiveTrainingSession(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageSessions) {
 		return
 	}
 	session, err := s.store.ArchiveTrainingSession(r.Context(), tenantID, r.PathValue("session_id"), actorUserIDFromRequest(r))
@@ -905,6 +923,118 @@ func (s *Server) archiveAnnouncement(w http.ResponseWriter, r *http.Request) {
 	respond(w, announcement, err, http.StatusOK)
 }
 
+// --- Financeurs + BPF (B-15) -------------------------------------------------
+
+func (s *Server) createFundingFile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capManageFinance) {
+		return
+	}
+	var req core.FundingFile
+	if !decode(w, r, &req) {
+		return
+	}
+	req.TenantID = tenantID
+	file, err := s.store.CreateFundingFile(r.Context(), req, actorUserIDFromRequest(r))
+	respond(w, file, err, http.StatusCreated)
+}
+
+func (s *Server) listFundingFiles(w http.ResponseWriter, r *http.Request) {
+	files, err := s.store.ListFundingFiles(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("learner_id"))
+	respond(w, files, err, http.StatusOK)
+}
+
+func (s *Server) updateFundingFile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capManageFinance) {
+		return
+	}
+	var patch core.FundingFilePatch
+	if !decode(w, r, &patch) {
+		return
+	}
+	file, err := s.store.UpdateFundingFile(r.Context(), tenantID, r.PathValue("file_id"), patch, actorUserIDFromRequest(r))
+	respond(w, file, err, http.StatusOK)
+}
+
+func (s *Server) archiveFundingFile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capManageFinance) {
+		return
+	}
+	file, err := s.store.ArchiveFundingFile(r.Context(), tenantID, r.PathValue("file_id"), actorUserIDFromRequest(r))
+	respond(w, file, err, http.StatusOK)
+}
+
+func (s *Server) bpfExport(w http.ResponseWriter, r *http.Request) {
+	year, err := strconv.Atoi(r.URL.Query().Get("year"))
+	if err != nil || year < 2000 || year > 2200 {
+		problem(w, http.StatusBadRequest, "year query parameter is required (e.g. ?year=2026)")
+		return
+	}
+	report, err := s.store.BPFExport(r.Context(), r.PathValue("tenant_id"), year)
+	respond(w, report, err, http.StatusOK)
+}
+
+// --- Textes légaux + consentements (B-28) ------------------------------------
+
+func (s *Server) publishLegalText(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !s.authorizeCapability(w, r, tenantID, capManageLegal) {
+		return
+	}
+	var req core.LegalText
+	if !decode(w, r, &req) {
+		return
+	}
+	req.TenantID = tenantID
+	text, err := s.store.PublishLegalText(r.Context(), req, actorUserIDFromRequest(r))
+	respond(w, text, err, http.StatusCreated)
+}
+
+func (s *Server) listLegalTexts(w http.ResponseWriter, r *http.Request) {
+	history := r.URL.Query().Get("history") == "1"
+	// Learners only ever need the current texts.
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		history = false
+	}
+	texts, err := s.store.ListLegalTexts(r.Context(), r.PathValue("tenant_id"), history)
+	respond(w, texts, err, http.StatusOK)
+}
+
+// recordConsent: identity always comes from the token when present — a
+// learner cannot consent on behalf of someone else.
+func (s *Server) recordConsent(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LegalTextID string `json:"legal_text_id"`
+		UserID      string `json:"user_id"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	userID := req.UserID
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Subject != "" {
+		userID = claims.Subject
+	}
+	if userID == "" {
+		problem(w, http.StatusBadRequest, "user_id is required")
+		return
+	}
+	consent, err := s.store.RecordConsent(r.Context(), r.PathValue("tenant_id"), userID, req.LegalTextID)
+	respond(w, consent, err, http.StatusCreated)
+}
+
+// listConsents: staff read the registre; a learner token is narrowed to its
+// own consents regardless of the query parameter.
+func (s *Server) listConsents(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		userID = claims.Subject
+	}
+	consents, err := s.store.ListConsents(r.Context(), r.PathValue("tenant_id"), userID)
+	respond(w, consents, err, http.StatusOK)
+}
+
 // learnerPositioning (B-13): the archivable initial-positioning record — the
 // first corrected assessment per concept (date, score, items). Trainers
 // comment via the admin audit log (action positioning.comment).
@@ -922,7 +1052,7 @@ func (s *Server) learnerPositioning(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createDocument(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageDocuments) {
 		return
 	}
 	var req core.OFDocument
@@ -973,7 +1103,7 @@ func (s *Server) getDocument(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) newDocumentVersion(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageDocuments) {
 		return
 	}
 	var req struct {
@@ -989,7 +1119,7 @@ func (s *Server) newDocumentVersion(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) archiveDocument(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageDocuments) {
 		return
 	}
 	doc, err := s.store.ArchiveDocument(r.Context(), tenantID, r.PathValue("document_id"), actorUserIDFromRequest(r))
@@ -1140,7 +1270,7 @@ func (s *Server) getTenantProfile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateTenantProfile(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageDocuments) {
 		return
 	}
 	var req struct {
@@ -1367,7 +1497,7 @@ func (s *Server) listComplaints(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateComplaint(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageQuality) {
 		return
 	}
 	var req struct {
@@ -1386,7 +1516,7 @@ func (s *Server) updateComplaint(w http.ResponseWriter, r *http.Request) {
 // log records the action with row counts but no personal data.
 func (s *Server) eraseLearnerData(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capEraseData) {
 		return
 	}
 	learnerID := r.PathValue("learner_id")
@@ -1403,7 +1533,7 @@ func (s *Server) eraseLearnerData(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createCohortInvite(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	var req struct {
@@ -1424,7 +1554,7 @@ func (s *Server) createCohortInvite(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listCohortInvites(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	invites, err := s.store.ListCohortInvites(r.Context(), tenantID, r.PathValue("cohort_id"))
@@ -1433,7 +1563,7 @@ func (s *Server) listCohortInvites(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) revokeCohortInvite(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("tenant_id")
-	if !s.authorizeAdminMutation(w, r, tenantID) {
+	if !s.authorizeCapability(w, r, tenantID, capManageEnrollments) {
 		return
 	}
 	invite, err := s.store.RevokeCohortInvite(r.Context(), tenantID, r.PathValue("invite_id"), actorUserIDFromRequest(r))
@@ -2398,6 +2528,12 @@ func (s *Server) authorizeMembershipWrite(w http.ResponseWriter, r *http.Request
 	}
 	isSuperAdmin := claims.Role == string(core.RoleSuperAdmin)
 	isTenantAdmin := claims.Role == string(core.RoleTenantAdmin) && claims.TenantID == tenantID
+	// B-27: le gestionnaire inscrit des apprenants, rien de plus — il ne peut
+	// jamais accorder un rôle qui élève des privilèges.
+	isManager := claims.Role == string(core.RoleManager) && claims.TenantID == tenantID
+	if isManager && role == core.RoleLearner {
+		return true
+	}
 	if !isSuperAdmin && !isTenantAdmin {
 		problem(w, http.StatusForbidden, "only a super-admin or tenant administrator may manage memberships")
 		return false
@@ -2423,33 +2559,6 @@ func (s *Server) authorizeTenantList(w http.ResponseWriter, r *http.Request) boo
 		return false
 	}
 	return true
-}
-
-func (s *Server) authorizeAdminMutation(w http.ResponseWriter, r *http.Request, tenantID string) bool {
-	if s.tokens == nil {
-		return true
-	}
-	if s.callerIsBootstrap(r) {
-		return true
-	}
-	claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims)
-	if !ok {
-		var found bool
-		claims, found = s.callerClaims(r)
-		ok = found
-	}
-	if !ok {
-		problem(w, http.StatusUnauthorized, "authentication is required for admin mutation")
-		return false
-	}
-	if claims.Role == string(core.RoleSuperAdmin) {
-		return true
-	}
-	if claims.Role == string(core.RoleTenantAdmin) && claims.TenantID == tenantID {
-		return true
-	}
-	problem(w, http.StatusForbidden, "only a tenant administrator or super-admin may perform this admin mutation")
-	return false
 }
 
 func actorUserIDFromRequest(r *http.Request) string {
@@ -2501,6 +2610,8 @@ func isRoleAllowedForRoute(r *http.Request, claims auth.Claims) bool {
 	switch claims.Role {
 	case string(core.RoleSuperAdmin), string(core.RoleTenantAdmin), string(core.RoleTrainer):
 		return true
+	case string(core.RoleManager):
+		return isManagerAllowedRoute(r)
 	case string(core.RoleLearner):
 		return isLearnerAllowedRoute(r, claims.Subject)
 	default:
@@ -2556,6 +2667,14 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 	}
 	// B-18: learners read announcements (handler narrows to their cohorts).
 	if r.Method == http.MethodGet && len(tail) == 1 && tail[0] == "announcements" {
+		return true
+	}
+	// B-28: learners read the current legal texts, record their own consent
+	// and see their consent history (handler forces identity from the token).
+	if r.Method == http.MethodGet && len(tail) == 1 && tail[0] == "legal-texts" {
+		return true
+	}
+	if len(tail) == 1 && tail[0] == "consents" && (r.Method == http.MethodGet || r.Method == http.MethodPost) {
 		return true
 	}
 	// B-10: learners read documents in their scope (handler narrows the list).

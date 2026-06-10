@@ -19,12 +19,16 @@ const (
 	RoleTenantAdmin Role = "TENANT_ADMIN"
 	RoleTrainer     Role = "TRAINER"
 	RoleLearner     Role = "LEARNER"
+	// RoleManager (B-27): gestionnaire administratif — inscriptions, sessions,
+	// documents, financement, qualité ; jamais la configuration technique ni
+	// la conception pédagogique.
+	RoleManager Role = "GESTIONNAIRE"
 )
 
 // Valid reports whether r is one of the recognized membership roles.
 func (r Role) Valid() bool {
 	switch r {
-	case RoleSuperAdmin, RoleTenantAdmin, RoleTrainer, RoleLearner:
+	case RoleSuperAdmin, RoleTenantAdmin, RoleTrainer, RoleLearner, RoleManager:
 		return true
 	default:
 		return false
@@ -566,6 +570,76 @@ type Announcement struct {
 	CreatedBy  string     `json:"created_by,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+// FundingFile (B-15) — dossier de financement d'un apprenant : qui paie quoi
+// (CPF, OPCO, France Travail, employeur...), sous quelle référence et pour
+// quel montant. C'est la donnée administrative source du BPF.
+type FundingFile struct {
+	TenantID    string     `json:"tenant_id"`
+	ID          string     `json:"id"`
+	LearnerID   string     `json:"learner_id"`
+	CohortID    string     `json:"cohort_id,omitempty"`
+	FunderType  string     `json:"funder_type"` // CPF | OPCO | FRANCE_TRAVAIL | EMPLOYEUR | AUTOFINANCEMENT | AUTRE
+	FunderName  string     `json:"funder_name,omitempty"`
+	Reference   string     `json:"reference,omitempty"` // n° dossier EDOF/OPCO...
+	Status      string     `json:"status"`              // EN_INSTRUCTION | ACCEPTE | REFUSE | SOLDE
+	AmountCents int64      `json:"amount_cents"`
+	Notes       string     `json:"notes,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+}
+
+type FundingFilePatch struct {
+	FunderType  *string `json:"funder_type,omitempty"`
+	FunderName  *string `json:"funder_name,omitempty"`
+	Reference   *string `json:"reference,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	AmountCents *int64  `json:"amount_cents,omitempty"`
+	Notes       *string `json:"notes,omitempty"`
+	CohortID    *string `json:"cohort_id,omitempty"`
+}
+
+// BPFReport (B-15) — agrégat annuel minimal pour préparer le Bilan
+// Pédagogique et Financier : produits par origine de financement (cadre C)
+// et volume stagiaires/heures (cadre F).
+type BPFReport struct {
+	Year              int             `json:"year"`
+	TotalLearners     int             `json:"total_learners"`
+	TotalTrainedHours float64         `json:"total_trained_hours"`
+	TotalAmountCents  int64           `json:"total_amount_cents"`
+	ByFunder          []BPFFunderLine `json:"by_funder"`
+}
+
+type BPFFunderLine struct {
+	FunderType  string `json:"funder_type"`
+	Files       int    `json:"files"`
+	Learners    int    `json:"learners"`
+	AmountCents int64  `json:"amount_cents"`
+}
+
+// LegalText (B-28) — texte légal versionné par tenant. Publier remplace la
+// version courante (version = max+1) sans effacer l'historique : chaque
+// consentement pointe la version exacte acceptée.
+type LegalText struct {
+	TenantID    string    `json:"tenant_id"`
+	ID          string    `json:"id"`
+	Kind        string    `json:"kind"` // CGU | CONFIDENTIALITE | MENTIONS
+	Version     int       `json:"version"`
+	Body        string    `json:"body"`
+	PublishedBy string    `json:"published_by,omitempty"`
+	PublishedAt time.Time `json:"published_at"`
+}
+
+type Consent struct {
+	TenantID    string    `json:"tenant_id"`
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	LegalTextID string    `json:"legal_text_id"`
+	Kind        string    `json:"kind"`
+	Version     int       `json:"version"`
+	ConsentedAt time.Time `json:"consented_at"`
 }
 
 type LLMConfiguration struct {

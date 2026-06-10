@@ -39,6 +39,9 @@ type MemoryStore struct {
 	assignmentSubmissions map[string]core.AssignmentSubmission
 	documents             map[string]core.OFDocument
 	announcements         map[string]core.Announcement
+	fundingFiles          map[string]core.FundingFile
+	legalTexts            map[string]core.LegalText
+	consents              map[string]core.Consent
 
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
@@ -83,6 +86,9 @@ func NewMemoryStore() *MemoryStore {
 		assignmentSubmissions: map[string]core.AssignmentSubmission{},
 		documents:             map[string]core.OFDocument{},
 		announcements:         map[string]core.Announcement{},
+		fundingFiles:          map[string]core.FundingFile{},
+		legalTexts:            map[string]core.LegalText{},
+		consents:              map[string]core.Consent{},
 		domains:               map[string]core.Domain{},
 		concepts:              map[string]core.Concept{},
 		dependencies:          map[string]core.Dependency{},

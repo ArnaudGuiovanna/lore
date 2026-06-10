@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1885,4 +1886,133 @@ func TestOFDocuments(t *testing.T) {
 	if len(documents) != 1 || documents[0].Version != 2 {
 		t.Fatalf("list should return only the latest version: %+v", documents)
 	}
+}
+
+func TestFundingFilesAndBPFExport(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "OF", "slug": "of"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "fin@example.test", "name": "Fin"}, http.StatusCreated)
+
+	cpf := postJSON[core.FundingFile](t, server, "/v1/tenants/"+tenant.ID+"/funding-files", map[string]any{
+		"learner_id": learner.ID, "funder_type": "CPF", "funder_name": "Caisse des Dépôts",
+		"reference": "EDOF-123", "amount_cents": 150000,
+	}, http.StatusCreated)
+	if cpf.Status != "EN_INSTRUCTION" {
+		t.Fatalf("default status = %s want EN_INSTRUCTION", cpf.Status)
+	}
+	opco := postJSON[core.FundingFile](t, server, "/v1/tenants/"+tenant.ID+"/funding-files", map[string]any{
+		"learner_id": learner.ID, "funder_type": "OPCO", "funder_name": "Atlas", "amount_cents": 80000,
+	}, http.StatusCreated)
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/funding-files", map[string]any{
+		"learner_id": learner.ID, "funder_type": "LOTERIE",
+	}, nil, http.StatusBadRequest)
+
+	status := "ACCEPTE"
+	patched := patchJSON[core.FundingFile](t, server, "/v1/tenants/"+tenant.ID+"/funding-files/"+cpf.ID, map[string]any{"status": status}, http.StatusOK)
+	if patched.Status != "ACCEPTE" {
+		t.Fatalf("patched status = %s", patched.Status)
+	}
+
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenant.ID+"/funding-files/"+opco.ID, nil, nil, http.StatusOK)
+	files := getJSON[[]core.FundingFile](t, server, "/v1/tenants/"+tenant.ID+"/funding-files?learner_id="+learner.ID, http.StatusOK)
+	if len(files) != 1 || files[0].ID != cpf.ID {
+		t.Fatalf("expected only the CPF file, got %+v", files)
+	}
+
+	year := time.Now().UTC().Year()
+	report := getJSON[core.BPFReport](t, server, "/v1/tenants/"+tenant.ID+"/bpf-export?year="+strconv.Itoa(year), http.StatusOK)
+	if report.Year != year || report.TotalAmountCents != 150000 {
+		t.Fatalf("bpf report mismatch: %+v", report)
+	}
+	if len(report.ByFunder) != 1 || report.ByFunder[0].FunderType != "CPF" || report.ByFunder[0].Files != 1 || report.ByFunder[0].Learners != 1 {
+		t.Fatalf("bpf by_funder mismatch: %+v", report.ByFunder)
+	}
+	empty := getJSON[core.BPFReport](t, server, "/v1/tenants/"+tenant.ID+"/bpf-export?year="+strconv.Itoa(year-1), http.StatusOK)
+	if empty.TotalAmountCents != 0 || len(empty.ByFunder) != 0 {
+		t.Fatalf("previous year should be empty: %+v", empty)
+	}
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenant.ID+"/bpf-export", nil, nil, http.StatusBadRequest)
+}
+
+func TestLegalTextsAndConsents(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	admin := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "admin-legal@example.test", "name": "Admin"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "learner-legal@example.test", "name": "Learner"}, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": admin.ID, "role": string(core.RoleTenantAdmin)}, bootstrapHeaders(), http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, bootstrapHeaders(), http.StatusCreated)
+	adminToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": admin.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	learnerToken := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": learner.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+
+	// Versioning: publishing the same kind twice bumps the version.
+	v1 := postJSONWithHeadersValue[core.LegalText](t, server, "/v1/tenants/"+tenant.ID+"/legal-texts", map[string]any{"kind": "CGU", "body": "v1"}, bearerHeaders(adminToken), http.StatusCreated)
+	v2 := postJSONWithHeadersValue[core.LegalText](t, server, "/v1/tenants/"+tenant.ID+"/legal-texts", map[string]any{"kind": "CGU", "body": "v2"}, bearerHeaders(adminToken), http.StatusCreated)
+	if v1.Version != 1 || v2.Version != 2 {
+		t.Fatalf("versions = %d, %d want 1, 2", v1.Version, v2.Version)
+	}
+	// A learner may not publish.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/legal-texts", map[string]any{"kind": "MENTIONS", "body": "x"}, bearerHeaders(learnerToken), http.StatusForbidden)
+
+	// Latest-per-kind for the learner; full history for staff.
+	latest := getJSONWithHeaders[[]core.LegalText](t, server, "/v1/tenants/"+tenant.ID+"/legal-texts", bearerHeaders(learnerToken), http.StatusOK)
+	if len(latest) != 1 || latest[0].Version != 2 {
+		t.Fatalf("latest texts mismatch: %+v", latest)
+	}
+	history := getJSONWithHeaders[[]core.LegalText](t, server, "/v1/tenants/"+tenant.ID+"/legal-texts?history=1", bearerHeaders(adminToken), http.StatusOK)
+	if len(history) != 2 {
+		t.Fatalf("history mismatch: %+v", history)
+	}
+
+	// Consent: the token identity wins even if the body claims someone else.
+	consent := postJSONWithHeadersValue[core.Consent](t, server, "/v1/tenants/"+tenant.ID+"/consents", map[string]any{"legal_text_id": v2.ID, "user_id": admin.ID}, bearerHeaders(learnerToken), http.StatusCreated)
+	if consent.UserID != learner.ID || consent.Kind != "CGU" || consent.Version != 2 {
+		t.Fatalf("consent mismatch: %+v", consent)
+	}
+	// Idempotent re-consent.
+	again := postJSONWithHeadersValue[core.Consent](t, server, "/v1/tenants/"+tenant.ID+"/consents", map[string]any{"legal_text_id": v2.ID}, bearerHeaders(learnerToken), http.StatusCreated)
+	if again.ID != consent.ID {
+		t.Fatalf("re-consent should be idempotent: %s vs %s", again.ID, consent.ID)
+	}
+	// Registre: staff see all; the learner only ever sees their own.
+	registre := getJSONWithHeaders[[]core.Consent](t, server, "/v1/tenants/"+tenant.ID+"/consents", bearerHeaders(adminToken), http.StatusOK)
+	if len(registre) != 1 {
+		t.Fatalf("registre mismatch: %+v", registre)
+	}
+	own := getJSONWithHeaders[[]core.Consent](t, server, "/v1/tenants/"+tenant.ID+"/consents?user_id="+admin.ID, bearerHeaders(learnerToken), http.StatusOK)
+	if len(own) != 1 || own[0].UserID != learner.ID {
+		t.Fatalf("learner consent narrowing failed: %+v", own)
+	}
+}
+
+func TestManagerRoleCapabilities(t *testing.T) {
+	server := newTestServerWithJWT()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	manager := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "manager@example.test", "name": "Gestionnaire"}, http.StatusCreated)
+	learner := postJSON[core.User](t, server, "/v1/users", map[string]any{"email": "managed@example.test", "name": "Learner"}, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": manager.ID, "role": string(core.RoleManager)}, bootstrapHeaders(), http.StatusCreated)
+	token := postJSONWithHeadersValue[map[string]string](t, server, "/v1/auth/token", map[string]any{"tenant_id": tenant.ID, "user_id": manager.ID}, bootstrapHeaders(), http.StatusOK)["access_token"]
+	headers := bearerHeaders(token)
+
+	// Administratif : autorisé.
+	program := postJSONWithHeadersValue[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Prog"}, headers, http.StatusCreated)
+	cohort := postJSONWithHeadersValue[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "C1"}, headers, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.Membership](t, server, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleLearner)}, headers, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.CohortEnrollment](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/enrollments", map[string]any{"learner_id": learner.ID}, headers, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.FundingFile](t, server, "/v1/tenants/"+tenant.ID+"/funding-files", map[string]any{"learner_id": learner.ID, "funder_type": "OPCO", "amount_cents": 1000}, headers, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.OFDocument](t, server, "/v1/tenants/"+tenant.ID+"/documents", map[string]any{"kind": "CONVENTION", "title": "Convention", "body": "..."}, headers, http.StatusCreated)
+	_ = postJSONWithHeadersValue[core.LegalText](t, server, "/v1/tenants/"+tenant.ID+"/legal-texts", map[string]any{"kind": "CGU", "body": "v1"}, headers, http.StatusCreated)
+
+	// Élévation de privilèges : refusée.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/memberships", map[string]any{"user_id": learner.ID, "role": string(core.RoleTrainer)}, headers, http.StatusForbidden)
+	// RGPD destructif : refusé.
+	expectJSONStatus(t, server, http.MethodDelete, "/v1/tenants/"+tenant.ID+"/learners/"+learner.ID+"/data", nil, headers, http.StatusForbidden)
+	// Configuration technique : refusée, lecture comprise.
+	expectJSONStatus(t, server, http.MethodGet, "/v1/tenants/"+tenant.ID+"/llm-configurations", nil, headers, http.StatusForbidden)
+	expectJSONStatus(t, server, http.MethodPut, "/v1/tenants/"+tenant.ID+"/llm-configurations", map[string]any{"provider": "x"}, headers, http.StatusForbidden)
+	// Conception pédagogique : refusée.
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{"owner_id": manager.ID, "name": "Go", "source": "TRAINER", "concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.2}}}, headers, http.StatusForbidden)
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/syllabi", map[string]any{"title": "S"}, headers, http.StatusForbidden)
+	expectJSONStatus(t, server, http.MethodPost, "/v1/tenants/"+tenant.ID+"/questions", map[string]any{"kind": "short_answer", "prompt": "?", "expected_answer": "a"}, headers, http.StatusForbidden)
+	// Lecture reporting : autorisée.
+	_ = getJSONWithHeaders[[]core.Learner](t, server, "/v1/tenants/"+tenant.ID+"/learners", headers, http.StatusOK)
 }
