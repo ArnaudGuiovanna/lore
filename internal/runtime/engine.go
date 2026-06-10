@@ -23,6 +23,10 @@ type Store interface {
 	GetActivity(ctx context.Context, tenantID, activityID string) (core.Activity, core.TutorInstruction, error)
 	SaveInteractionDelta(ctx context.Context, delta core.StateDelta, activity core.Activity) error
 	ListLearnerState(ctx context.Context, tenantID, learnerID string) ([]core.LearnerState, error)
+	// B-26: trainer question bank. When questions exist for a concept the
+	// runtime assesses with them; answer keys are only read at scoring time.
+	ListBankQuestions(ctx context.Context, tenantID, conceptID string) ([]core.BankQuestion, error)
+	GetBankQuestion(ctx context.Context, tenantID, questionID string) (core.BankQuestion, error)
 }
 
 type Engine struct {
@@ -157,8 +161,15 @@ func (e *Engine) PlanNext(ctx context.Context, in PlanNextInput) (core.RuntimeDe
 		CreatedAt: now,
 	}
 	if activityType == core.ActivityAssessment {
-		instruction.Context["assessment_kind"] = assessmentKindCorrectedMinimal
-		instruction.Context["assessment_items"] = assessmentItemsFor(selection.Concept, graph)
+		// Trainer-authored questions take precedence over the generated
+		// concept-check; their answer keys stay server-side (B-26).
+		if bank, err := e.store.ListBankQuestions(ctx, in.TenantID, selection.Concept.ID); err == nil && len(bank) > 0 {
+			instruction.Context["assessment_kind"] = "trainer_bank"
+			instruction.Context["assessment_items"] = bankAssessmentItems(bank)
+		} else {
+			instruction.Context["assessment_kind"] = assessmentKindCorrectedMinimal
+			instruction.Context["assessment_items"] = assessmentItemsFor(selection.Concept, graph)
+		}
 	}
 	if selection.ActiveMisconception {
 		instruction.Context["misconception"] = map[string]any{

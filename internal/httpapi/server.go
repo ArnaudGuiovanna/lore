@@ -56,6 +56,15 @@ type Repository interface {
 	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
 	EraseLearnerData(ctx context.Context, tenantID, learnerID string, actorUserID ...string) (map[string]int, error)
+	CreateBankQuestion(ctx context.Context, q core.BankQuestion, actorUserID ...string) (core.BankQuestion, error)
+	ListBankQuestions(ctx context.Context, tenantID, conceptID string) ([]core.BankQuestion, error)
+	ArchiveBankQuestion(ctx context.Context, tenantID, questionID string, actorUserID ...string) (core.BankQuestion, error)
+	CreateAssignment(ctx context.Context, assignment core.Assignment, actorUserID ...string) (core.Assignment, error)
+	ListAssignments(ctx context.Context, tenantID, cohortID string) ([]core.Assignment, error)
+	GetAssignment(ctx context.Context, tenantID, assignmentID string) (core.Assignment, error)
+	SubmitAssignment(ctx context.Context, submission core.AssignmentSubmission) (core.AssignmentSubmission, error)
+	ListAssignmentSubmissions(ctx context.Context, tenantID, assignmentID string) ([]core.AssignmentSubmission, error)
+	GradeAssignmentSubmission(ctx context.Context, tenantID, submissionID string, score float64, feedback, graderID string) (core.AssignmentSubmission, error)
 	CreateSurvey(ctx context.Context, survey core.SatisfactionSurvey, actorUserID ...string) (core.SatisfactionSurvey, error)
 	ListSurveys(ctx context.Context, tenantID, cohortID string) ([]core.SatisfactionSurvey, error)
 	GetSurvey(ctx context.Context, tenantID, surveyID string) (core.SatisfactionSurvey, error)
@@ -224,6 +233,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/questions", s.createBankQuestion)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/questions", s.listBankQuestions)
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/questions/{question_id}", s.archiveBankQuestion)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/cohorts/{cohort_id}/assignments", s.createAssignment)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/assignments", s.listAssignments)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/assignments/{assignment_id}/submissions", s.submitAssignment)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/assignments/{assignment_id}/submissions", s.listAssignmentSubmissions)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/submissions/{submission_id}/grade", s.gradeSubmission)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/profile", s.getTenantProfile)
 	mux.HandleFunc("PUT /v1/tenants/{tenant_id}/profile", s.updateTenantProfile)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/cohorts/{cohort_id}/qualiopi-export", s.qualiopiExport)
@@ -820,6 +837,106 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="lore-sessions.ics"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// --- Banque de questions & devoirs (B-26) -----------------------------------
+
+func (s *Server) createBankQuestion(w http.ResponseWriter, r *http.Request) {
+	var req core.BankQuestion
+	if !decode(w, r, &req) {
+		return
+	}
+	req.TenantID = r.PathValue("tenant_id")
+	question, err := s.store.CreateBankQuestion(r.Context(), req, actorUserIDFromRequest(r))
+	respond(w, question, err, http.StatusCreated)
+}
+
+func (s *Server) listBankQuestions(w http.ResponseWriter, r *http.Request) {
+	questions, err := s.store.ListBankQuestions(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("concept_id"))
+	respond(w, questions, err, http.StatusOK)
+}
+
+func (s *Server) archiveBankQuestion(w http.ResponseWriter, r *http.Request) {
+	question, err := s.store.ArchiveBankQuestion(r.Context(), r.PathValue("tenant_id"), r.PathValue("question_id"), actorUserIDFromRequest(r))
+	respond(w, question, err, http.StatusOK)
+}
+
+func (s *Server) createAssignment(w http.ResponseWriter, r *http.Request) {
+	var req core.Assignment
+	if !decode(w, r, &req) {
+		return
+	}
+	req.TenantID = r.PathValue("tenant_id")
+	req.CohortID = r.PathValue("cohort_id")
+	assignment, err := s.store.CreateAssignment(r.Context(), req, actorUserIDFromRequest(r))
+	respond(w, assignment, err, http.StatusCreated)
+}
+
+func (s *Server) listAssignments(w http.ResponseWriter, r *http.Request) {
+	assignments, err := s.store.ListAssignments(r.Context(), r.PathValue("tenant_id"), r.URL.Query().Get("cohort_id"))
+	respond(w, assignments, err, http.StatusOK)
+}
+
+func (s *Server) submitAssignment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LearnerID string `json:"learner_id"`
+		Content   string `json:"content"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if !s.authorizeLearnerCommand(w, r, req.LearnerID) {
+		return
+	}
+	submission, err := s.store.SubmitAssignment(r.Context(), core.AssignmentSubmission{
+		TenantID:     r.PathValue("tenant_id"),
+		AssignmentID: r.PathValue("assignment_id"),
+		LearnerID:    req.LearnerID,
+		Content:      req.Content,
+	})
+	respond(w, submission, err, http.StatusCreated)
+}
+
+func (s *Server) listAssignmentSubmissions(w http.ResponseWriter, r *http.Request) {
+	submissions, err := s.store.ListAssignmentSubmissions(r.Context(), r.PathValue("tenant_id"), r.PathValue("assignment_id"))
+	respond(w, submissions, err, http.StatusOK)
+}
+
+// gradeSubmission stores the manual grade and, when the assignment is bound to
+// a concept, bridges the score into the runtime as corrected evidence (B-26).
+func (s *Server) gradeSubmission(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	var req struct {
+		Score    float64 `json:"score"`
+		Feedback string  `json:"feedback"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	grader := actorUserIDFromRequest(r)
+	submission, err := s.store.GradeAssignmentSubmission(r.Context(), tenantID, r.PathValue("submission_id"), req.Score, req.Feedback, grader)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	var bridged *core.StateDelta
+	if assignment, err := s.store.GetAssignment(r.Context(), tenantID, submission.AssignmentID); err == nil &&
+		assignment.ConceptID != "" && assignment.DomainID != "" {
+		delta, bridgeErr := s.engine.RecordManualEvidence(r.Context(), runtime.ManualEvidenceCommand{
+			TenantID:  tenantID,
+			LearnerID: submission.LearnerID,
+			DomainID:  assignment.DomainID,
+			ConceptID: assignment.ConceptID,
+			Score:     req.Score,
+			GraderID:  grader,
+			SourceRef: submission.ID,
+		})
+		if bridgeErr == nil {
+			bridged = &delta
+			s.invalidateLearnerState(r.Context(), tenantID, submission.LearnerID)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"submission": submission, "state_delta": bridged})
 }
 
 // --- Profil OF + dossier Qualiopi (B-08/B-09) -------------------------------
@@ -2232,6 +2349,13 @@ func isLearnerAllowedRoute(r *http.Request, learnerID string) bool {
 	// B-25: the cohort schedule is readable by its learners (read-only).
 	if r.Method == http.MethodGet && len(tail) == 1 &&
 		(tail[0] == "training-sessions" || tail[0] == "training-sessions.ics") {
+		return true
+	}
+	// B-26: learners list assignments and hand in their own work.
+	if r.Method == http.MethodGet && len(tail) == 1 && tail[0] == "assignments" {
+		return true
+	}
+	if r.Method == http.MethodPost && len(tail) == 3 && tail[0] == "assignments" && tail[2] == "submissions" {
 		return true
 	}
 	// B-11: learners read surveys, answer them (ownership enforced in handler)

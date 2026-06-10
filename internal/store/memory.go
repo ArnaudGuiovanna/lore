@@ -34,6 +34,10 @@ type MemoryStore struct {
 	surveyResponses map[string]core.SurveyResponse
 	complaints      map[string]core.Complaint
 
+	bankQuestions         map[string]core.BankQuestion
+	assignments           map[string]core.Assignment
+	assignmentSubmissions map[string]core.AssignmentSubmission
+
 	domains      map[string]core.Domain
 	concepts     map[string]core.Concept
 	dependencies map[string]core.Dependency
@@ -69,9 +73,12 @@ func NewMemoryStore() *MemoryStore {
 		bindings:        map[string]core.SyllabusBinding{},
 		modules:         map[string]core.CourseModule{},
 		invites:         map[string]core.CohortInvite{},
-		surveys:         map[string]core.SatisfactionSurvey{},
-		surveyResponses: map[string]core.SurveyResponse{},
-		complaints:      map[string]core.Complaint{},
+		surveys:               map[string]core.SatisfactionSurvey{},
+		surveyResponses:       map[string]core.SurveyResponse{},
+		complaints:            map[string]core.Complaint{},
+		bankQuestions:         map[string]core.BankQuestion{},
+		assignments:           map[string]core.Assignment{},
+		assignmentSubmissions: map[string]core.AssignmentSubmission{},
 		domains:         map[string]core.Domain{},
 		concepts:        map[string]core.Concept{},
 		dependencies:    map[string]core.Dependency{},

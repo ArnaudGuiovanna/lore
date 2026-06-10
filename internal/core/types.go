@@ -207,6 +207,54 @@ type AdminAuditLog struct {
 	CreatedAt   time.Time      `json:"created_at"`
 }
 
+// BankQuestion (B-26) — trainer-authored question. When questions exist for a
+// concept, runtime assessments use them instead of the generated fallback;
+// answer keys NEVER leave the backend (scoring fetches them at submit time).
+type BankQuestion struct {
+	TenantID        string             `json:"tenant_id"`
+	ID              string             `json:"id"`
+	ConceptID       string             `json:"concept_id,omitempty"`
+	Kind            string             `json:"kind"` // single_choice | short_answer
+	Prompt          string             `json:"prompt"`
+	Choices         []AssessmentChoice `json:"choices,omitempty"`
+	CorrectChoiceID string             `json:"correct_choice_id,omitempty"`
+	ExpectedAnswer  string             `json:"expected_answer,omitempty"`
+	Points          float64            `json:"points"`
+	CreatedBy       string             `json:"created_by,omitempty"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+	ArchivedAt      *time.Time         `json:"archived_at,omitempty"`
+}
+
+// Assignment (B-26) — un devoir avec date limite ; si concept_id/domain_id
+// sont posés, la note manuelle alimente le runtime (BKT) comme évidence.
+type Assignment struct {
+	TenantID    string     `json:"tenant_id"`
+	ID          string     `json:"id"`
+	CohortID    string     `json:"cohort_id"`
+	DomainID    string     `json:"domain_id,omitempty"`
+	ConceptID   string     `json:"concept_id,omitempty"`
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	DueAt       *time.Time `json:"due_at,omitempty"`
+	CreatedBy   string     `json:"created_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+}
+
+type AssignmentSubmission struct {
+	TenantID     string     `json:"tenant_id"`
+	ID           string     `json:"id"`
+	AssignmentID string     `json:"assignment_id"`
+	LearnerID    string     `json:"learner_id"`
+	Content      string     `json:"content"`
+	SubmittedAt  time.Time  `json:"submitted_at"`
+	Score        *float64   `json:"score,omitempty"` // 0..1, set by manual grading
+	Feedback     string     `json:"feedback,omitempty"`
+	GradedBy     string     `json:"graded_by,omitempty"`
+	GradedAt     *time.Time `json:"graded_at,omitempty"`
+}
+
 // SatisfactionSurvey (B-11) — à chaud (HOT) right after training, à froid
 // (COLD) weeks later. Questions: [{id, prompt, kind: "scale"|"text"}].
 type SatisfactionSurvey struct {

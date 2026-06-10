@@ -1260,6 +1260,92 @@ func bootstrapHeaders() map[string]string {
 	return map[string]string{"X-LORE-Bootstrap-Token": testBootstrapToken}
 }
 
+// B-26: trainer bank questions drive runtime assessments (keys server-side),
+// and a graded devoir bridges into BKT as corrected evidence.
+func TestQuestionBankAndAssignments(t *testing.T) {
+	server := newTestServer()
+	tenant := postJSON[core.Tenant](t, server, "/v1/tenants", map[string]any{"name": "A", "slug": "a"}, http.StatusCreated)
+	graph := postJSON[core.DomainGraph](t, server, "/v1/tenants/"+tenant.ID+"/domains", map[string]any{
+		"owner_id": "trainer",
+		"name":     "Go",
+		"source":   "TRAINER",
+		"concepts": []map[string]any{{"id": "c1", "name": "HTTP", "difficulty": 0.4}},
+	}, http.StatusCreated)
+	program := postJSON[core.Program](t, server, "/v1/tenants/"+tenant.ID+"/programs", map[string]any{"name": "Go"}, http.StatusCreated)
+	cohort := postJSON[core.Cohort](t, server, "/v1/tenants/"+tenant.ID+"/cohorts", map[string]any{"program_id": program.ID, "name": "June"}, http.StatusCreated)
+
+	// Trainer authors a question on c1; the runtime now assesses with it.
+	question := postJSON[core.BankQuestion](t, server, "/v1/tenants/"+tenant.ID+"/questions", map[string]any{
+		"concept_id":        "c1",
+		"kind":              "single_choice",
+		"prompt":            "Quel code HTTP pour une création réussie ?",
+		"choices":           []map[string]any{{"id": "200", "label": "200"}, {"id": "201", "label": "201"}},
+		"correct_choice_id": "201",
+	}, http.StatusCreated)
+	if question.CorrectChoiceID != "201" {
+		t.Fatalf("question not stored: %+v", question)
+	}
+	decision := postJSON[core.RuntimeDecision](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/activities/next", map[string]any{
+		"domain_id": graph.Domain.ID,
+	}, http.StatusCreated)
+	items, _ := decision.TutorInstruction.Context["assessment_items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("expected the bank question as assessment item: %+v", decision.TutorInstruction.Context)
+	}
+	first, _ := items[0].(map[string]any)
+	if first["id"] != question.ID {
+		t.Fatalf("assessment did not use the bank question: %+v", first)
+	}
+	if _, leaked := first["correct_choice_id"]; leaked {
+		t.Fatalf("answer key leaked to the learner: %+v", first)
+	}
+	// Wrong answer scores 0; the correction names the real key.
+	delta := postJSON[core.StateDelta](t, server, "/v1/tenants/"+tenant.ID+"/assessments/"+decision.Activity.ID+"/submit", map[string]any{
+		"learner_id": "l1",
+		"answers":    []map[string]any{{"item_id": question.ID, "choice_id": "200"}},
+	}, http.StatusCreated)
+	if delta.Interaction.Score != 0 {
+		t.Fatalf("wrong answer scored %v", delta.Interaction.Score)
+	}
+
+	// Devoir bound to c1: grading bridges evidence into BKT.
+	assignment := postJSON[core.Assignment](t, server, "/v1/tenants/"+tenant.ID+"/cohorts/"+cohort.ID+"/assignments", map[string]any{
+		"title":      "Implémenter un handler POST",
+		"domain_id":  graph.Domain.ID,
+		"concept_id": "c1",
+	}, http.StatusCreated)
+	submission := postJSON[core.AssignmentSubmission](t, server, "/v1/tenants/"+tenant.ID+"/assignments/"+assignment.ID+"/submissions", map[string]any{
+		"learner_id": "l1",
+		"content":    "func create(w http.ResponseWriter, r *http.Request) { w.WriteHeader(201) }",
+	}, http.StatusCreated)
+
+	statesBefore := getJSON[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/state", http.StatusOK)
+	graded := postJSON[map[string]any](t, server, "/v1/tenants/"+tenant.ID+"/submissions/"+submission.ID+"/grade", map[string]any{
+		"score":    0.9,
+		"feedback": "Très bon usage du status code.",
+	}, http.StatusOK)
+	sub, _ := graded["submission"].(map[string]any)
+	if sub["score"] != 0.9 {
+		t.Fatalf("grade not stored: %+v", graded)
+	}
+	if graded["state_delta"] == nil {
+		t.Fatalf("manual grade did not bridge into the runtime: %+v", graded)
+	}
+	statesAfter := getJSON[[]core.LearnerState](t, server, "/v1/tenants/"+tenant.ID+"/learners/l1/state", http.StatusOK)
+	if len(statesBefore) == 0 || len(statesAfter) == 0 || statesAfter[0].Mastery <= statesBefore[0].Mastery {
+		t.Fatalf("mastery did not move after manual grade: before=%+v after=%+v", statesBefore, statesAfter)
+	}
+
+	// Graded submissions cannot be silently replaced.
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/"+tenant.ID+"/assignments/"+assignment.ID+"/submissions",
+		jsonBody(map[string]any{"learner_id": "l1", "content": "v2"}))
+	server.ServeHTTP(resp, req)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("resubmission after grading accepted: %d %s", resp.Code, resp.Body.String())
+	}
+}
+
 // B-08/B-09: tenant legal profile + audit-ready Qualiopi bundle.
 func TestTenantProfileAndQualiopiExport(t *testing.T) {
 	server := newTestServer()

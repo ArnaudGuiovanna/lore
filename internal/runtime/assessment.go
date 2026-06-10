@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"lore/internal/core"
+	"lore/internal/ids"
 )
 
 const assessmentKindCorrectedMinimal = "corrected_minimal"
@@ -89,6 +90,112 @@ func (e *Engine) PrepareAssessmentSubmissionDelta(ctx context.Context, cmd core.
 	return delta, completed, nil
 }
 
+// ManualEvidenceCommand bridges an out-of-band graded artefact (a devoir)
+// into the runtime: the trainer's score becomes corrected evidence on the
+// assignment's concept, updating BKT exactly like an assessment would.
+type ManualEvidenceCommand struct {
+	TenantID  string
+	LearnerID string
+	DomainID  string
+	ConceptID string
+	Score     float64
+	GraderID  string
+	SourceRef string // e.g. assignment submission id, for the audit trail
+}
+
+func (e *Engine) RecordManualEvidence(ctx context.Context, cmd ManualEvidenceCommand) (core.StateDelta, error) {
+	if cmd.TenantID == "" || cmd.LearnerID == "" || cmd.DomainID == "" || cmd.ConceptID == "" {
+		return core.StateDelta{}, fmt.Errorf("%w: tenant_id, learner_id, domain_id and concept_id are required", core.ErrInvalidInput)
+	}
+	if cmd.Score < 0 || cmd.Score > 1 {
+		return core.StateDelta{}, fmt.Errorf("%w: score must be in [0,1]", core.ErrInvalidInput)
+	}
+	now := e.clock()
+	activityID := ids.New()
+	instructionID := ids.New()
+	rationale := "manual grade bridged as corrected evidence"
+	activity := core.Activity{
+		TenantID:         cmd.TenantID,
+		ID:               activityID,
+		LearnerID:        cmd.LearnerID,
+		DomainID:         cmd.DomainID,
+		ConceptID:        cmd.ConceptID,
+		ActivityType:     core.ActivityType("MANUAL_GRADE"),
+		DifficultyTarget: 0.5,
+		Status:           core.ActivityPlanned,
+		InstructionID:    instructionID,
+		AuditRationale:   rationale,
+		CreatedAt:        now,
+	}
+	instruction := core.TutorInstruction{
+		ID:               instructionID,
+		TenantID:         cmd.TenantID,
+		LearnerID:        cmd.LearnerID,
+		DomainID:         cmd.DomainID,
+		ConceptID:        cmd.ConceptID,
+		ActivityID:       activityID,
+		ActivityType:     activity.ActivityType,
+		DifficultyTarget: 0.5,
+		Constraints:      []string{"Out-of-band graded artefact; no tutor generation involved."},
+		Context:          map[string]any{"source": "manual_grade", "source_ref": cmd.SourceRef},
+		CreatedAt:        now,
+	}
+	snapshot := core.PedagogicalSnapshot{
+		TenantID:   cmd.TenantID,
+		ID:         ids.New(),
+		ActivityID: activityID,
+		LearnerID:  cmd.LearnerID,
+		DomainID:   cmd.DomainID,
+		ConceptID:  cmd.ConceptID,
+		Decision:   map[string]any{"activity_type": activity.ActivityType, "concept_id": cmd.ConceptID, "audit_rationale": rationale},
+		CreatedAt:  now,
+	}
+	events := []core.Event{
+		newEvent(cmd.TenantID, "ActivityPlanned", "activity", activityID, now, map[string]any{"learner_id": cmd.LearnerID, "domain_id": cmd.DomainID, "source": "manual_grade"}),
+	}
+	if err := e.store.SavePlannedActivity(ctx, activity, instruction, snapshot, events); err != nil {
+		return core.StateDelta{}, err
+	}
+	delta, completed, err := e.PrepareInteractionDelta(ctx, core.InteractionCommand{
+		TenantID:   cmd.TenantID,
+		LearnerID:  cmd.LearnerID,
+		ActivityID: activityID,
+		Success:    cmd.Score >= 0.60,
+		Score:      cmd.Score,
+		Payload: map[string]any{
+			"evidence_type": "manual_grade",
+			"score_source":  "trainer",
+			"graded_by":     cmd.GraderID,
+			"source_ref":    cmd.SourceRef,
+		},
+	})
+	if err != nil {
+		return core.StateDelta{}, err
+	}
+	if err := e.store.SaveInteractionDelta(ctx, delta, completed); err != nil {
+		return core.StateDelta{}, err
+	}
+	return delta, nil
+}
+
+// bankAssessmentItems maps trainer questions to learner-facing items. Answer
+// keys (correct_choice_id / expected_answer) are deliberately NOT copied —
+// the instruction context is returned to the learner.
+func bankAssessmentItems(questions []core.BankQuestion) []core.AssessmentItem {
+	items := make([]core.AssessmentItem, 0, len(questions))
+	for _, q := range questions {
+		items = append(items, core.AssessmentItem{
+			ID:        q.ID,
+			Kind:      q.Kind,
+			ConceptID: q.ConceptID,
+			Prompt:    q.Prompt,
+			Choices:   q.Choices,
+			Points:    q.Points,
+		})
+	}
+	return items
+}
+
 func (e *Engine) scoreAssessment(ctx context.Context, activity core.Activity, instruction core.TutorInstruction, cmd core.AssessmentSubmissionCommand) (assessmentScore, error) {
 	graph, err := e.store.GetDomainGraph(ctx, activity.TenantID, activity.DomainID)
 	if err != nil {
@@ -128,14 +235,24 @@ func (e *Engine) scoreAssessment(ctx context.Context, activity core.Activity, in
 		if points <= 0 {
 			points = 1
 		}
-		expected := firstNonEmpty(item.ConceptID, activity.ConceptID)
 		answer := answerByItem[item.ID]
 		givenChoice := strings.TrimSpace(answer.ChoiceID)
 		givenAnswer := strings.TrimSpace(answer.Answer)
-		correct := normalizeAssessmentAnswer(givenChoice) == normalizeAssessmentAnswer(expected)
-		if !correct && givenAnswer != "" {
-			correct = normalizeAssessmentAnswer(givenAnswer) == normalizeAssessmentAnswer(concept.Name) ||
-				normalizeAssessmentAnswer(givenAnswer) == normalizeAssessmentAnswer(expected)
+		var expected string
+		var correct bool
+		// Trainer bank question: the key lives server-side only (B-26).
+		if question, err := e.store.GetBankQuestion(ctx, activity.TenantID, item.ID); err == nil && question.ID != "" {
+			expected = firstNonEmpty(question.CorrectChoiceID, question.ExpectedAnswer)
+			correct = (question.CorrectChoiceID != "" && normalizeAssessmentAnswer(givenChoice) == normalizeAssessmentAnswer(question.CorrectChoiceID)) ||
+				(question.ExpectedAnswer != "" && normalizeAssessmentAnswer(givenAnswer) == normalizeAssessmentAnswer(question.ExpectedAnswer))
+		} else {
+			// Legacy concept-check: the right choice is the concept itself.
+			expected = firstNonEmpty(item.ConceptID, activity.ConceptID)
+			correct = normalizeAssessmentAnswer(givenChoice) == normalizeAssessmentAnswer(expected)
+			if !correct && givenAnswer != "" {
+				correct = normalizeAssessmentAnswer(givenAnswer) == normalizeAssessmentAnswer(concept.Name) ||
+					normalizeAssessmentAnswer(givenAnswer) == normalizeAssessmentAnswer(expected)
+			}
 		}
 		pointsAwarded := 0.0
 		if correct {
