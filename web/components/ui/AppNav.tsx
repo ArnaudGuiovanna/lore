@@ -31,6 +31,7 @@ const LEARNER_ITEMS: NavItem[] = [
   { path: "/learner/progress", label: "Progression", title: "signaux honnêtes" },
   { path: "/learner/history", label: "Historique", title: "instantanés" },
   { path: "/learner/agenda", label: "Agenda", title: "sessions" },
+  { path: "/learner/assignments", label: "Devoirs", title: "rendus & notes", testId: "learner-nav-assignments" },
 ];
 
 const TRAINER_ITEMS: NavItem[] = [

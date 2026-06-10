@@ -5,9 +5,15 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ joined?: string }>;
+}) {
   const session = await getSession();
   if (session) redirect(roleHome(session.role));
+  // B-23: a learner who just self-enrolled via /join/{code} lands here.
+  const joined = (await searchParams)?.joined === "1";
 
   // If the system has never been initialized (no admin credential), send the
   // operator to the first-run setup wizard instead of an unusable login.
@@ -47,7 +53,19 @@ export default async function LoginPage() {
             </div>
           )}
         </div>
-        <LoginForm firstEmail={demo[0]?.email} />
+        <div className="col" style={{ gap: 14 }}>
+          {joined ? (
+            <p
+              className="panel mono"
+              role="status"
+              data-testid="join-success"
+              style={{ fontSize: 12.5, padding: "12px 16px", color: "var(--accent)", margin: 0 }}
+            >
+              ✓ Compte créé — connectez-vous avec votre e-mail et le mot de passe que vous avez choisi.
+            </p>
+          ) : null}
+          <LoginForm firstEmail={demo[0]?.email} />
+        </div>
       </div>
     </main>
   );

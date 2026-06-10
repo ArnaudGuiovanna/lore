@@ -6,6 +6,7 @@ export type TrainerSection =
   | "author"
   | "attach"
   | "path"
+  | "evaluations"
   | "versions"
   | "health"
   | "alerts"
@@ -19,6 +20,7 @@ export const TRAINER_SECTIONS: { id: TrainerSection; label: string }[] = [
   { id: "author", label: "Rédiger" },
   { id: "attach", label: "Rattacher un groupe" },
   { id: "path", label: "Parcours" },
+  { id: "evaluations", label: "Évaluations" },
   { id: "versions", label: "Versions" },
   { id: "health", label: "Santé du groupe" },
   { id: "alerts", label: "Alertes" },

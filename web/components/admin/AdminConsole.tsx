@@ -17,6 +17,7 @@ import { IdentityManager } from "./IdentityManager";
 import { OrgManager } from "./OrgManager";
 import { SessionsManager } from "./SessionsManager";
 import { ImportLearners } from "./ImportLearners";
+import { InvitesManager } from "./InvitesManager";
 import { DomainGraph } from "./DomainGraph";
 import { LlmMatrix } from "./LlmMatrix";
 import { EventOutbox } from "./EventOutbox";
@@ -41,6 +42,7 @@ export function AdminConsole({
   highAlerts,
   trainingHours,
   trainingTimeCsvHref,
+  publicBaseUrl,
   backendOk,
 }: {
   tenantSlug: string;
@@ -60,6 +62,7 @@ export function AdminConsole({
   highAlerts: number;
   trainingHours?: number | null;
   trainingTimeCsvHref?: string;
+  publicBaseUrl?: string;
   backendOk: boolean;
 }) {
   // The rendered section is addressable: /admin?section=… (UX-01). The URL is
@@ -155,6 +158,8 @@ export function AdminConsole({
       {section === "sessions" ? <SessionsManager programs={programs} /> : null}
 
       {section === "import" ? <ImportLearners programs={programs} /> : null}
+
+      {section === "invites" ? <InvitesManager programs={programs} publicBaseUrl={publicBaseUrl} /> : null}
 
       {section === "graph" ? <DomainGraph graph={graph} /> : null}
 

@@ -347,6 +347,7 @@ export default async function AdminHome() {
           trainingTimeCsvHref={cohortId ? `/api/analytics/training-time?cohortId=${encodeURIComponent(cohortId)}` : undefined}
           openAlerts={openAlerts.length}
           highAlerts={highAlerts}
+          publicBaseUrl={process.env.PUBLIC_APP_URL || ""}
           backendOk={backendOk}
         />
       </div>

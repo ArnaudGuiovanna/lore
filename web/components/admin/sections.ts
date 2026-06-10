@@ -7,6 +7,7 @@ export type AdminSection =
   | "structure"
   | "sessions"
   | "import"
+  | "invites"
   | "graph"
   | "llm"
   | "outbox";
@@ -19,6 +20,7 @@ export const ADMIN_SECTIONS: { id: AdminSection; label: string }[] = [
   { id: "structure", label: "Structure de l'organisation" },
   { id: "sessions", label: "Sessions" },
   { id: "import", label: "Import CSV" },
+  { id: "invites", label: "Invitations" },
   { id: "graph", label: "Graphe du domaine" },
   { id: "llm", label: "Matrice LLM" },
   { id: "outbox", label: "Boîte d'événements" },

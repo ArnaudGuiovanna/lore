@@ -121,5 +121,78 @@ export interface PlanNextResponse {
   [k: string]: unknown;
 }
 
+// B-23 — shareable self-enrollment invite for a cohort (admin-managed).
+export interface CohortInvite {
+  tenant_id: string;
+  id: string;
+  cohort_id: string;
+  code: string;
+  expires_at?: string | null;
+  max_uses: number; // 0 = illimité
+  use_count: number;
+  created_by?: string;
+  created_at: string;
+  revoked_at?: string | null;
+  tenant_name?: string;
+  cohort_name?: string;
+}
+
+// Public lookup of an invite code (the /join landing read).
+export interface InviteLookup {
+  tenant_id: string;
+  tenant_name: string;
+  cohort_id: string;
+  cohort_name: string;
+  usable: boolean;
+  reason: string;
+}
+
+// B-26 — banque de questions (formateur). Keys (correct choice / expected
+// answer) only ever transit on staff surfaces.
+export interface BankQuestion {
+  tenant_id: string;
+  id: string;
+  concept_id?: string;
+  kind: "single_choice" | "short_answer";
+  prompt: string;
+  choices?: AssessmentChoice[];
+  correct_choice_id?: string;
+  expected_answer?: string;
+  points: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  archived_at?: string | null;
+}
+
+// B-26 — devoir d'une cohorte ; si domain_id/concept_id sont posés, la note
+// manuelle alimente le moteur adaptatif comme évidence corrigée.
+export interface Assignment {
+  tenant_id: string;
+  id: string;
+  cohort_id: string;
+  domain_id?: string;
+  concept_id?: string;
+  title: string;
+  description?: string;
+  due_at?: string | null;
+  created_by?: string;
+  created_at: string;
+  archived_at?: string | null;
+}
+
+export interface AssignmentSubmission {
+  tenant_id: string;
+  id: string;
+  assignment_id: string;
+  learner_id: string;
+  content: string;
+  submitted_at: string;
+  score?: number | null; // 0..1, posé par la correction manuelle
+  feedback?: string;
+  graded_by?: string;
+  graded_at?: string | null;
+}
+
 // Demo identities for the login/role entry (role is "derived" after sign-in).
 export interface Identity { email: string; name: string; role: Role; learnerId?: string; }

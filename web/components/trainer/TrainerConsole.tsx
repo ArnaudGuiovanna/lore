@@ -14,6 +14,7 @@ import { Inspection } from "./Inspection";
 import { Intervention } from "./Intervention";
 import { CohortHealth } from "./CohortHealth";
 import { PathEditor } from "./PathEditor";
+import { Evaluations } from "./Evaluations";
 import { asTrainerSection, TRAINER_DEFAULT_SECTION, type TrainerSection as Section } from "./sections";
 import type { CohortAnalytics, LearnerRow, SeedSyllabus } from "./types";
 import t from "./trainer.module.css";
@@ -33,6 +34,7 @@ export function TrainerConsole({
   cohortName,
   cohortId,
   domainName,
+  domainId,
   concepts,
   dependencies,
   liveSyllabus,
@@ -274,6 +276,16 @@ export function TrainerConsole({
           syllabusId={liveSyllabus.id}
           syllabusTitle={liveSyllabus.title}
           concepts={concepts}
+        />
+      ) : null}
+
+      {section === "evaluations" ? (
+        <Evaluations
+          cohortId={cohortId}
+          cohortName={cohortName}
+          domainId={domainId}
+          concepts={concepts}
+          learnerName={learnerName}
         />
       ) : null}
 
