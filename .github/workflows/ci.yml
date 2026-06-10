@@ -81,3 +81,18 @@ jobs:
 
       - name: Test (race + coverage)
         run: go test -race -coverprofile=coverage.out ./...
+
+      # B-21: the backup path is only trustworthy if restoration is exercised.
+      # Dump the migrated lore_test DB (the Go tests just ran the migrations)
+      # and restore it into a sibling database, then compare table counts.
+      - name: Backup/restore drill (pg_dump -> pg_restore)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          pg_dump -h localhost -U postgres -Fc -d lore_test -f /tmp/lore_test.dump
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE lore_restore OWNER lore;"
+          pg_restore -h localhost -U postgres -d lore_restore --no-owner --role=lore /tmp/lore_test.dump
+          src=$(psql -h localhost -U postgres -d lore_test -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          dst=$(psql -h localhost -U postgres -d lore_restore -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          echo "tables source=$src restored=$dst"
+          test -n "$src" && test "$src" = "$dst" && test "$src" -gt 0
