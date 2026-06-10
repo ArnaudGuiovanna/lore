@@ -483,6 +483,156 @@ Verification du tour courant :
 
 ---
 
+## Ajouts v3 - couverture LMS generaliste
+
+Source : cadrage produit (juin 2026) listant les elements de base attendus d'un
+LMS agentique. Les blocs deja couverts par B-01..B-22 ne sont pas dupliques ;
+les items ci-dessous comblent les trous restants.
+
+### B-23 - Inscription self-service et en masse
+
+**Probleme** : inscription uniquement unitaire par un admin ; pas d'auto-inscription par lien/code de cohorte, import CSV toujours manquant (reste de B-12).
+
+**Taches**
+
+- [ ] Lien/code d'invitation par cohorte avec expiration.
+- [ ] Auto-inscription apprenant avec validation admin optionnelle.
+- [ ] Import CSV apprenants + inscriptions (consolide le reste de B-12).
+- [ ] Desinscription et transfert en masse.
+- [ ] Journaliser ces operations dans l'audit log admin.
+
+**Acceptation**
+
+- Un OF remplit une cohorte de 50 apprenants sans saisie unitaire.
+
+---
+
+### B-24 - Parcours editoriaux sequences au-dessus du runtime
+
+**Probleme** : le parcours est implicite (DAG de concepts + decisions runtime). Pas de modules/sequences visibles, pas de deblocage conditionnel lisible, pas de structure blended (presentiel + asynchrone) navigable.
+
+**Taches**
+
+- [ ] Modeliser modules/sequences lies au syllabus : ordre, prerequis, conditions de deblocage.
+- [ ] Rattacher aux modules : activites runtime, evaluations, ressources (B-17), sessions presentiel/visio.
+- [ ] Vue apprenant du parcours : progression par module, modules verrouilles/ouverts, prochaine etape.
+- [ ] Vue formateur d'edition du parcours (sequencage, conditions).
+- [ ] Conditions de completion par module alimentant attestation (B-09) et reporting (B-22).
+
+**Acceptation**
+
+- Un formateur construit un parcours sequence blended visible ; le runtime adaptatif opere a l'interieur des modules sans casser le sequencage.
+
+**Depend de** : B-16 (curation) souhaitable, B-17 pour les ressources.
+
+---
+
+### B-25 - Planning, calendrier et visioconference
+
+**Probleme** : les sessions existent (date, lieu, URL video) mais sans vue calendrier, sans export, sans integration visio reelle.
+
+**Taches**
+
+- [ ] Vue calendrier admin/formateur/apprenant (sessions, echeances d'evaluation).
+- [ ] Export ICS par utilisateur et par cohorte.
+- [ ] Champs visio structures (Teams, Zoom, BBB) + bouton rejoindre depuis LORE.
+- [ ] Relier la presence en session visio a l'emargement (B-07).
+- [ ] Rappels automatiques avant session (depend des notifications B-18).
+
+**Acceptation**
+
+- Le planning d'une cohorte est consultable et exportable ; une session synchrone se rejoint en un clic.
+
+---
+
+### B-26 - Banque de questions, devoirs et correction manuelle
+
+**Probleme** : l'evaluation se limite au concept-check genere (B-06). Pas de banque de questions par tenant, pas de devoirs deposes, pas de correction manuelle.
+
+**Taches**
+
+- [ ] Banque de questions tenant-scopee (QCM, reponse courte), editable formateur, versionnee.
+- [ ] Assemblage de quiz/examens depuis la banque, lies aux concepts du domaine.
+- [ ] Devoirs avec depot de fichier et date limite.
+- [ ] File de correction manuelle formateur : note, feedback, statut.
+- [ ] Fusionner les scores manuels dans le runtime (BKT) et les preuves (B-08).
+
+**Acceptation**
+
+- Un formateur evalue avec ses propres questions et corrige des devoirs ; les notes alimentent progression, preuves et attestations.
+
+**Depend de** : B-06 (fait), B-16.
+
+---
+
+### B-27 - Permissions granulaires et role gestionnaire
+
+**Probleme** : 4 roles fixes ; pas de distinction gestionnaire administratif vs admin technique, pas de multi-roles, pas de permissions par capacite.
+
+**Taches**
+
+- [ ] Matrice de permissions par capacite (gerer users, gerer parcours, voir reporting, exporter preuves...).
+- [ ] Role GESTIONNAIRE (administratif sans configuration technique).
+- [ ] Multi-roles par utilisateur et par tenant.
+- [ ] Verifications backend par capacite, pas seulement par role.
+
+**Acceptation**
+
+- Un gestionnaire gere inscriptions et documents sans acces a la configuration technique.
+
+---
+
+### B-28 - Consentement et base legale RGPD
+
+**Probleme** : B-14 couvre export/effacement, mais pas le recueil du consentement ni les mentions legales par tenant.
+
+**Taches**
+
+- [ ] CGU/mentions/politique de confidentialite par tenant, versionnees.
+- [ ] Recueil et registre des consentements a la premiere connexion.
+- [ ] Acces self-service de la personne a ses donnees (lie a l'export B-14).
+
+**Acceptation**
+
+- Le consentement est trace et opposable ; les mentions sont a jour par tenant.
+
+**Depend de** : B-14.
+
+---
+
+## Chantier transverse UX - ecrans, navigation, parcours utilisateurs
+
+**Probleme** : les ecrans actuels sont des surfaces de demonstration honnetes mais pas un produit : navigation minimale, hierarchisation faible, console admin rudimentaire, pas d'onboarding, parcours utilisateurs incomplets.
+
+Ce chantier est transverse : chaque vague fonctionnelle doit livrer ses ecrans au niveau cible, en s'appuyant sur `docs/product-design` et `docs/front-product-design-workflow.md`.
+
+### UX-01 - Architecture d'information et navigation
+
+- [ ] Arborescence cible par role : menus, sous-menus, breadcrumbs, recherche.
+- [ ] Apprenant : accueil / mon parcours / agenda / evaluations / documents / messages.
+- [ ] Formateur : cohortes / parcours / correction / emargement / rapports / messages.
+- [ ] Admin-gestionnaire : utilisateurs / inscriptions / catalogue / sessions / conformite (preuves, attestations, satisfaction) / parametres.
+- [ ] Hierarchiser chaque ecran : action principale unique, informations secondaires repliees.
+
+### UX-02 - Design system et etats
+
+- [ ] Tokens (couleurs, typo, espacements) et composants partages (tables, formulaires, modales, toasts).
+- [ ] Etats vides, chargement et erreur systematiques sur chaque ecran.
+- [ ] Responsive (tablette minimum) ; jalons RGAA en lien avec B-19.
+
+### UX-03 - Parcours utilisateurs de bout en bout
+
+- [ ] Onboarding premiere connexion par role (apprenant invite -> mot de passe -> consentement -> parcours).
+- [ ] Parcours admin : creer programme -> cohorte -> inscrire -> planifier -> suivre -> exporter preuves, sans impasse.
+- [ ] Parcours formateur : construire parcours -> suivre cohorte -> corriger -> emarger -> rapport.
+- [ ] Tests e2e par parcours (pas seulement par ecran).
+
+**Acceptation globale UX**
+
+- Un utilisateur de chaque role accomplit ses taches courantes sans documentation ni aide exterieure.
+
+---
+
 ## Ordre recommande d'execution
 
 ### Vague A - rendre le socle utilisable et sur
@@ -498,11 +648,23 @@ Verification du tour courant :
 - [ ] B-12 - CRUD admin minimal et sessions.
 - [ ] B-07 - Suivi du temps.
 
+### Vague B' - rendre le produit navigable (UX + parcours visibles)
+
+Transverse : a partir d'ici, chaque vague livre ses ecrans au niveau UX cible.
+
+- [ ] UX-01 - Architecture d'information et navigation par role.
+- [ ] UX-02 - Design system et etats.
+- [ ] B-24 - Parcours editoriaux sequences.
+- [ ] B-23 - Inscription self-service et en masse.
+- [ ] B-25 - Planning, calendrier, visio.
+
 ### Vague C - produire des preuves pedagogiques
 
 - [ ] B-06 - Evaluation corrigee.
+- [ ] B-26 - Banque de questions, devoirs, correction manuelle.
 - [ ] B-13 - Positionnement.
 - [ ] B-22 - Reporting operationnel.
+- [ ] UX-03 - Parcours utilisateurs de bout en bout.
 
 ### Vague D - rendre le dossier OF defendable
 
@@ -512,6 +674,11 @@ Verification du tour courant :
 - [ ] B-11 - Satisfaction et reclamations.
 - [ ] B-14 - RGPD complet.
 
+### Vague D' - conformite des personnes
+
+- [ ] B-28 - Consentement et base legale RGPD.
+- [ ] B-27 - Permissions granulaires et role gestionnaire.
+
 ### Vague E - rendre le produit scalable et integrable
 
 - [ ] B-15 - Financeurs et BPF.
@@ -519,7 +686,7 @@ Verification du tour courant :
 - [ ] B-17 - Ressources pedagogiques.
 - [ ] B-18 - Communication.
 - [ ] B-19 - RGAA.
-- [ ] B-20 - Integrations LMS/SSO.
+- [ ] B-20 - Integrations LMS/SSO (OIDC complet, SAML, SCORM/xAPI/LRS, webhooks).
 - [ ] B-21 - Exploitation production.
 
 ---
