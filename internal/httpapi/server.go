@@ -56,6 +56,7 @@ type Repository interface {
 	ListSyllabi(ctx context.Context, tenantID string) ([]core.Syllabus, error)
 	BindSyllabus(ctx context.Context, tenantID, syllabusID, targetType, targetID, adaptationMode string) (core.SyllabusBinding, error)
 	EraseLearnerData(ctx context.Context, tenantID, learnerID string, actorUserID ...string) (map[string]int, error)
+	ListPositioningEvidence(ctx context.Context, tenantID, learnerID, domainID string) ([]core.Interaction, error)
 	CreateDocument(ctx context.Context, doc core.OFDocument, actorUserID ...string) (core.OFDocument, error)
 	NewDocumentVersion(ctx context.Context, tenantID, documentID, title, body string, actorUserID ...string) (core.OFDocument, error)
 	ListDocuments(ctx context.Context, tenantID, learnerID string) ([]core.OFDocument, error)
@@ -238,6 +239,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi", s.createSyllabus)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/syllabi/{syllabus_id}/bindings", s.bindSyllabus)
 	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/learners/{learner_id}/data", s.eraseLearnerData)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/learners/{learner_id}/positioning", s.learnerPositioning)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/documents", s.createDocument)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents", s.listDocuments)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/documents/{document_id}", s.getDocument)
@@ -849,6 +851,14 @@ func (s *Server) trainingSessionsICS(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(b.String()))
 }
 
+// learnerPositioning (B-13): the archivable initial-positioning record — the
+// first corrected assessment per concept (date, score, items). Trainers
+// comment via the admin audit log (action positioning.comment).
+func (s *Server) learnerPositioning(w http.ResponseWriter, r *http.Request) {
+	evidence, err := s.store.ListPositioningEvidence(r.Context(), r.PathValue("tenant_id"), r.PathValue("learner_id"), r.URL.Query().Get("domain_id"))
+	respond(w, evidence, err, http.StatusOK)
+}
+
 // --- Documents contractuels OF (B-10) ---------------------------------------
 
 func (s *Server) createDocument(w http.ResponseWriter, r *http.Request) {
@@ -955,7 +965,23 @@ func (s *Server) listAssignments(w http.ResponseWriter, r *http.Request) {
 	respond(w, assignments, err, http.StatusOK)
 }
 
+// learnerIsEnrolled reports whether the learner has an ACTIVE enrollment in
+// the cohort — the IDOR guard for learner-driven writes on cohort artefacts.
+func (s *Server) learnerIsEnrolled(ctx context.Context, tenantID, cohortID, learnerID string) bool {
+	enrollments, err := s.store.ListCohortEnrollments(ctx, tenantID, cohortID)
+	if err != nil {
+		return false
+	}
+	for _, enrollment := range enrollments {
+		if enrollment.LearnerID == learnerID && enrollment.Status == "ACTIVE" {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) submitAssignment(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
 	var req struct {
 		LearnerID string `json:"learner_id"`
 		Content   string `json:"content"`
@@ -966,9 +992,21 @@ func (s *Server) submitAssignment(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeLearnerCommand(w, r, req.LearnerID) {
 		return
 	}
+	assignment, err := s.store.GetAssignment(r.Context(), tenantID, r.PathValue("assignment_id"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	// A learner token can only hand in work for a cohort it belongs to.
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		if !s.learnerIsEnrolled(r.Context(), tenantID, assignment.CohortID, claims.Subject) {
+			problem(w, http.StatusForbidden, "learner is not enrolled in this assignment's cohort")
+			return
+		}
+	}
 	submission, err := s.store.SubmitAssignment(r.Context(), core.AssignmentSubmission{
-		TenantID:     r.PathValue("tenant_id"),
-		AssignmentID: r.PathValue("assignment_id"),
+		TenantID:     tenantID,
+		AssignmentID: assignment.ID,
 		LearnerID:    req.LearnerID,
 		Content:      req.Content,
 	})
@@ -1197,8 +1235,22 @@ func (s *Server) submitSurveyResponse(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeLearnerCommand(w, r, req.LearnerID) {
 		return
 	}
+	tenantID := r.PathValue("tenant_id")
+	// Same IDOR guard as assignments: only enrolled learners answer a
+	// cohort's survey (staff tokens may submit on someone's behalf).
+	if claims, ok := r.Context().Value(claimsContextKey{}).(auth.Claims); ok && claims.Role == string(core.RoleLearner) {
+		survey, err := s.store.GetSurvey(r.Context(), tenantID, r.PathValue("survey_id"))
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+		if !s.learnerIsEnrolled(r.Context(), tenantID, survey.CohortID, claims.Subject) {
+			problem(w, http.StatusForbidden, "learner is not enrolled in this survey's cohort")
+			return
+		}
+	}
 	response, err := s.store.SubmitSurveyResponse(r.Context(), core.SurveyResponse{
-		TenantID:  r.PathValue("tenant_id"),
+		TenantID:  tenantID,
 		SurveyID:  r.PathValue("survey_id"),
 		LearnerID: req.LearnerID,
 		Answers:   req.Answers,

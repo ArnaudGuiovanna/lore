@@ -236,6 +236,83 @@ func (s *MemoryStore) GradeAssignmentSubmission(_ context.Context, tenantID, sub
 }
 
 // ---------------------------------------------------------------------------
+// Positioning (B-13): the FIRST corrected-assessment evidence per concept is
+// the archivable proof of initial positioning — date, score, items corrected.
+// ---------------------------------------------------------------------------
+
+func (s *MemoryStore) ListPositioningEvidence(_ context.Context, tenantID, learnerID, domainID string) ([]core.Interaction, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.tenants[tenantID]; !ok {
+		return nil, fmt.Errorf("%w: tenant", core.ErrNotFound)
+	}
+	all := make([]core.Interaction, 0)
+	for _, interaction := range s.interactions {
+		if interaction.TenantID != tenantID || interaction.LearnerID != learnerID {
+			continue
+		}
+		if domainID != "" && interaction.DomainID != domainID {
+			continue
+		}
+		if evidence, ok := interaction.Payload["evidence_type"].(string); !ok || evidence != "corrected_assessment" {
+			continue
+		}
+		all = append(all, interaction)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.Before(all[j].CreatedAt) })
+	firstByConcept := map[string]bool{}
+	evidence := make([]core.Interaction, 0)
+	for _, interaction := range all {
+		if firstByConcept[interaction.ConceptID] {
+			continue
+		}
+		firstByConcept[interaction.ConceptID] = true
+		evidence = append(evidence, interaction)
+	}
+	return evidence, nil
+}
+
+func (s *PostgresStore) ListPositioningEvidence(ctx context.Context, tenantID, learnerID, domainID string) ([]core.Interaction, error) {
+	var evidence []core.Interaction
+	err := s.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		query := `
+			SELECT DISTINCT ON (concept_id) tenant_id::text, id::text, learner_id::text, activity_id::text, domain_id::text, concept_id::text, success, score, COALESCE(error_type, ''), payload_json, created_at
+			FROM interactions
+			WHERE tenant_id = $1 AND learner_id = $2
+			  AND payload_json->>'evidence_type' = 'corrected_assessment'`
+		args := []any{tenantID, learnerID}
+		if domainID != "" {
+			query += ` AND domain_id = $3`
+			args = append(args, domainID)
+		}
+		query += ` ORDER BY concept_id, created_at`
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var interaction core.Interaction
+			var payloadRaw []byte
+			if err := rows.Scan(&interaction.TenantID, &interaction.ID, &interaction.LearnerID, &interaction.ActivityID, &interaction.DomainID, &interaction.ConceptID, &interaction.Success, &interaction.Score, &interaction.ErrorType, &payloadRaw, &interaction.CreatedAt); err != nil {
+				return err
+			}
+			decodeJSON(payloadRaw, &interaction.Payload)
+			evidence = append(evidence, interaction)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, pgErr(err)
+	}
+	sort.Slice(evidence, func(i, j int) bool { return evidence[i].CreatedAt.Before(evidence[j].CreatedAt) })
+	if evidence == nil {
+		evidence = []core.Interaction{}
+	}
+	return evidence, nil
+}
+
+// ---------------------------------------------------------------------------
 // Postgres store — question bank
 // ---------------------------------------------------------------------------
 
