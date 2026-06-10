@@ -1113,6 +1113,7 @@ func (s *Server) createWebhookSubscription(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		URL        string   `json:"url"`
 		EventTypes []string `json:"event_types"`
+		Format     string   `json:"format"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -1128,6 +1129,7 @@ func (s *Server) createWebhookSubscription(w http.ResponseWriter, r *http.Reques
 		URL:        req.URL,
 		Secret:     secret,
 		EventTypes: req.EventTypes,
+		Format:     req.Format,
 	}, actorUserIDFromRequest(r))
 	if err != nil {
 		handleError(w, err)

@@ -670,6 +670,7 @@ type WebhookSubscription struct {
 	URL        string     `json:"url"`
 	Secret     string     `json:"-"`
 	EventTypes []string   `json:"event_types"`
+	Format     string     `json:"format"` // lore | xapi
 	Active     bool       `json:"active"`
 	CreatedBy  string     `json:"created_by,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`

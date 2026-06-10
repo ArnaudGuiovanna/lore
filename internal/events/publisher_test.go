@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -149,5 +150,44 @@ func TestWebhookDispatcherBlocksPrivateDestinations(t *testing.T) {
 	dispatcher.drainOnce(context.Background())
 	if len(store.marked) != 0 {
 		t.Fatalf("event must remain unpublished when the destination is private: %+v", store.marked)
+	}
+}
+
+func TestWebhookDispatcherXAPIFormat(t *testing.T) {
+	var received map[string]any
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &received)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer receiver.Close()
+	event := core.Event{
+		TenantID: "t1", ID: "evt-x", EventType: "ConceptMastered",
+		AggregateType: "concept", AggregateID: "c1",
+		Payload:    map[string]any{"learner_id": "learner-9"},
+		OccurredAt: time.Now().UTC(),
+	}
+	store := &fakeWebhookStore{
+		fakeOutboxStore: fakeOutboxStore{events: []core.Event{event}},
+		subs: []core.WebhookSubscription{{
+			TenantID: "t1", ID: "sub-1", URL: receiver.URL, Secret: "secret-0123456789abcdef", Active: true, Format: "xapi",
+		}},
+	}
+	NewWebhookDispatcher(store, nil).AllowPrivateNetworks().drainOnce(context.Background())
+	if received == nil {
+		t.Fatal("LRS never called")
+	}
+	verb, _ := received["verb"].(map[string]any)
+	if verb["id"] != "https://adlnet.gov/expapi/verbs/mastered" {
+		t.Fatalf("verb = %+v", verb)
+	}
+	actor, _ := received["actor"].(map[string]any)
+	account, _ := actor["account"].(map[string]any)
+	if account["name"] != "learner-9" {
+		t.Fatalf("actor = %+v", actor)
+	}
+	object, _ := received["object"].(map[string]any)
+	if object["id"] != "urn:lore:concept:c1" {
+		t.Fatalf("object = %+v", object)
 	}
 }

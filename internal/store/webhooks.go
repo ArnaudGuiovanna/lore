@@ -35,6 +35,9 @@ func validateWebhookSubscription(sub core.WebhookSubscription) error {
 	if len(sub.Secret) < 16 {
 		return fmt.Errorf("%w: webhook secret must be at least 16 bytes", core.ErrInvalidInput)
 	}
+	if sub.Format != "" && sub.Format != "lore" && sub.Format != "xapi" {
+		return fmt.Errorf("%w: format must be lore or xapi", core.ErrInvalidInput)
+	}
 	return nil
 }
 
@@ -59,6 +62,9 @@ func (s *MemoryStore) CreateWebhookSubscription(_ context.Context, sub core.Webh
 	sub.ArchivedAt = nil
 	if sub.EventTypes == nil {
 		sub.EventTypes = []string{}
+	}
+	if sub.Format == "" {
+		sub.Format = "lore"
 	}
 	s.webhookSubscriptions[key(sub.TenantID, sub.ID)] = sub
 	s.recordAdminAuditLocked(sub.TenantID, sub.CreatedBy, "webhook.create", "webhook_subscription", sub.ID, map[string]any{"url": sub.URL}, now)
@@ -128,12 +134,12 @@ func (s *MemoryStore) ArchiveWebhookSubscription(_ context.Context, tenantID, su
 // Postgres
 // ---------------------------------------------------------------------------
 
-const webhookColumns = `tenant_id::text, id::text, url, secret, event_types, active, created_by, created_at, archived_at`
+const webhookColumns = `tenant_id::text, id::text, url, secret, event_types, format, active, created_by, created_at, archived_at`
 
 func scanWebhookSubscription(row pgScanner) (core.WebhookSubscription, error) {
 	var sub core.WebhookSubscription
 	var eventTypes []byte
-	if err := row.Scan(&sub.TenantID, &sub.ID, &sub.URL, &sub.Secret, &eventTypes, &sub.Active, &sub.CreatedBy, &sub.CreatedAt, &sub.ArchivedAt); err != nil {
+	if err := row.Scan(&sub.TenantID, &sub.ID, &sub.URL, &sub.Secret, &eventTypes, &sub.Format, &sub.Active, &sub.CreatedBy, &sub.CreatedAt, &sub.ArchivedAt); err != nil {
 		return core.WebhookSubscription{}, err
 	}
 	sub.EventTypes = decodeStrings(eventTypes)
@@ -152,11 +158,14 @@ func (s *PostgresStore) CreateWebhookSubscription(ctx context.Context, sub core.
 	if sub.EventTypes == nil {
 		sub.EventTypes = []string{}
 	}
+	if sub.Format == "" {
+		sub.Format = "lore"
+	}
 	err := s.withTenantTx(ctx, sub.TenantID, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO webhook_subscriptions (tenant_id, id, url, secret, event_types, active, created_by, created_at)
-			VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
-		`, sub.TenantID, sub.ID, sub.URL, sub.Secret, mustJSON(sub.EventTypes), sub.CreatedBy, now); err != nil {
+			INSERT INTO webhook_subscriptions (tenant_id, id, url, secret, event_types, format, active, created_by, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
+		`, sub.TenantID, sub.ID, sub.URL, sub.Secret, mustJSON(sub.EventTypes), sub.Format, sub.CreatedBy, now); err != nil {
 			return err
 		}
 		return insertAdminAudit(ctx, tx, newAdminAuditLog(sub.TenantID, sub.CreatedBy, "webhook.create", "webhook_subscription", sub.ID, map[string]any{"url": sub.URL}, now))

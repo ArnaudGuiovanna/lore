@@ -144,7 +144,11 @@ func (d *WebhookDispatcher) drainOnce(ctx context.Context) {
 }
 
 func (d *WebhookDispatcher) deliver(ctx context.Context, sub core.WebhookSubscription, event core.Event) error {
-	body, err := json.Marshal(event)
+	var payload any = event
+	if sub.Format == "xapi" {
+		payload = xapiStatement(event)
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
@@ -174,4 +178,60 @@ func SignWebhookBody(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(body)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// xapiVerbs maps LORE event types onto ADL verbs; anything unmapped is
+// "experienced" — honest, generic, and valid for any LRS.
+var xapiVerbs = map[string][2]string{
+	"InteractionRecorded": {"https://adlnet.gov/expapi/verbs/answered", "answered"},
+	"ActivityCompleted":   {"https://adlnet.gov/expapi/verbs/completed", "completed"},
+	"AssessmentCompleted": {"https://adlnet.gov/expapi/verbs/passed", "assessed"},
+	"ConceptMastered":     {"https://adlnet.gov/expapi/verbs/mastered", "mastered"},
+	"ActivityPlanned":     {"https://adlnet.gov/expapi/verbs/initialized", "initialized"},
+	"ReviewCompleted":     {"https://adlnet.gov/expapi/verbs/experienced", "reviewed"},
+}
+
+// xapiStatement converts an outbox event into a minimal valid xAPI statement.
+// The actor is identified by account (homePage = tenant URN) — no email
+// leaves the platform.
+func xapiStatement(event core.Event) map[string]any {
+	verb, ok := xapiVerbs[event.EventType]
+	if !ok {
+		verb = [2]string{"https://adlnet.gov/expapi/verbs/experienced", "experienced"}
+	}
+	actorName := event.ActorUserID
+	if value, ok := event.Payload["learner_id"].(string); ok && value != "" {
+		actorName = value
+	}
+	if actorName == "" {
+		actorName = "system"
+	}
+	return map[string]any{
+		"id": event.ID,
+		"actor": map[string]any{
+			"objectType": "Agent",
+			"account": map[string]any{
+				"homePage": "urn:lore:tenant:" + event.TenantID,
+				"name":     actorName,
+			},
+		},
+		"verb": map[string]any{
+			"id":      verb[0],
+			"display": map[string]string{"en-US": verb[1]},
+		},
+		"object": map[string]any{
+			"objectType": "Activity",
+			"id":         "urn:lore:" + event.AggregateType + ":" + event.AggregateID,
+			"definition": map[string]any{
+				"name": map[string]string{"en-US": event.EventType},
+			},
+		},
+		"timestamp": event.OccurredAt.Format(time.RFC3339),
+		"context": map[string]any{
+			"extensions": map[string]any{
+				"urn:lore:event-type": event.EventType,
+				"urn:lore:payload":    event.Payload,
+			},
+		},
+	}
 }
