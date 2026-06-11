@@ -34,7 +34,7 @@ export function LoginForm({ firstEmail }: { firstEmail?: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="panel" style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-label="Se connecter">
+    <form onSubmit={submit} className="col" style={{ gap: 14 }} aria-label="Se connecter">
       <label className="col" style={{ gap: 6 }}>
         <span className="kicker">E-mail professionnel</span>
         <input
@@ -62,22 +62,19 @@ export function LoginForm({ firstEmail }: { firstEmail?: string }) {
           {error}
         </p>
       )}
-      <button type="submit" className="btn primary" disabled={busy} style={{ marginTop: 4 }}>
-        {busy ? "Connexion…" : "Continuer →"}
+      <button type="submit" className="btn primary" disabled={busy} style={{ marginTop: 2 }}>
+        {busy ? "Connexion…" : "Continuer"}
       </button>
-      <p className="mono quiet" style={{ fontSize: 11, margin: 0 }}>
-        JWT porteur · rôle issu de l&apos;appartenance · limité au tenant
-      </p>
     </form>
   );
 }
 
 const inputStyle: React.CSSProperties = {
   fontFamily: "var(--mono)",
-  fontSize: 14,
-  padding: "10px 12px",
-  borderRadius: 10,
+  fontSize: 13.5,
+  padding: "9px 11px",
+  borderRadius: 6,
   border: "1px solid var(--line-2)",
-  background: "var(--paper)",
+  background: "var(--card)",
   color: "var(--ink)",
 };

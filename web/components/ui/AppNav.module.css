@@ -19,7 +19,7 @@
   text-decoration: none;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 7px 13px;
   transition: 0.16s ease;
   display: inline-flex;
@@ -35,5 +35,5 @@
 .on {
   color: var(--accent);
   background: var(--accent-soft);
-  border-color: rgba(42, 79, 62, 0.3);
+  border-color: var(--accent-border);
 }

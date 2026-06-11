@@ -70,7 +70,7 @@ test.describe("UX-03 — parcours complets", () => {
     test.setTimeout(150_000);
     await login(page, USERS.learner.email);
     await expect(page).toHaveURL(/\/learner$/);
-    await expect(page.getByTestId("now-intent-line")).toBeVisible();
+    await expect(page.getByTestId("now-intent")).toBeVisible();
 
     // 1) Consulter le parcours (B-24) — l'état vide est un rendu valide du seed.
     await page.goto("/learner/path");
@@ -83,11 +83,14 @@ test.describe("UX-03 — parcours complets", () => {
     await expect(page.getByRole("button", { name: /j'ai terminé/i })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/justification du runtime/i)).toBeVisible();
 
-    // 3) Devoirs, Documents et Agenda restent accessibles depuis la nav.
+    // 3) Devoirs, Documents et Agenda restent accessibles depuis le menu (INVITE).
+    await page.getByTestId("learner-menu").click();
     await page.getByTestId("learner-nav-assignments").click();
     await expect(page.getByTestId("assignments-title")).toBeVisible();
+    await page.getByTestId("learner-menu").click();
     await page.getByTestId("learner-nav-documents").click();
     await expect(page.getByTestId("learner-docs-title")).toBeVisible();
+    await page.getByTestId("learner-menu").click();
     await page.getByRole("link", { name: "Agenda" }).click();
     await expect(page.getByTestId("agenda-title")).toBeVisible();
   });

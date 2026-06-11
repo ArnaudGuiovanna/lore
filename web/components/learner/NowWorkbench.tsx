@@ -4,7 +4,6 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { StreamReader } from "@/components/runtime/StreamReader";
 import { CodeBlock } from "@/components/runtime/CodeBlock";
 import { SourceMark } from "@/components/runtime/SourceMark";
-import { Metric } from "@/components/ui/Metric";
 import { Mark } from "@/components/Mark";
 import { fmtPct } from "@/lib/format";
 import type { AssessmentAnswer, AssessmentItem, GeneratedContent, LearnerState } from "@/lib/types";
@@ -14,6 +13,9 @@ export interface NowIntent {
   conceptName: string;
   // The runtime's planned activity type for this concept (a hint from /state).
   activityType: string;
+  // The decision as ONE human sentence (composed server-side), plus one human
+  // line of justification. The mechanics stay behind "pourquoi ce parcours ?".
+  sentence: string;
   rationale: string;
   difficultyTarget: number;
   misconception?: string;
@@ -271,6 +273,19 @@ export function NowWorkbench({
     }
   }, [learnerId, domainId, intent]);
 
+  // The prompt answers to Enter from anywhere on the page — like a terminal.
+  useEffect(() => {
+    if (phase !== "intent" || planning) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.tagName === "A" || t.tagName === "BUTTON" || t.isContentEditable)) return;
+      void begin();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, planning, begin]);
+
   const submit = useCallback(async () => {
     if (!planned?.activityId) {
       setError("Aucune activité planifiée à laquelle rattacher cet enregistrement.");
@@ -340,47 +355,48 @@ export function NowWorkbench({
     }
   }, [learnerId, planned, answers, intent.conceptId, success, score, misconception]);
 
-  // ---- INTENT (the amorce: one runtime-decided intention) -------------------
+  // ---- INTENT (the prompt: one sentence, one key, emptiness) ----------------
   if (phase === "intent") {
     return (
-      <section className="col" style={{ gap: 22 }}>
-        <div className="col" style={{ gap: 10 }}>
-          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-            <Mark source="runtime" />
-            <span className="mono quiet" style={{ fontSize: 11 }}>
-              concept {intent.conceptId} · {intent.activityType.toLowerCase().replace(/_/g, " ")}
-            </span>
-          </div>
-          <h1 className="standfirst">Corrigez {intent.conceptName.toLowerCase()} avant d&apos;avancer.</h1>
-          <p className="soft" style={{ maxWidth: "62ch", fontSize: 15, lineHeight: 1.6 }}>
-            {intent.rationale}
+      <section
+        className="col"
+        style={{
+          gap: 28,
+          justifyContent: "center",
+          minHeight: "calc(100dvh - 240px)",
+          maxWidth: "62ch",
+        }}
+      >
+        <div className="col" style={{ gap: 14, alignItems: "flex-start" }}>
+          <Mark source="runtime" />
+          <h1
+            data-testid="now-intent"
+            style={{ fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.2 }}
+          >
+            {intent.sentence}
+          </h1>
+          <p className="soft" style={{ maxWidth: "52ch", fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            {intent.rationale}{" "}
+            <a
+              href="/learner/provenance"
+              className="mono"
+              data-testid="why-this-path"
+              style={{ fontSize: 12, color: "var(--quiet)", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+            >
+              pourquoi ce parcours ?
+            </a>
           </p>
         </div>
-        <div
-          className="row"
-          style={{ gap: "20px 28px", flexWrap: "wrap", rowGap: 16 }}
-        >
-          <Metric label="maîtrise" value={fmtPct(before?.mastery)} />
-          <Metric label="rétention" value={fmtPct(before?.retention)} tone="amber" />
-          <Metric label="difficulté visée" value={intent.difficultyTarget.toFixed(2)} />
-          {intent.misconception ? (
-            <span style={{ maxWidth: "100%", overflowWrap: "anywhere" }}>
-              <Metric label="conception erronée" value={intent.misconception} tone="alarm" />
-            </span>
-          ) : null}
-        </div>
         {error ? (
-          <p className="mono" style={{ color: "var(--alarm)", fontSize: 13 }}>
+          <p className="mono" style={{ color: "var(--alarm)", fontSize: 13, margin: 0 }}>
             {error}
           </p>
         ) : null}
-        <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+        <div className="row" style={{ gap: 12 }}>
           <button type="button" className="btn primary" onClick={begin} disabled={planning}>
-            {planning ? "Interrogation du runtime…" : "⏎ Commencer"}
+            {planning ? "Un instant…" : "Commencer"}
           </button>
-          <span className="mono quiet" style={{ fontSize: 11 }} data-testid="now-intent-line">
-            le runtime planifie cette étape · le LLM ne fait que remplir le contenu
-          </span>
+          <span className="mono quiet" style={{ fontSize: 11 }} aria-hidden="true">entrée</span>
         </div>
       </section>
     );
@@ -402,24 +418,14 @@ export function NowWorkbench({
             justification du runtime · {planned.rationale}
           </p>
         ) : null}
-        <div className="prose" style={{ whiteSpace: "pre-wrap", fontSize: 18 }}>
+        <div className="prose" style={{ whiteSpace: "pre-wrap" }}>
           <StreamReader text={content.text} onDone={() => setDoneReading(true)} />
         </div>
         {content.code ? <CodeBlock code={content.code} language="go" /> : null}
         <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => setPhase("evidence")}
-            disabled={!doneReading}
-          >
+          <button type="button" className="btn primary" onClick={() => setPhase("evidence")}>
             J&apos;ai terminé →
           </button>
-          {!doneReading ? (
-            <span className="mono quiet" style={{ fontSize: 11 }}>
-              dévoilement au rythme de lecture…
-            </span>
-          ) : null}
         </div>
       </section>
     );
@@ -531,28 +537,25 @@ export function NowWorkbench({
     );
   }
 
-  // ---- DELTA (in-column state delta from the refreshed /state) --------------
-  const deltaRows: { label: string; from?: number; to?: number; pct?: boolean }[] = [
-    { label: "maîtrise", from: before?.mastery, to: after?.mastery, pct: true },
-    { label: "rétention", from: before?.retention, to: after?.retention, pct: true },
-    { label: "confiance", from: before?.confidence, to: after?.confidence, pct: true },
-    { label: "stabilité", from: before?.stability, to: after?.stability },
-    { label: "répétitions", from: before?.reps, to: after?.reps },
-    { label: "oublis", from: before?.lapses, to: after?.lapses },
+  // ---- DELTA (one honest movement, then back to the prompt) -----------------
+  const deltaRows: { label: string; from?: number; to?: number }[] = [
+    { label: "maîtrise", from: before?.mastery, to: after?.mastery },
+    { label: "rétention", from: before?.retention, to: after?.retention },
   ];
   return (
-    <section className="col" style={{ gap: 18 }}>
-      <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+    <section
+      className="col"
+      style={{ gap: 28, justifyContent: "center", minHeight: "calc(100dvh - 240px)", maxWidth: "62ch" }}
+    >
+      <div className="col" style={{ gap: 14, alignItems: "flex-start" }}>
         <Mark source="runtime" />
-        <span className="mono quiet" style={{ fontSize: 11 }}>
-          écart d&apos;état · le runtime vous a réévalué
-        </span>
+        <h2 style={{ fontSize: "clamp(22px, 3vw, 28px)", fontWeight: 600, letterSpacing: "-0.02em" }}>
+          Ce qui a changé.
+        </h2>
       </div>
-      <h2 style={{ fontSize: 22 }}>Ce qui a changé pour {intent.conceptName.toLowerCase()}.</h2>
-      <div className="col" style={{ gap: 2 }}>
+      <div className="col" style={{ gap: 2, maxWidth: 380 }}>
         {deltaRows.map((r) => {
-          const fmt = (v?: number) =>
-            v === undefined ? "—" : r.pct ? fmtPct(v) : Number.isInteger(v) ? String(v) : v.toFixed(2);
+          const fmt = (v?: number) => (v === undefined ? "—" : fmtPct(v));
           const moved = r.from !== undefined && r.to !== undefined && r.from !== r.to;
           const up = (r.to ?? 0) > (r.from ?? 0);
           return (
@@ -577,22 +580,10 @@ export function NowWorkbench({
           );
         })}
       </div>
-      {after?.card_state ? (
-        <p className="soft" style={{ fontSize: 14 }}>
-          État de la carte : <span className="mono">{after.card_state}</span>
-          {misconception ? (
-            <>
-              {" "}
-              · conception erronée <span className="mono">{misconception}</span> toujours suivie — le
-              runtime maintient ce concept verrouillé tant que la correction ne tient pas.
-            </>
-          ) : null}
-        </p>
-      ) : null}
-      <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+      <div className="row" style={{ gap: 12 }}>
         <button
           type="button"
-          className="btn"
+          className="btn primary"
           onClick={() => {
             setPlanned(null);
             setDoneReading(false);
@@ -600,11 +591,8 @@ export function NowWorkbench({
             setPhase("intent");
           }}
         >
-          ↺ prochaine tentative
+          Continuer
         </button>
-        <span className="mono quiet" style={{ fontSize: 11 }}>
-          la progression relève du runtime — jamais du contenu
-        </span>
       </div>
     </section>
   );

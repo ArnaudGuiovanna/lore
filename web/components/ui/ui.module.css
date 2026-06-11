@@ -92,7 +92,7 @@
 .dtWrap {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--card);
 }
 .dt {
@@ -174,7 +174,7 @@
 .tlCard {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 16px 18px;
 }
 .tlTitle {
@@ -197,7 +197,7 @@
 .drawerScrim {
   position: absolute;
   inset: 0;
-  background: rgba(31, 33, 27, 0.34);
+  background: var(--scrim);
   animation: scrimIn 0.2s ease both;
 }
 .drawerPanel {
