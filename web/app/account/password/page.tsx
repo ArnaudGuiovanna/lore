@@ -16,7 +16,7 @@ export default async function AccountPasswordPage() {
     <main className="wrap" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
       <div className="reveal" style={{ width: "100%", maxWidth: 520 }}>
         <p className="kicker">{forced ? "Première connexion" : "Mon compte · sécurité"}</p>
-        <h1 style={{ fontSize: "clamp(30px,4.5vw,44px)", marginTop: 12 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 600, marginTop: 12 }}>
           {forced ? "Choisissez votre mot de passe" : "Changer de mot de passe"}
           <span style={{ color: "var(--accent)" }}>.</span>
         </h1>

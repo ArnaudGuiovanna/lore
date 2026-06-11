@@ -2,6 +2,7 @@ import Link from "next/link";
 import { seed } from "@/lib/config";
 import { getSession } from "@/lib/auth/session";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { ThemeToggle } from "./ThemeToggle";
 import type { SurfaceRole } from "./RoleSwitcher";
 import styles from "./AppBar.module.css";
 
@@ -23,7 +24,7 @@ export async function AppBar({ role }: { role: SurfaceRole }) {
     <header className={styles.bar}>
       <div className={styles.inner}>
         <Link href="/" className={styles.wordmark} aria-label="LORE home">
-          LORE.
+          lore<em>▮</em>
         </Link>
 
         <span className={styles.scope} title="Chaque appel backend est limité à ce tenant par un JWT porteur.">
@@ -40,6 +41,7 @@ export async function AppBar({ role }: { role: SurfaceRole }) {
           <span className={styles.roleName}>{ROLE_LABEL[role]}</span>
         </span>
 
+        <ThemeToggle />
         <UserMenu name={session?.name || ""} role={session?.role || ROLE_LABEL[role]} />
       </div>
     </header>

@@ -16,7 +16,7 @@ export default async function SetupPage() {
       <div className="reveal" style={{ width: "100%", maxWidth: 920, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "center" }}>
         <div>
           <p className="kicker">Première installation</p>
-          <h1 style={{ fontSize: "clamp(36px,5.5vw,58px)", marginTop: 16 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 600, marginTop: 16 }}>
             Configurez LORE<span style={{ color: "var(--accent)" }}>.</span>
           </h1>
           <p className="standfirst" style={{ marginTop: 12 }}>Créez votre organisation et votre compte administrateur</p>

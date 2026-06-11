@@ -236,19 +236,9 @@ export function TrainerConsole({
             </div>
           </Panel>
 
-          <Panel kicker="Concevoir l'apprentissage" title="L'intention, pas les artefacts">
-            <p className="prose" style={{ fontSize: 18, marginBottom: 14 }}>
-              Vous ne construisez pas de cours. Vous concevez l&apos;apprentissage : un <strong>syllabus</strong>
-              d&apos;intention — titre, description, objectifs, acquis mesurables. Pas de constructeur de cours,
-              pas d&apos;import de ressources, pas d&apos;ordonnancement manuel.
-            </p>
-            <div className={t.frameNeg}>
-              <span className={t.negChip}><s>construire des cours</s></span>
-              <span className={t.negChip}><s>importer des ressources</s></span>
-              <span className={t.negChip}><s>ordonner les activités</s></span>
-              <span className={t.negChip}><s>modifier la maîtrise</s></span>
-            </div>
-          </Panel>
+          <p className="mono quiet" style={{ fontSize: 11, margin: 0 }}>
+            syllabus d&apos;intention → le runtime planifie · pas de cours, pas d&apos;import, pas d&apos;ordonnancement manuel
+          </p>
         </div>
       ) : null}
 

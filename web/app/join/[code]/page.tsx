@@ -27,7 +27,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
     <main className="wrap" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
       <div className="reveal" style={{ width: "100%", maxWidth: 560 }}>
         <p className="kicker">Auto-inscription · lien d&apos;invitation</p>
-        <h1 style={{ fontSize: "clamp(32px,5vw,48px)", marginTop: 12 }} data-testid="join-title">
+        <h1 style={{ fontSize: 22, fontWeight: 600, marginTop: 12 }} data-testid="join-title">
           Rejoindre la formation
         </h1>
 

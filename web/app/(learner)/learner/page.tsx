@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { loadTenantContext } from "@/lib/tenant-context";
 import {
   activeLearner,
@@ -9,7 +8,6 @@ import {
   loadStates,
 } from "@/components/learner/data";
 import { LearnerError, LearnerEmpty } from "@/components/learner/LearnerStatus";
-import { BOUND_SYLLABUS_TITLE } from "@/components/learner/lineage";
 import { NowWorkbench, type NowIntent } from "@/components/learner/NowWorkbench";
 import { AnnouncementsStrip } from "@/components/learner/AnnouncementsStrip";
 
@@ -71,57 +69,37 @@ export default async function NowScreen() {
   const graph = await getDomainGraph(domainId);
   const name = conceptName(graph.concepts, focus.concept_id);
   const misconception = latestMisconception(snapshots, focus.concept_id);
-  const syllabusTitle = ctx.primarySyllabus?.title || BOUND_SYLLABUS_TITLE;
 
-  const rationaleParts = [
-    `La rétention est de ${(focus.retention * 100).toFixed(0)} %`,
-    focus.lapses > 0 ? `${focus.lapses} oubli${focus.lapses > 1 ? "s" : ""} enregistré${focus.lapses > 1 ? "s" : ""}` : null,
-    focus.card_state ? `la carte est ${focus.card_state}` : null,
-    misconception ? `une conception erronée active (${misconception}) bloque la progression` : null,
-  ].filter(Boolean);
+  // The runtime's decision, composed server-side as ONE human sentence.
+  // Neutral by default; corrective tone only when something was actually missed.
+  const corrective = Boolean(misconception) || focus.lapses > 0;
+  const sentence = `${corrective ? "Reprendre" : "Aujourd'hui :"} ${name.toLowerCase()}.`;
+  const rationale = misconception
+    ? "Une difficulté repérée lors de votre dernière tentative bloque encore ce point — on le reprend ensemble."
+    : focus.lapses > 0
+      ? "Vous l'aviez oublié récemment — on le consolide avant d'avancer."
+      : "C'est la prochaine étape de votre parcours.";
 
   const intent: NowIntent = {
     conceptId: focus.concept_id,
     conceptName: name,
     activityType: misconception ? "DEBUG_MISCONCEPTION" : "GUIDED_PRACTICE",
-    rationale: `${rationaleParts.join(" · ")}. Le runtime vous maintient ici pour corriger cela avant d'avancer.`,
+    sentence,
+    rationale,
     difficultyTarget: focus.difficulty / 10,
     misconception,
   };
 
   return (
     <div className="col" style={{ gap: 24 }}>
-      {/* B-18 : les 3 annonces les plus récentes du périmètre, en tête. */}
-      <AnnouncementsStrip />
-      <div
-        className="spread"
-        style={{
-          flexWrap: "wrap",
-          gap: 10,
-          padding: "10px 14px",
-          border: "1px solid var(--line)",
-          borderRadius: 999,
-        }}
-      >
-        <span className="mono quiet" style={{ fontSize: 11 }} data-testid="now-syllabus-line">
-          issu du syllabus de votre groupe · {syllabusTitle}
-        </span>
-        <Link
-          href="/learner/provenance"
-          className="mono"
-          style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}
-          data-testid="why-this-path"
-        >
-          › pourquoi ce parcours ?
-        </Link>
-      </div>
-
       <NowWorkbench
         learnerId={learner.id}
         domainId={domainId}
         intent={intent}
         initialState={focus}
       />
+      {/* B-18 : les annonces existent sans pousser la décision sous le pli. */}
+      <AnnouncementsStrip />
     </div>
   );
 }

@@ -21,14 +21,15 @@
 
 /* Wordmark */
 .wordmark {
-  font-family: var(--display);
-  font-size: 19px;
-  font-weight: 460;
-  letter-spacing: -0.01em;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: var(--ink);
   text-decoration: none;
   white-space: nowrap;
 }
+.wordmark em { color: var(--accent); font-style: normal; }
 .wordmark:hover { color: var(--accent); }
 
 /* Tenant scope chip — always visible */
@@ -41,7 +42,7 @@
   color: var(--muted);
   border: 1px solid var(--line-2);
   background: var(--card);
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 4px 11px;
   white-space: nowrap;
 }
@@ -84,7 +85,7 @@
 .seg {
   display: inline-flex;
   border: 1px solid var(--line-2);
-  border-radius: 999px;
+  border-radius: 4px;
   overflow: hidden;
   background: var(--card);
 }

@@ -50,10 +50,9 @@ test.describe("Learner loop — runtime intent + provenance", () => {
   });
 
   test("the Now surface shows the runtime-decided intent", async ({ page }) => {
-    // The runtime owns progression; the intent line states that plainly (FR:
-    // "le runtime planifie cette étape"). Asserted via a stable test id.
-    await expect(page.getByTestId("now-intent-line")).toBeVisible();
-    await expect(page.getByTestId("now-intent-line")).toContainText(/le runtime planifie cette étape/i);
+    // The runtime's decision is ONE human sentence (INVITE shell), marked with
+    // the runtime provenance mark — never narrated. Asserted via a stable test id.
+    await expect(page.getByTestId("now-intent")).toBeVisible();
     // The begin affordance into the loop is present (FR: "Commencer").
     await expect(page.getByRole("button", { name: /commencer/i })).toBeVisible();
   });

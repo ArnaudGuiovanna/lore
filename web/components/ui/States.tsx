@@ -26,13 +26,24 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <section className="panel col" style={{ gap: 10 }}>
+    <section
+      className="col"
+      style={{
+        gap: 10,
+        alignItems: "center",
+        textAlign: "center",
+        padding: "40px 24px",
+        border: "1px dashed var(--line-2)",
+        borderRadius: 8,
+        background: "transparent",
+      }}
+    >
       {kicker ? <span className="kicker">{kicker}</span> : null}
-      <p className="soft" style={{ maxWidth: "58ch", fontSize: 15, lineHeight: 1.6 }}>
+      <p className="soft" style={{ maxWidth: "48ch", fontSize: 13.5, lineHeight: 1.6, margin: 0 }}>
         {children}
       </p>
       {action ? (
-        <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+        <div className="row" style={{ gap: 12, flexWrap: "wrap", justifyContent: "center", marginTop: 4 }}>
           {action}
         </div>
       ) : null}
